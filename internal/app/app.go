@@ -51,6 +51,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/mediatool"
 	"github.com/nicolasacchi/metamusic/internal/muses"
 	"github.com/nicolasacchi/metamusic/internal/nextactions"
+	"github.com/nicolasacchi/metamusic/internal/nightshift"
 	"github.com/nicolasacchi/metamusic/internal/notify"
 	"github.com/nicolasacchi/metamusic/internal/oidc"
 	"github.com/nicolasacchi/metamusic/internal/picks"
@@ -195,6 +196,8 @@ type Services struct {
 	Callbacks *callbacks.Service
 	Attention *attention.Service
 	Voice     *voice.Service
+	// NightShift is the M6N night runner (nil when the spend path is not built); its Daily loop is in Loops, and its operations (M6N-N3) are served from it.
+	NightShift *nightshift.Runner
 
 	// ClipsMissing and TierAMissing are non-nil when ffmpeg lacks the capabilities (C51.7); the
 	// clip-dependent operations then answer 503 and Tier A reports TOOL_MISSING.

@@ -70,3 +70,5 @@ internal/attention      90
 internal/voice          81
 internal/anchor         91
 # END M5-INTB
+# M6N-N2: the night runner. Unit coverage measured 92.6 (go test, no -short); the plan's floor is 90 (C389.4).
+internal/nightshift     90
