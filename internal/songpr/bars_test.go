@@ -200,3 +200,23 @@ func TestCompile_ReplaceBars_OutsideUntouched(t *testing.T) {
 		t.Errorf("bounds = %+v", got.Scope.Bounds)
 	}
 }
+
+func TestToOps_ReplaceBarsMissingRangeIsInvalid(t *testing.T) {
+	v := "1"
+	a := "g8"
+	zero := 0
+	for name, o := range map[string]OpJSON{
+		"both omitted": {Op: OpReplaceBars, Voice: &v, ABC: &a},
+		"to omitted":   {Op: OpReplaceBars, Voice: &v, ABC: &a, BarFrom: &zero},
+		"from omitted": {Op: OpReplaceBars, Voice: &v, ABC: &a, BarTo: &zero},
+	} {
+		got := toOps([]OpJSON{o})[0]
+		if got.BarFrom >= 0 && got.BarTo >= got.BarFrom {
+			t.Errorf("%s: range %d..%d would pass the bad_range check", name, got.BarFrom, got.BarTo)
+		}
+	}
+	got := toOps([]OpJSON{{Op: OpReplaceBars, Voice: &v, ABC: &a, BarFrom: &zero, BarTo: &zero}})[0]
+	if got.BarFrom != 0 || got.BarTo != 0 {
+		t.Errorf("explicit 0..0 changed: %d..%d", got.BarFrom, got.BarTo)
+	}
+}

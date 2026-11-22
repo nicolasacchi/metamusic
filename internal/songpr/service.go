@@ -255,7 +255,7 @@ func compileProblem(ce *CompileError, baseTrack string) error {
 func toOps(in []OpJSON) []Op {
 	out := make([]Op, len(in))
 	for i, o := range in {
-		op := Op{Op: o.Op, SectionIdx: -1, LineIdx: -1}
+		op := Op{Op: o.Op, SectionIdx: -1, LineIdx: -1, BarFrom: -1, BarTo: -1} // -1: an omitted bar index must fail bad_range, not read as bar 0
 		if o.SectionIdx != nil {
 			op.SectionIdx = *o.SectionIdx
 		}
