@@ -59,6 +59,7 @@
 ./internal/archivetest 18
 ./internal/voice 18
 ./internal/httpserver 16
+./internal/desk 16
 ./internal/analysis/spectro 15
 ./internal/provider/runpod/pods 15
 ./internal/connectors 14
