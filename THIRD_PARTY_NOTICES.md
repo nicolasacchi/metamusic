@@ -34,3 +34,9 @@ with the upstream copyright line verbatim, is `third_party/soundfonts/FluidR3_GM
 The app image installs the unmodified Alpine `fluidsynth` package (LGPL-2.1-or-later). It runs as a separate process started by the
 score renderer; it is not linked into the metamusic binary. Its source is available from the Alpine package sources and from
 https://www.fluidsynth.org/.
+
+## abcjs (web bundle)
+
+The web app bundles `abcjs` 6.7.3 (MIT, copyright 2009-2026 Paul Rosen and Gregory Dyke, no dependencies), pinned exactly in
+`web/package.json` and `web/bun.lock`. It draws the notation of the Desk pages and is loaded on demand by those pages only; its
+synthesizer is never used. The licence text ships in the package (`web/node_modules/abcjs/LICENSE.md`).

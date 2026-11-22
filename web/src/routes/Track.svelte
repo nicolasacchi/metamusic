@@ -37,6 +37,7 @@
   import ProvenancePanel from "../lib/components/ProvenancePanel.svelte";
   import TransformProvenance from "../lib/components/TransformProvenance.svelte";
   import TransformPanel from "../lib/components/TransformPanel.svelte";
+  import OpenInDesk from "../lib/components/OpenInDesk.svelte"; // DESK-W1
   import TrackEngineActions from "../lib/components/TrackEngineActions.svelte"; // E2-W1b
   import TrackStems from "../lib/components/TrackStems.svelte"; // E2-W5
   import TrackLrc from "../lib/components/TrackLrc.svelte"; // E2-W5
@@ -341,6 +342,9 @@
         {/if}
         {#if track.recipe_known && !track.lossy && showsPanel(me, "transforms")}
           <TransformPanel trackId={id} hasScore={track.score !== null} />
+        {/if}
+        {#if track.score !== null && track.recipe_known && !track.lossy && me?.allowed?.includes("create_plan_from_take")}
+          <OpenInDesk trackId={id} go={(to) => (navigate ?? defaultNavigate)(to)} />
         {/if}
         <!-- E2-W1b: engine actions (Repaint, Reference, A/B for a repaint child) -->
         {#if canGenerate(me, track)}
