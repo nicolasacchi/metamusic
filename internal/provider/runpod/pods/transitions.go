@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-// Pod states (C394). The legal moves are the rows of the pod_transitions table (migration 0026_pods.sql); Transitions is the Go
+// Pod states (C394). The legal moves are the rows of the pod_transitions table (migration 0028_pods.sql); Transitions is the Go
 // mirror and TestPodTransitions_GoEqualsSQL pins the two together. Only the lifecycle loop moves a pod (single writer, D-M3-3).
 const (
 	StateIntent      = "intent"

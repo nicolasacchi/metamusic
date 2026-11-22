@@ -10,10 +10,10 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
-// podsMigration is the position of 0026_pods.sql (BULK-P3, C394); renumber here and rename the file if main moved.
+// podsMigration is the position of 0028_pods.sql (BULK-P3, C394); renumber here and rename the file if main moved.
 const (
-	podsMigration     = 26
-	podsMigrationFile = "0026_pods.sql"
+	podsMigration     = 28
+	podsMigrationFile = "0028_pods.sql"
 )
 
 var podTableNames = []string{"pod_transitions", "pods", "pod_assignments", "pod_events", "pod_safety_log"}

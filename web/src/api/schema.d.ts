@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/api/abc/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check an ABC score
+         * @description Parses a score text and reports what the Desk shows about it, without storing anything: syntax errors with line and column, warnings, header (meter, unit, tempo, key), voices, sections, bar count, whether the score is timed and its seconds per bar and duration, event and chord counts, the bars that read differently under the standard accidental rule, and a display text. With base_abc it also lists how the text breaks the structure of the base (voices, bar counts, bar lengths, header, sections). The dialect is yue2 unless given.
+         */
+        post: operations["check_abc"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/atlas": {
         parameters: {
             query?: never;
@@ -1380,6 +1400,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Desk plans
+         * @description Candidate scores on the Composer's Desk, newest first: a take's own score (source take), bar edits of another plan (source edit) and the seeds of a plan job (source job). A plan is a score text with a seed, a cot and the request it belongs to; it is not a take. Filter by job, batch, the take it was made for, source, your verdict (the Owner's for a person, the critic's for an agent) and whether a take was rendered from it. Pages of up to 100: follow next_cursor.
+         */
+        get: operations["list_plans"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a Desk plan
+         * @description One plan with its score: header facts, voices, sections with their bar ranges and seconds, the edit that made it, the plans edited from it, both raters' verdicts, its auditions and the render jobs that used it. include picks abc (the score text), bars (the byte span and start second of every bar, for bar editing), display (a standard-ABC rewrite when a YuE2 score reads differently under the standard accidental rule), auditions and renders; the default is every part but bars.
+         */
+        get: operations["get_plan"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{id}/edits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Edit a plan's bars
+         * @description Applies up to 20 bar edits (replace_bars, transpose_bars, set_tempo) and stores the result as a new plan; the edited plan never changes. Voices, bar counts, headers and sections must stay as they are and each edited bar must have the meter's length (set_tempo may change the tempo). 422 PLAN_EDIT_INVALID names the rule or lists the violations; 422 PLAN_NO_CHANGE when the bytes do not change. The same result of the same plan is one plan: a repeat returns it (200 instead of 201). Needs an Idempotency-Key.
+         */
+        post: operations["edit_plan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{id}/verdict": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Like or reject a plan
+         * @description Records a verdict on a plan: liked, rejected, or null to clear it, with an optional note. A person's verdict is the Owner's; an agent's is the critic's, stored apart, and neither changes the other. Answers the plan.
+         */
+        put: operations["set_plan_verdict"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/playlists": {
         parameters: {
             query?: never;
@@ -2312,6 +2412,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tracks/{id}/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Open a take's score on the Desk
+         * @description Makes the plan of a take's own score so it can be edited and auditioned. One plan per take: a repeat returns the existing plan (200 instead of 201). 422 PLAN_SOURCE_UNSUPPORTED with reason engine, reference, lossy, transform, no_score or too_large when the take has no usable YuE2 score. Needs an Idempotency-Key.
+         */
+        post: operations["create_plan_from_take"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tracks/{id}/rating": {
         parameters: {
             query?: never;
@@ -3077,7 +3197,7 @@ export interface components {
             reasons: string[];
             /** @enum {string} */
             state: "pending" | "approved" | "rejected" | "expired" | "auto";
-            /** @description auto, human_create, web or expiry; null while pending */
+            /** @description auto, human_create, web, mandate or expiry; null while pending */
             via: string | null;
         };
         AssignMuseSongsInBody: {
@@ -3826,6 +3946,17 @@ export interface components {
                 id: string;
                 title: string;
             } | null;
+        };
+        CheckABCInBody: {
+            /** @description The score text to check (at most 64 KiB) */
+            abc: string;
+            /** @description A score to compare with: the report then lists the structural violations of an edit */
+            base_abc?: string;
+            /**
+             * @description Default yue2
+             * @enum {string}
+             */
+            dialect?: "yue2" | "standard";
         };
         ClipLink: {
             /**
@@ -4883,6 +5014,12 @@ export interface components {
             /** Format: double */
             to_s?: number;
             tracks?: ("backing_vocals" | "bass" | "brass" | "drums" | "fx" | "guitar" | "keyboard" | "percussion" | "strings" | "synth" | "vocals" | "woodwinds")[];
+        };
+        EditPlanInBody: {
+            /** @description replace_bars, transpose_bars or set_tempo, applied in order; bars are 0-based and inclusive */
+            ops: components["schemas"]["ScoreEditOp"][] | null;
+            /** @description Why, in a sentence */
+            rationale?: string;
         };
         EditRecordSlotsInBody: {
             ops: components["schemas"]["SlotOp"][] | null;
@@ -6926,6 +7063,188 @@ export interface components {
             /** @description Server version */
             version: string;
         };
+        Plan: {
+            abc?: string;
+            auditions?: components["schemas"]["PlanAudition"][];
+            bar_spans?: components["schemas"]["PlanBarSpan"][] | null;
+            /** Format: int64 */
+            bars: number;
+            base: components["schemas"]["PlanBase"];
+            batch_id: string | null;
+            children: components["schemas"]["PlanChild"][] | null;
+            /** @enum {string} */
+            cot: "full" | "melody";
+            created_at: string;
+            created_by: components["schemas"]["PrincipalRef"];
+            /** @enum {string|null} */
+            critic_verdict: "liked" | "rejected" | null;
+            display?: components["schemas"]["PlanDisplay"];
+            edit: components["schemas"]["PlanEdit"];
+            /** Format: int64 */
+            expected_audio_s: number;
+            id: string;
+            job_id: string | null;
+            meter: string;
+            parent_plan_id: string | null;
+            q: string | null;
+            /**
+             * Format: int64
+             * @description Render jobs of this plan that produced a take
+             */
+            rendered: number;
+            renders?: components["schemas"]["PlanRender"][];
+            score: components["schemas"]["PlanScore"];
+            /** Format: double */
+            seconds_per_bar: number | null;
+            sections: components["schemas"]["PlanSection"][] | null;
+            /** Format: int64 */
+            seed: number;
+            /** Format: int64 */
+            seed_index: number | null;
+            /** @enum {string} */
+            source: "job" | "take" | "edit";
+            title: string;
+            track_id: string | null;
+            truncated: boolean | null;
+            /** @enum {string|null} */
+            verdict: "liked" | "rejected" | null;
+            verdicts: components["schemas"]["PlanVerdicts"];
+        };
+        PlanAudition: {
+            /** @enum {string} */
+            chords: "none" | "block";
+            created_at: string;
+            id: string;
+            /** Format: double */
+            seconds: number;
+            soundfont: string;
+            url: string;
+        };
+        PlanBarSpan: {
+            /** Format: int64 */
+            bar: number;
+            /** Format: int64 */
+            end: number;
+            /** Format: int64 */
+            start: number;
+            /** Format: double */
+            start_s: number | null;
+            voice: string;
+        };
+        PlanBase: {
+            draft_id: string | null;
+            title: string;
+            track_id: string | null;
+        };
+        PlanChild: {
+            created_at: string;
+            plan_id: string;
+        };
+        PlanCriticVerdict: {
+            by: components["schemas"]["PrincipalRef"];
+            decided_at: string;
+            note: string | null;
+            /** @enum {string|null} */
+            verdict: "liked" | "rejected" | null;
+        };
+        PlanDisplay: {
+            abc: string;
+            bar_spans: components["schemas"]["PlanBarSpan"][] | null;
+        };
+        PlanEdit: {
+            ops: components["schemas"]["ScoreEditOp"][] | null;
+            rationale: string | null;
+        };
+        PlanOwnerVerdict: {
+            decided_at: string;
+            note: string | null;
+            /** @enum {string|null} */
+            verdict: "liked" | "rejected" | null;
+        };
+        PlanPage: {
+            items: components["schemas"]["PlanSummary"][] | null;
+            next_cursor: string | null;
+        };
+        PlanRender: {
+            batch_id: string;
+            job_id: string;
+            /** Format: int64 */
+            seed: number;
+            state: string;
+            track_id: string | null;
+        };
+        PlanScore: {
+            /** Format: int64 */
+            abc_tokens: number | null;
+            aligned: boolean;
+            /** Format: int64 */
+            bytes: number;
+            /** @enum {string} */
+            dialect: "yue2" | "standard";
+            sha256: string;
+            voices: components["schemas"]["PlanVoice"][] | null;
+        };
+        PlanSection: {
+            /** Format: int64 */
+            bars: number;
+            /** Format: double */
+            end_s: number | null;
+            /** Format: int64 */
+            idx: number;
+            kind: string;
+            label: string;
+            /** Format: int64 */
+            start_bar: number;
+            /** Format: double */
+            start_s: number | null;
+        };
+        PlanSummary: {
+            /** Format: int64 */
+            bars: number;
+            base: components["schemas"]["PlanBase"];
+            batch_id: string | null;
+            /** @enum {string} */
+            cot: "full" | "melody";
+            created_at: string;
+            created_by: components["schemas"]["PrincipalRef"];
+            /** @enum {string|null} */
+            critic_verdict: "liked" | "rejected" | null;
+            /** Format: int64 */
+            expected_audio_s: number;
+            id: string;
+            job_id: string | null;
+            meter: string;
+            parent_plan_id: string | null;
+            q: string | null;
+            /**
+             * Format: int64
+             * @description Render jobs of this plan that produced a take
+             */
+            rendered: number;
+            /** Format: double */
+            seconds_per_bar: number | null;
+            /** Format: int64 */
+            seed: number;
+            /** Format: int64 */
+            seed_index: number | null;
+            /** @enum {string} */
+            source: "job" | "take" | "edit";
+            title: string;
+            track_id: string | null;
+            truncated: boolean | null;
+            /** @enum {string|null} */
+            verdict: "liked" | "rejected" | null;
+        };
+        PlanVerdicts: {
+            critic: components["schemas"]["PlanCriticVerdict"];
+            owner: components["schemas"]["PlanOwnerVerdict"];
+        };
+        PlanVoice: {
+            /** Format: int64 */
+            bars: number;
+            id: string;
+            name: string | null;
+        };
         Playlist: {
             created_at: string;
             /** @description Principal key; masked for agents */
@@ -7598,6 +7917,19 @@ export interface components {
             /** @enum {string} */
             state: "insufficient" | "unknown" | "trusted" | "contrary";
         };
+        ScoreEditOp: {
+            abc?: string;
+            /** Format: int64 */
+            bar_from?: number;
+            /** Format: int64 */
+            bar_to?: number;
+            /** Format: int64 */
+            bpm?: number;
+            op: string;
+            /** Format: int64 */
+            semitones?: number;
+            voice?: string;
+        };
         ScoreRenderParams: {
             /** Format: double */
             bpm?: number | null;
@@ -7616,9 +7948,74 @@ export interface components {
             /** Format: double */
             tail_s?: number | null;
         };
+        ScoreReport: {
+            /** Format: int64 */
+            bars: number;
+            /** Format: int64 */
+            chords: number;
+            dialect: string;
+            display_abc: string | null;
+            /** Format: int64 */
+            divergent_bars: number;
+            /** Format: double */
+            duration_s: number | null;
+            errors: components["schemas"]["ScoreReportError"][] | null;
+            /** Format: int64 */
+            events: number;
+            header: components["schemas"]["ScoreReportHeader"];
+            ok: boolean;
+            /** Format: double */
+            seconds_per_bar: number | null;
+            sections: components["schemas"]["ScoreReportSection"][] | null;
+            timed: boolean;
+            violations: components["schemas"]["ScoreViolation"][] | null;
+            voices: components["schemas"]["ScoreReportVoice"][] | null;
+            warnings: components["schemas"]["ScoreWarning"][] | null;
+        };
+        ScoreReportError: {
+            /** Format: int64 */
+            col: number;
+            /** Format: int64 */
+            line: number;
+            rule: string;
+        };
+        ScoreReportHeader: {
+            /** Format: double */
+            bpm: number | null;
+            key: string;
+            meter: string;
+            q: string;
+            unit: string;
+        };
+        ScoreReportSection: {
+            /** Format: int64 */
+            bars: number;
+            kind: string;
+            label: string;
+            /** Format: int64 */
+            start_bar: number;
+        };
+        ScoreReportVoice: {
+            /** Format: int64 */
+            bars: number;
+            id: string;
+            name: string;
+        };
         ScoreSource: {
             abc?: string | null;
             from_track_id?: string | null;
+        };
+        ScoreViolation: {
+            /** Format: int64 */
+            bar: number;
+            code: string;
+            msg: string;
+            voice?: string;
+        };
+        ScoreWarning: {
+            code: string;
+            /** Format: int64 */
+            line: number;
         };
         Scores: {
             duels: components["schemas"]["Score"];
@@ -7771,6 +8168,11 @@ export interface components {
         SetDictionMarksInBody: {
             /** @description Marks on lyric lines; a person's marks override the recogniser, an agent's are kept apart */
             marks: components["schemas"]["MarkIn"][] | null;
+        };
+        SetPlanVerdictInBody: {
+            note?: string;
+            /** @description liked, rejected, or null to clear your verdict */
+            verdict: string | null;
         };
         SetSpendCapsInBody: {
             /** Format: int64 */
@@ -9826,6 +10228,39 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    check_abc: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckABCInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScoreReport"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     get_song_atlas: {
         parameters: {
             query?: {
@@ -12475,6 +12910,161 @@ export interface operations {
             };
         };
     };
+    list_plans: {
+        parameters: {
+            query?: {
+                /** @description Only the plans of this plan job */
+                job_id?: string;
+                /** @description Only the plans of this batch */
+                batch_id?: string;
+                /** @description Only the plans made for this take (its own plan and every edit of it) */
+                base_track_id?: string;
+                /** @description job: a plan job's seed; take: a take's own score; edit: bar edits of another plan */
+                source?: "job" | "take" | "edit";
+                /** @description By your own verdict: the Owner's for a person, the critic's for an agent */
+                verdict?: "liked" | "rejected" | "none";
+                /** @description true: only plans with a take rendered from them; false: only the others */
+                rendered?: boolean;
+                /** @description Default 50 */
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanPage"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_plan: {
+        parameters: {
+            query?: {
+                /** @description Comma list of abc, bars, display, auditions, renders. Default: abc,display,auditions,renders */
+                include?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Plan id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Plan"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    edit_plan: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen key; a retry with the same key and body replays the first response (24 h). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                /** @description Plan id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditPlanInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Plan"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    set_plan_verdict: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Plan id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetPlanVerdictInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Plan"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_playlists: {
         parameters: {
             query?: {
@@ -14379,6 +14969,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PeaksLevel"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_plan_from_take: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen key; a retry with the same key and body replays the first response (24 h). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                /** @description Take id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Plan"];
                 };
             };
             /** @description Error */

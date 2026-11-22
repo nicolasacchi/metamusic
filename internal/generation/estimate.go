@@ -84,8 +84,16 @@ func principalKind(p auth.Principal) string {
 // Estimate expands items into takes, costs them and stores the frozen estimate (C71, C72.1, C72.2). It
 // reads only local state: zero backend calls.
 func (s *Service) Estimate(ctx context.Context, p auth.Principal, in EstimateIn) (Estimate, error) {
+	return s.estimate(ctx, p, in, false)
+}
+
+// estimate is the one body behind Estimate and Preview; a preview stops before the token, the row and anything else it would write.
+func (s *Service) estimate(ctx context.Context, p auth.Principal, in EstimateIn, preview bool) (Estimate, error) {
 	if err := s.ready(); err != nil {
 		return Estimate{}, err
+	}
+	if in.MandateID != "" && s.mandates == nil {
+		return Estimate{}, mandatesUnavailable()
 	}
 	if err := s.ingestReady(); err != nil {
 		return Estimate{}, err
@@ -107,7 +115,7 @@ func (s *Service) Estimate(ctx context.Context, p auth.Principal, in EstimateIn)
 		return Estimate{}, tooLarge(0, len(in.Items))
 	}
 	via := in.Via
-	if via == "" || (via == spend.ViaHumanCreate && !p.IsOwner()) { // C310.1: only the Owner has the human path
+	if via == "" || (via == spend.ViaHumanCreate && !p.IsOwner()) || in.MandateID != "" { // C310.1: only the Owner has the human path; a mandate batch is always api
 		via = spend.ViaAPI
 	}
 	// song_pr items name their base through the stored patch: resolve it first so the batch engine derives from that base like
@@ -229,10 +237,19 @@ func (s *Service) Estimate(ctx context.Context, p auth.Principal, in EstimateIn)
 	daily := spend.PrincipalDaily(p, tok, caps)
 	fit := budgetFit(u, caps, daily, bq.CeilingMicro, bq.MaxMicro)
 	need := spend.NeedsApproval(p, via, len(pl.takes), bq.CeilingMicro, tok, caps)
-
-	token, err := s.o.Spend.NewToken()
+	cover, err := s.coverEstimate(ctx, p, in, name, pl.takes, bq.CeilingMicro, preview) // caps were evaluated first: a mandate never raises one
 	if err != nil {
 		return Estimate{}, err
+	}
+	if cover != nil && cover.Covered {
+		need = mandateNeed(in.MandateID)
+	}
+
+	var token string
+	if !preview {
+		if token, err = s.o.Spend.NewToken(); err != nil {
+			return Estimate{}, err
+		}
 	}
 	est := Estimate{
 		ID: s.o.NewID(), Token: token, ExpiresAt: now.Add(TokenTTL), Engine: name, Backend: st.Backend, Takes: len(pl.takes),
@@ -240,6 +257,7 @@ func (s *Service) Estimate(ctx context.Context, p auth.Principal, in EstimateIn)
 		ETAS: bq.ETAS, PricePerHour: qp.PricePPH, GPUPools: append([]string{}, pq.Pools...),
 		RequiresApproval: need.Needed, ApprovalReasons: need.Reasons, Budget: fit, BatchCap: caps.BatchMicro, Provider: st,
 		Month: pot(caps.MonthlyMicro, u.MonthSettled+u.Outstanding), Day: pot(daily, u.PrincipalDaySettled+u.PrincipalOutstanding),
+		Mandate: cover,
 	}
 	if !pq.ObservedAt.IsZero() && pq.Backend != provider.BackendFake {
 		t := pq.ObservedAt
@@ -264,7 +282,10 @@ func (s *Service) Estimate(ctx context.Context, p auth.Principal, in EstimateIn)
 		}
 		est.Items = append(est.Items, pi)
 	}
-	if err := s.storeEstimate(ctx, p, est, pl.takes, qp, pq, bq, caps); err != nil {
+	if preview {
+		return est, nil
+	}
+	if err := s.storeEstimate(ctx, p, est, pl.takes, qp, pq, bq, in.MandateID); err != nil {
 		return Estimate{}, err
 	}
 	return est, nil
@@ -290,7 +311,7 @@ func budgetFit(u spend.Usage, c spend.Caps, daily, ceiling, reserve money.MicroU
 	return f
 }
 
-func (s *Service) storeEstimate(ctx context.Context, p auth.Principal, est Estimate, takes []*planTake, qp spend.QuoteParams, pq provider.Quote, bq spend.BatchQuote, _ spend.Caps) error {
+func (s *Service) storeEstimate(ctx context.Context, p auth.Principal, est Estimate, takes []*planTake, qp spend.QuoteParams, pq provider.Quote, bq spend.BatchQuote, mandateID string) error {
 	items, err := json.Marshal(takes)
 	if err != nil {
 		return err
@@ -316,10 +337,10 @@ func (s *Service) storeEstimate(ctx context.Context, p auth.Principal, est Estim
 	}
 	_, err = s.o.Store.W.ExecContext(ctx, `INSERT INTO estimates(id, principal_id, principal_kind, engine, backend, items_json, recipe_hashes, n_takes, quote_json,
 		expected_micro_usd, max_micro_usd, retry_allowance_micro_usd, ceiling_micro_usd, price_pph_micro_usd, workers_max, idle_s,
-		requires_approval, approval_reasons, token_hash, created_at, expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		requires_approval, approval_reasons, token_hash, created_at, expires_at, mandate_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		est.ID, p.Key(), principalKind(p), est.Engine, est.Backend, string(items), string(rh), len(takes), string(qj),
 		int64(bq.ExpectedMicro), int64(bq.MaxMicro), int64(bq.RetryAllowanceMicro), int64(bq.CeilingMicro), int64(qp.PricePPH), qp.WorkersMax, qp.IdleS,
-		need, string(reasons), s.o.Spend.HashToken(est.Token), store.FormatTime(s.o.Now()), store.FormatTime(est.ExpiresAt))
+		need, string(reasons), s.o.Spend.HashToken(est.Token), store.FormatTime(s.o.Now()), store.FormatTime(est.ExpiresAt), nullStr(mandateID))
 	if err != nil {
 		return fmt.Errorf("generation: store estimate: %w", err)
 	}

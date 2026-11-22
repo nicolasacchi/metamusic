@@ -10,7 +10,7 @@ import (
 )
 
 // podsMigrationFile is the pod tables' migration (BULK-P3); renumber with the file if main moved.
-const podsMigrationFile = "0026_pods.sql"
+const podsMigrationFile = "0028_pods.sql"
 
 var podTables = []string{"pods", "pod_assignments", "pod_events", "pod_safety_log"}
 

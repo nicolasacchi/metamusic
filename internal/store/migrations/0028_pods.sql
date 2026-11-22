@@ -1,4 +1,4 @@
--- 0026_pods.sql: BULK-P3 (C394). The tables of the bulk pod backend: pod states and their legal moves, pods, the assignment of a
+-- 0028_pods.sql: BULK-P3 (C394). The tables of the bulk pod backend: pod states and their legal moves, pods, the assignment of a
 -- take to a pod, an append-only event log and the append-only safety log (probe and canary verdicts). Additive and up-only:
 -- nothing in an existing table changes, and nothing reads these tables unless the pod backend is on. No physical deletes.
 -- Beyond C394: pods.overhead_reserved_at (set once) lets the lifecycle lane reserve the pod overhead exactly once per pod
