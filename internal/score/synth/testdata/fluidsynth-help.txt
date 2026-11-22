@@ -1,0 +1,77 @@
+# fluidsynth --version
+FluidSynth runtime version 2.5.4
+Copyright (C) 2000-2026 Peter Hanappe and others.
+Distributed under the LGPL license.
+SoundFont(R) is a registered trademark of Creative Technology Ltd.
+
+FluidSynth executable version 2.5.4
+Sample type=double
+# fluidsynth --help
+FluidSynth runtime version 2.5.4
+Copyright (C) 2000-2026 Peter Hanappe and others.
+Distributed under the LGPL license.
+SoundFont(R) is a registered trademark of Creative Technology Ltd.
+
+Usage: 
+  fluidsynth [options] [soundfonts] [midifiles]
+Possible options:
+ -a, --audio-driver=[label]
+    The name of the audio driver to use.
+    Valid values: alsa, file, jack, oss, pipewire, portaudio, pulseaudio
+ -b, --bank-offset=[num]
+    A positional flag that specifies the bank-offset for any Soundfonts
+    following that flag. Can be specified multiple times.
+ -c, --audio-bufcount=[count]
+    Number of audio buffers
+ -C, --chorus
+    Turn the chorus on or off [0|1|yes|no, default = on]
+ -d, --dump
+    Dump incoming and outgoing MIDI events to stdout
+ -E, --audio-file-endian
+    Audio file endian for fast rendering or aufile driver ("help" for list)
+ -f, --load-config
+    Load command configuration file (shell commands)
+ -F, --fast-render=[file]
+    Render MIDI file to raw audio data and store in [file]
+ -g, --gain
+    Set the master gain [0 < gain < 10, default = def=0.2]
+ -G, --audio-groups
+    Defines the number of LADSPA audio nodes
+ -h, --help
+    Print out this help summary
+ -i, --no-shell
+    Don't read commands from the shell [default = yes]
+ -j, --connect-jack-outputs
+    Attempt to connect the jack outputs to the physical ports
+ -K, --midi-channels=[num]
+    The number of midi channels [default = 16]
+ -L, --audio-channels=[num]
+    The number of stereo audio channels [default = 1]
+ -m, --midi-driver=[label]
+    The name of the midi driver to use.
+    Valid values: alsa_raw, alsa_seq, jack, oss
+ -n, --no-midi-in
+    Don't create a midi driver to read MIDI input events [default = yes]
+ -o
+    Define a setting, -o name=value ("-o help" to dump current values)
+ -O, --audio-file-format
+    Audio file format for fast rendering or aufile driver ("help" for list)
+ -p, --portname=[label]
+    Set MIDI port name (alsa_seq, coremidi drivers)
+ -q, --quiet
+    Do not print welcome message or other informational output
+    (Windows only: also suppress all log messages lower than PANIC)
+ -r, --sample-rate
+    Set the sample rate
+ -R, --reverb
+    Turn the reverb on or off [0|1|yes|no, default = on]
+ -s, --server
+    Start FluidSynth as a server process
+ -T, --audio-file-type
+    Audio file type for fast rendering or aufile driver ("help" for list)
+ -v, --verbose
+    Print out verbose messages about midi events (synth.verbose=1) as well as other debug messages
+ -V, --version
+    Show version of program
+ -z, --audio-bufsize=[size]
+    Size of each audio buffer

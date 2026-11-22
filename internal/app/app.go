@@ -49,8 +49,10 @@ import (
 	mediaserve "github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/media/tagged"
 	"github.com/nicolasacchi/metamusic/internal/mediatool"
+	"github.com/nicolasacchi/metamusic/internal/morning"
 	"github.com/nicolasacchi/metamusic/internal/muses"
 	"github.com/nicolasacchi/metamusic/internal/nextactions"
+	"github.com/nicolasacchi/metamusic/internal/nightshift"
 	"github.com/nicolasacchi/metamusic/internal/notify"
 	"github.com/nicolasacchi/metamusic/internal/oidc"
 	"github.com/nicolasacchi/metamusic/internal/picks"
@@ -111,6 +113,8 @@ type Options struct {
 	L3 L3Options
 	// T1 (C216.3): test injection points of the transform service; nil-valued in production.
 	T1 T1Options
+	// M6N-C3: the Morning Crate's side builder (nil => ffmpeg and flac from the configuration, none when the media tools are missing).
+	MorningBuilder morning.SideBuilder
 	// Hooks run after the registered build hooks (seams.go); tests inject wiring here without touching the global list.
 	Hooks []BuildHook
 }
@@ -195,6 +199,8 @@ type Services struct {
 	Callbacks *callbacks.Service
 	Attention *attention.Service
 	Voice     *voice.Service
+	// NightShift is the M6N night runner (nil when the spend path is not built); its Daily loop is in Loops, and its operations (M6N-N3) are served from it.
+	NightShift *nightshift.Runner
 
 	// ClipsMissing and TierAMissing are non-nil when ffmpeg lacks the capabilities (C51.7); the
 	// clip-dependent operations then answer 503 and Tier A reports TOOL_MISSING.
@@ -322,7 +328,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		version: o.Version, now: now, newID: newID}, o.L2)
 	resolvers = append(resolvers, l2.Resolvers...)
 	wireL2Curation(st, l1.SongView, ctxb)
-	m5 := buildM5(m5Inputs{st: st, now: now, newID: newID, notifier: notifier, cfg: cfg, late: late, ctxb: ctxb})
+	m5 := buildM5(m5Inputs{st: st, lib: lib, now: now, newID: newID, notifier: notifier, cfg: cfg, late: late, ctxb: ctxb})
 	if err := late.check(); err != nil {
 		return nil, err
 	}

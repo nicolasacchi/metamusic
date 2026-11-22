@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
 	"path"
 	"path/filepath"
 	"time"
@@ -407,6 +408,14 @@ func (s *Service) renderScore(ctx context.Context, j ScoreJob, st *staged, acct 
 		return ScoreOut{}, zero, fail(ErrSynthFailed, "the synthesizer produced no usable audio")
 	}
 	frames := fi.Size() / 8 // fluidsynth writes stereo; the decode keeps it exact
+	// fluidsynth -F appends about 2 s of digital silence after the SMF end; trim it so the take is the score plus tail_s as promised and
+	// the estimate and the output_seconds limit stay honest.
+	if want := int64(math.Ceil((secs + j.TailS) * float64(rate))); want > 0 && frames > want {
+		if err := os.Truncate(filepath.Join(abs, "out.raw"), want*8); err != nil {
+			return ScoreOut{}, zero, fail(ErrTransformFailed, "the render could not be trimmed")
+		}
+		frames = want
+	}
 	if err := s.o.Data.Rename(path.Join(workRel, "out.raw"), path.Join(workRel, inFile(0))); err != nil {
 		return ScoreOut{}, zero, fail(ErrTransformFailed, "decode output could not be placed")
 	}

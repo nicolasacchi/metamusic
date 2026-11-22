@@ -216,6 +216,11 @@ func cmdLibraryVerify(ctx context.Context, args []string, getenv func(string) st
 		return fatal(err)
 	}
 	bad += nr
+	nd, err := deskVerify(ctx, st, getenv, s.out) // the Composer's Desk files and rows (C357.4)
+	if err != nil {
+		return fatal(err)
+	}
+	bad += nd
 	if err := printOrphanRaters(ctx, st, getenv, s.out); err != nil { // a warning, never counted (C301.10)
 		return fatal(err)
 	}

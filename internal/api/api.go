@@ -28,6 +28,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/crates"
 	"github.com/nicolasacchi/metamusic/internal/criticbench"
 	"github.com/nicolasacchi/metamusic/internal/curation"
+	"github.com/nicolasacchi/metamusic/internal/desk"
 	"github.com/nicolasacchi/metamusic/internal/diction"
 	"github.com/nicolasacchi/metamusic/internal/drafts"
 	"github.com/nicolasacchi/metamusic/internal/duels"
@@ -48,6 +49,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/media/cover"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/media/tagged"
+	"github.com/nicolasacchi/metamusic/internal/morning"
 	"github.com/nicolasacchi/metamusic/internal/muses"
 	"github.com/nicolasacchi/metamusic/internal/nextactions"
 	"github.com/nicolasacchi/metamusic/internal/oidc"
@@ -112,6 +114,8 @@ type Deps struct {
 	Clips *clip.Service
 	// M5b EARS-D1 (C345): the Diction Lab; nil makes its operations answer 503 UNAVAILABLE {component: diction}. Set by the build hook in internal/app/ears.go.
 	Diction *diction.Service
+	// M5b DESK-S1 (C359): the Composer's Desk; nil makes its operations answer 503 UNAVAILABLE {component: desk}. Set by the build hook in internal/app/desk.go.
+	Desk *desk.Service
 
 	// M3 (C81). Concrete services; a nil one makes the matching operations answer 503 UNAVAILABLE {component}
 	// (the component names are generation, spend, jobs, provider and lineage).
@@ -189,6 +193,10 @@ type Deps struct {
 	// internal/app/m6n_bench.go.
 	CriticBench *criticbench.Service
 
+	// M6N-C3 (C380): the Morning Crate; nil makes its operations answer 503 UNAVAILABLE {component: morning}. Set by the build hook in
+	// internal/app/m6n_morning.go.
+	Morning *morning.Service
+
 	// NewID returns a fresh identifier; nil => uuid.NewV7().String(). Tests inject a deterministic sequence.
 	NewID func() string
 }
@@ -257,6 +265,7 @@ func New(mux *http.ServeMux, d Deps) huma.API {
 	registerEarsB(a, d)
 	registerDiction(a, d)
 	registerRecoverEars(a, d)
+	registerDesk(a, d)
 	registerGenerationM3(a, d)
 	registerBudgetM3(a, d)
 	registerSongwriting(a, d)
