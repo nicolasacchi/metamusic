@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 	"unicode/utf8"
 	"uuid"
@@ -25,6 +26,8 @@ type Options struct {
 	Store *store.Store
 	Now   func() time.Time // nil => time.Now
 	NewID func() string    // nil => UUIDv7
+	// ScoreABC reads a take's score.abc (library.Service.ScoreABC); nil, or ok false, means replace_bars finds no score (C362.2).
+	ScoreABC func(ctx context.Context, trackID string) (text []byte, sha256hex string, ok bool, err error)
 }
 
 // Service stores and reads Song PRs and answers generation's PatchSource. It is the only writer of patches and patch_comments.
@@ -63,6 +66,11 @@ type OpJSON struct {
 	LineIdx    *int    `json:"line_idx,omitempty"`
 	Text       *string `json:"text,omitempty"`
 	Style      *string `json:"style,omitempty"`
+	// replace_bars (D-DESK-13)
+	Voice   *string `json:"voice,omitempty"`
+	BarFrom *int    `json:"bar_from,omitempty"`
+	BarTo   *int    `json:"bar_to,omitempty"`
+	ABC     *string `json:"abc,omitempty"`
 }
 
 // ProposeInput is propose_patch's body (C253.1).
@@ -191,6 +199,29 @@ func spotOf(chain []anchor.Timing, at *float64, label sql.NullString) *Spot {
 	return nil
 }
 
+// baseScore reads the base take's score and whether its sections line up with the lyrics (scores.aligned); a take without a
+// scores row has no score.
+func (s *Service) baseScore(ctx context.Context, x q, trackID string) (text []byte, aligned bool, err error) {
+	if s.o.ScoreABC == nil {
+		return nil, false, nil
+	}
+	var al int
+	switch err := x.QueryRowContext(ctx, `SELECT aligned FROM scores WHERE track_id = ?`, trackID).Scan(&al); {
+	case errors.Is(err, sql.ErrNoRows):
+		return nil, false, nil
+	case err != nil:
+		return nil, false, fmt.Errorf("songpr: base score row: %w", err)
+	}
+	text, _, ok, err := s.o.ScoreABC(ctx, trackID)
+	if err != nil {
+		return nil, false, fmt.Errorf("songpr: base score: %w", err)
+	}
+	if !ok {
+		return nil, false, nil
+	}
+	return text, al == 1, nil
+}
+
 func compileProblem(ce *CompileError, baseTrack string) error {
 	code := ce.Code()
 	d := map[string]any{"violations": ce.Violations}
@@ -224,7 +255,7 @@ func compileProblem(ce *CompileError, baseTrack string) error {
 func toOps(in []OpJSON) []Op {
 	out := make([]Op, len(in))
 	for i, o := range in {
-		op := Op{Op: o.Op, SectionIdx: -1, LineIdx: -1}
+		op := Op{Op: o.Op, SectionIdx: -1, LineIdx: -1, BarFrom: -1, BarTo: -1} // -1: an omitted bar index must fail bad_range, not read as bar 0
 		if o.SectionIdx != nil {
 			op.SectionIdx = *o.SectionIdx
 		}
@@ -236,6 +267,18 @@ func toOps(in []OpJSON) []Op {
 		}
 		if o.Style != nil {
 			op.Style = *o.Style
+		}
+		if o.Voice != nil {
+			op.Voice = *o.Voice
+		}
+		if o.BarFrom != nil {
+			op.BarFrom = *o.BarFrom
+		}
+		if o.BarTo != nil {
+			op.BarTo = *o.BarTo
+		}
+		if o.ABC != nil {
+			op.ABC = *o.ABC
 		}
 		out[i] = op
 	}
@@ -281,6 +324,11 @@ func (s *Service) Propose(ctx context.Context, p auth.Principal, in ProposeInput
 	if base.status == "discarded" {
 		return SongPR{}, perr(http.StatusUnprocessableEntity, CodePatchInvalid, "the base take is discarded",
 			map[string]any{"field": "base_track_id", "rule": "base_discarded", "violations": []Violation{{Code: CodePatchInvalid, Rule: "base_discarded", Field: "base_track_id"}}})
+	}
+	if ci.RecipeKnown && slices.ContainsFunc(ci.Ops, func(o Op) bool { return o.Op == OpReplaceBars }) {
+		if ci.BaseScore, ci.BaseScoreAligned, err = s.baseScore(ctx, tx, in.BaseTrackID); err != nil {
+			return SongPR{}, err
+		}
 	}
 	anc, err := lineageIDs(ctx, tx, in.BaseTrackID)
 	if err != nil {

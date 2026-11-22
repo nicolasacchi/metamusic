@@ -19,6 +19,10 @@ type Op struct {
 	LineIdx    int
 	Text       string
 	Style      string
+	// replace_bars (D-DESK-13): one voice, bars BarFrom..BarTo (0-based, inclusive) replaced by ABC, "|"-separated per bar.
+	Voice          string
+	BarFrom, BarTo int
+	ABC            string
 }
 
 // Spot is where an addressed comment sits on the base take, already mapped by the anchor leaf: a section kind and its 1-based
@@ -46,6 +50,9 @@ type CompileInput struct {
 	Ops           []Op
 	Addressed     []Addressed
 	ExtraSections []int
+	// BaseScore is the base take's score.abc (nil without one); BaseScoreAligned is scores.aligned. Only replace_bars reads them.
+	BaseScore        []byte
+	BaseScoreAligned bool
 }
 
 // Violation is one failed rule.
@@ -103,6 +110,7 @@ type StyleChange struct {
 type Diff struct {
 	Lyrics []LineChange `json:"lyrics"`
 	Style  *StyleChange `json:"style"`
+	ABC    []BarChange  `json:"abc,omitempty"` // replace_bars: one entry per op, the bars as they read before and after
 }
 
 // ScopedSection is a lyrics section the patch may touch, with the comments that put it in scope.
@@ -124,6 +132,8 @@ type Bounds struct {
 	MaxStyleTerms     int `json:"max_style_terms"`
 	BPMDelta          int `json:"bpm_delta"`
 	MaxBPMDelta       int `json:"max_bpm_delta"`
+	BarsChanged       int `json:"bars_changed,omitempty"` // distinct (voice, bar) pairs replaced; present with replace_bars
+	MaxBars           int `json:"max_bars,omitempty"`
 }
 
 // Scope is the scoped sections plus the bounds report (patches.scope_json).
@@ -136,6 +146,7 @@ type Scope struct {
 type Patch struct {
 	Style  *string `json:"style,omitempty"`
 	Lyrics *string `json:"lyrics,omitempty"`
+	ABC    *string `json:"abc,omitempty"` // the whole patched score
 }
 
 // Compiled is the result of Compile.
@@ -293,6 +304,7 @@ func Compile(in CompileInput) (Compiled, error) {
 
 	// (3) ops
 	lines := map[[2]int]string{}
+	var barOps []int
 	styleOps := 0
 	newStyle := in.Base.Style
 	for i, op := range in.Ops {
@@ -334,6 +346,8 @@ func Compile(in CompileInput) (Compiled, error) {
 			} else {
 				lines[key] = secs[op.SectionIdx].Lines[op.LineIdx] // counted, never applied
 			}
+		case OpReplaceBars:
+			barOps = append(barOps, i)
 		case OpSetStyle:
 			styleOps++
 			if styleOps > 1 {
@@ -354,9 +368,20 @@ func Compile(in CompileInput) (Compiled, error) {
 		c.add(CodePatchOutOfBounds, "too_many_lines", "ops", -1, fmt.Sprintf("%d lines", len(lines)))
 	}
 
+	// replace_bars: validated against the aligned base score and its invariants
+	var abcPatched *string
+	var abcDiff []BarChange
+	var barsChanged int
+	if len(barOps) > 0 {
+		abcPatched, abcDiff, barsChanged = c.compileBars(in, secs, scoped, barOps)
+	}
+
 	// style bounds
 	var styleChange *StyleChange
 	bounds := Bounds{MaxLines: MaxLines, MaxSections: MaxScopedSections, MaxStyleTerms: MaxStyleTermDelta, MaxBPMDelta: MaxBPMDelta, SectionsScoped: len(scoped)}
+	if len(barOps) > 0 {
+		bounds.MaxBars, bounds.BarsChanged = MaxBars, barsChanged
+	}
 	if styleOps > 0 && newStyle != in.Base.Style {
 		oldT, oldBPM := yue2.StyleTerms(in.Base.Style)
 		newT, newBPM := yue2.StyleTerms(newStyle)
@@ -408,10 +433,15 @@ func Compile(in CompileInput) (Compiled, error) {
 		out.Style = newStyle
 		bounds.LinesChanged = len(diff.Lyrics)
 		diff.Style = styleChange
-		if out.Lyrics == in.Base.Lyrics && out.Style == in.Base.Style || (len(diff.Lyrics) == 0 && styleChange == nil) {
+		if abcPatched != nil && len(abcDiff) > 0 {
+			diff.ABC = abcDiff
+			out.ABC = abcPatched
+		}
+		noABC := len(diff.ABC) == 0
+		if noABC && (out.Lyrics == in.Base.Lyrics && out.Style == in.Base.Style || (len(diff.Lyrics) == 0 && styleChange == nil)) {
 			c.add(CodePatchNoChange, "unchanged", "ops", -1, "")
 		}
-		if styleChange != nil && len(styleChange.Added) == 0 && len(styleChange.Removed) == 0 && bounds.BPMDelta == 0 && len(diff.Lyrics) == 0 {
+		if styleChange != nil && len(styleChange.Added) == 0 && len(styleChange.Removed) == 0 && bounds.BPMDelta == 0 && len(diff.Lyrics) == 0 && noABC {
 			// a reordered or re-spaced style string is no change
 			if !c.has(CodePatchNoChange) {
 				c.add(CodePatchNoChange, "unchanged", "style", -1, "")
@@ -449,6 +479,10 @@ func Compile(in CompileInput) (Compiled, error) {
 	}
 	res := Compiled{Request: out, Diff: diff, Scope: Scope{Sections: sections, Bounds: bounds}}
 	switch {
+	case len(diff.ABC) > 0 && len(diff.Lyrics) == 0 && styleChange == nil:
+		res.Operator = OperatorABCEdit
+	case len(diff.ABC) > 0:
+		res.Operator = OperatorMultiEdit
 	case len(diff.Lyrics) > 0 && styleChange != nil:
 		res.Operator = OperatorMultiEdit
 	case styleChange != nil:
@@ -463,6 +497,9 @@ func Compile(in CompileInput) (Compiled, error) {
 	if styleChange != nil {
 		s := out.Style
 		res.Patch.Style = &s
+	}
+	if len(diff.ABC) > 0 {
+		res.Patch.ABC = abcPatched
 	}
 	return res, nil
 }

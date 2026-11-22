@@ -552,6 +552,9 @@ func (p *planner) expandVariant(i int, it Item, mode, parentID string, via *stri
 		// the stored patch is the item's patch, its operator the take's, the ledger names the mode and the patch (C253.4)
 		b.song, b.spec.Operator = &row, row.Operator
 		b.patch = &lineage.Patch{Style: row.Style, Lyrics: row.Lyrics}
+		if row.ABC != nil {
+			b.patch.ABC = OptString{Set: true, Value: *row.ABC}
+		}
 		sp := lineage.ModeSongPR
 		b.via = &sp
 	}

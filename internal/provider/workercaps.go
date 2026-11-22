@@ -59,7 +59,7 @@ type WorkerContractRow struct {
 
 // IsFakeBackend reports whether a backend name is a simulated one: it has no image to bind a digest to.
 func IsFakeBackend(backend string) bool {
-	return backend == BackendFake || backend == BackendFakeACEStep
+	return backend == BackendFake || backend == BackendFakeACEStep || backend == BackendFakePod
 }
 
 const contractCols = `id, backend, image_digest, caps_json, via, attempt_id, changed_by, changed_at, reason`
