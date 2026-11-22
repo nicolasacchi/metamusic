@@ -74,7 +74,7 @@ func (s *Set) EngineOf(name string) string {
 }
 
 // Route resolves the backend name for an engine. requested may be "" (the engine's backend) or that backend's own name;
-// any other value is ErrNoBackend (no cross routing). yue2 goes to the default backend; any other engine goes to the
+// any other value is ErrNoBackend (no cross routing), except that a yue2 batch may name the pod backend when the set has it. yue2 goes to the default backend; any other engine goes to the
 // first backend that renders it.
 func (s *Set) Route(engine, requested string) (string, error) {
 	if s == nil {
@@ -98,6 +98,12 @@ func (s *Set) Route(engine, requested string) (string, error) {
 		}
 	}
 	if requested != "" && requested != name {
+		// the one cross-route: a yue2 batch may ask for the pod backend by name (C396.2); never another engine's, never an unknown one
+		if engine == EngineYuE2 && IsPodBackend(requested) {
+			if b, ok := s.by[requested]; ok && b.Engine() == EngineYuE2 {
+				return requested, nil
+			}
+		}
 		return "", ErrNoBackend
 	}
 	return name, nil

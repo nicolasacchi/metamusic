@@ -73,6 +73,9 @@ func TestBackendSet_Routing(t *testing.T) {
 	onlyY, _ := NewSet(BackendRunPod, y)
 	fakeBoth, _ := NewSet(BackendFake, bk(BackendFake, EngineYuE2), fa)
 	empty, _ := NewSet("")
+	pod := bk(BackendRunPodPod, EngineYuE2)
+	withPod, _ := NewSet(BackendRunPod, y, rp, pod)
+	fakeWithPod, _ := NewSet(BackendFake, bk(BackendFake, EngineYuE2), bk(BackendFakePod, EngineYuE2), fa)
 	rows := []struct {
 		name              string
 		set               *Set
@@ -91,6 +94,16 @@ func TestBackendSet_Routing(t *testing.T) {
 		{"unknown engine", both, "nope", "", "", true},
 		{"empty set yue2", empty, EngineYuE2, "", "", true},
 		{"nil set", nil, EngineYuE2, "", "", true},
+		// the pod backend (C396.2): reachable only by name, only for yue2, only when it is in the set
+		{"pod default stays serverless", withPod, EngineYuE2, "", BackendRunPod, false},
+		{"pod named", withPod, EngineYuE2, BackendRunPodPod, BackendRunPodPod, false},
+		{"pod named, serverless named", withPod, EngineYuE2, BackendRunPod, BackendRunPod, false},
+		{"pod absent from the set", both, EngineYuE2, BackendRunPodPod, "", true},
+		{"pod asked by ace", withPod, EngineACEStep, BackendRunPodPod, "", true},
+		{"ace default with pod in the set", withPod, EngineACEStep, "", BackendRunPodACEStep, false},
+		{"fake pod named", fakeWithPod, EngineYuE2, BackendFakePod, BackendFakePod, false},
+		{"fake pod asked of a runpod set", withPod, EngineYuE2, BackendFakePod, "", true},
+		{"a non-pod second yue2 backend is still refused", mustSet(t, BackendRunPod, y, bk("other", EngineYuE2)), EngineYuE2, "other", "", true},
 	}
 	for _, r := range rows {
 		got, err := r.set.Route(r.engine, r.requested)
@@ -141,5 +154,23 @@ func TestGateSet(t *testing.T) {
 	}
 	if _, err := NewGateSet("zz", gy); err == nil {
 		t.Error("missing default accepted")
+	}
+}
+
+func mustSet(t *testing.T, def string, bs ...Backend) *Set {
+	t.Helper()
+	s, err := NewSet(def, bs...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+func TestIsPodBackend(t *testing.T) {
+	t.Parallel()
+	for name, want := range map[string]bool{BackendRunPodPod: true, BackendFakePod: true, BackendRunPod: false, BackendFake: false, "": false} {
+		if IsPodBackend(name) != want {
+			t.Errorf("IsPodBackend(%q) != %v", name, want)
+		}
 	}
 }

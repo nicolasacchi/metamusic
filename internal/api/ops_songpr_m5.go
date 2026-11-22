@@ -14,7 +14,7 @@ func registerSongPRM5(a huma.API, d Deps) {
 	Register(a, withBody(created(huma.Operation{
 		OperationID: "propose_patch", Method: "POST", Path: "/api/patches",
 		Summary:     "Propose a Song PR",
-		Description: "Stores a bounded patch to a take (at most 8 lyric lines in at most 4 sections, or a style change of at most 3 terms and 20 BPM) that names the fix or note comments it addresses. Free; rendering goes through estimate_generation with item mode song_pr.",
+		Description: "Stores a bounded patch to a take (at most 8 lyric lines in at most 4 sections, a style change of at most 3 terms and 20 BPM, or replace_bars: at most 16 bars of an aligned score inside the scoped sections) that names the fix or note comments it addresses. Free; rendering goes through estimate_generation with item mode song_pr.",
 	}), bodySmall), Meta{Scope: auth.ScopeWrite, Cost: "free", MCP: "generic", UI: "/tracks/:id", Idempotency: "create"},
 		func(ctx context.Context, in *proposePatchIn) (*patchOut, error) {
 			if d.SongPR == nil {
@@ -23,7 +23,7 @@ func registerSongPRM5(a huma.API, d Deps) {
 			p := auth.FromContext(ctx)
 			ops := make([]songpr.OpJSON, len(in.Body.Ops))
 			for i, o := range in.Body.Ops {
-				ops[i] = songpr.OpJSON{Op: o.Op, SectionIdx: o.SectionIdx, LineIdx: o.LineIdx, Text: o.Text, Style: o.Style}
+				ops[i] = songpr.OpJSON{Op: o.Op, SectionIdx: o.SectionIdx, LineIdx: o.LineIdx, Text: o.Text, Style: o.Style, Voice: o.Voice, BarFrom: o.BarFrom, BarTo: o.BarTo, ABC: o.ABC}
 			}
 			r, err := d.SongPR.Propose(ctx, p, songpr.ProposeInput{BaseTrackID: in.Body.BaseTrackID, AddressesCommentIDs: in.Body.AddressesCommentIDs,
 				Rationale: in.Body.Rationale, Title: in.Body.Title, ExtraSections: in.Body.ExtraSections, Ops: ops})
@@ -87,9 +87,9 @@ func songPRSummaryFrom(viewer auth.Principal, x songpr.Summary) SongPRSummary {
 
 func songPRFrom(viewer auth.Principal, x songpr.SongPR) SongPR {
 	out := SongPR{SongPRSummary: songPRSummaryFrom(viewer, x.Summary), Ops: make([]PatchOp, len(x.Ops)), Diff: x.Diff, Bounds: x.Bounds,
-		Compiled: PatchCompiled{Lyrics: x.Compiled.Lyrics, Style: x.Compiled.Style}}
+		Compiled: PatchCompiled{Lyrics: x.Compiled.Lyrics, Style: x.Compiled.Style, ABC: x.Compiled.ABC}}
 	for i, o := range x.Ops {
-		out.Ops[i] = PatchOp{Op: o.Op, SectionIdx: o.SectionIdx, LineIdx: o.LineIdx, Text: o.Text, Style: o.Style}
+		out.Ops[i] = PatchOp{Op: o.Op, SectionIdx: o.SectionIdx, LineIdx: o.LineIdx, Text: o.Text, Style: o.Style, Voice: o.Voice, BarFrom: o.BarFrom, BarTo: o.BarTo, ABC: o.ABC}
 	}
 	return out
 }
