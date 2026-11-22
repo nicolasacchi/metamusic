@@ -6852,7 +6852,7 @@ export interface components {
                 max_usd: string;
                 /** Format: int64 */
                 takes: number;
-                /** @description Whether the batch carries listening checks; always false until M6N-N4 */
+                /** @description Not reported yet: M6N-N4 makes the listening checks explicit; always false until then */
                 tier_b: boolean;
             } | null;
             /** @description Decimal; the same seed and library give the same plan */

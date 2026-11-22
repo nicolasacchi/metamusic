@@ -13281,7 +13281,7 @@
                 "type": "integer"
               },
               "tier_b": {
-                "description": "Whether the batch carries listening checks; always false until M6N-N4",
+                "description": "Not reported yet: M6N-N4 makes the listening checks explicit; always false until then",
                 "type": "boolean"
               }
             },
