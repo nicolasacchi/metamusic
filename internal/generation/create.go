@@ -197,7 +197,7 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, in CreateIn, enc
 	}
 
 	// 6. insert
-	need := deskRenderNeed(p, via, spend.NeedsApproval(p, via, len(est.Items), money.MicroUSD(est.Ceiling), tok, caps), storedTakeModes(est.Items))
+	need := deskRenderNeed(p, via, spend.NeedsApproval(p, via, len(est.Items), money.MicroUSD(est.Ceiling), tok, caps), anyStoredRender(est.Items))
 	if est.MandateID != "" {
 		// all-or-nothing by design: today every NeedsApproval reason is a per-batch limit the mandate stands in for; a future
 		// reason that a mandate must not waive has to be carved out here. A mandate batch is always an api batch.

@@ -26,15 +26,8 @@ const ReasonDeskRender = "desk_render"
 // its auto-approve limits would otherwise be auto-approved, and an Editor already waits (editor_batch). The Owner's own click on the
 // human path is the approval, so that path is left alone. A mandate that covers the batch replaces the whole need afterwards
 // (mandateNeed), which is the only way a Desk render runs unattended.
-func deskRenderNeed(p auth.Principal, via string, n spend.ApprovalNeed, modes func(yield func(string) bool)) spend.ApprovalNeed {
-	has := false
-	for m := range modes {
-		if m == lineage.ModeRenderPlan {
-			has = true
-			break
-		}
-	}
-	if !has || n.Needed || (via == spend.ViaHumanCreate && !p.IsAgent() && p.IsOwnerSide()) {
+func deskRenderNeed(p auth.Principal, via string, n spend.ApprovalNeed, hasRenderPlan bool) spend.ApprovalNeed {
+	if !hasRenderPlan || n.Needed || (via == spend.ViaHumanCreate && !p.IsAgent() && p.IsOwnerSide()) {
 		return n
 	}
 	n.Needed = true
@@ -42,22 +35,10 @@ func deskRenderNeed(p auth.Principal, via string, n spend.ApprovalNeed, modes fu
 	return n
 }
 
-func planTakeModes(takes []*planTake) func(yield func(string) bool) {
-	return func(yield func(string) bool) {
-		for _, t := range takes {
-			if !yield(t.Mode) {
-				return
-			}
-		}
-	}
+func anyPlanRender(takes []*planTake) bool {
+	return slices.ContainsFunc(takes, func(t *planTake) bool { return t.Mode == lineage.ModeRenderPlan })
 }
 
-func storedTakeModes(takes []planTake) func(yield func(string) bool) {
-	return func(yield func(string) bool) {
-		for _, t := range takes {
-			if !yield(t.Mode) {
-				return
-			}
-		}
-	}
+func anyStoredRender(takes []planTake) bool {
+	return slices.ContainsFunc(takes, func(t planTake) bool { return t.Mode == lineage.ModeRenderPlan })
 }

@@ -242,7 +242,7 @@ func (s *Service) estimate(ctx context.Context, p auth.Principal, in EstimateIn,
 	}
 	daily := spend.PrincipalDaily(p, tok, caps)
 	fit := budgetFit(u, caps, daily, bq.CeilingMicro, bq.MaxMicro)
-	need := deskRenderNeed(p, via, spend.NeedsApproval(p, via, len(pl.takes), bq.CeilingMicro, tok, caps), planTakeModes(pl.takes))
+	need := deskRenderNeed(p, via, spend.NeedsApproval(p, via, len(pl.takes), bq.CeilingMicro, tok, caps), anyPlanRender(pl.takes))
 	cover, err := s.coverEstimate(ctx, p, in, name, pl.takes, bq.CeilingMicro, preview) // caps were evaluated first: a mandate never raises one
 	if err != nil {
 		return Estimate{}, err
