@@ -174,6 +174,9 @@ type Options struct {
 	// Uploads serves the worker routes /worker/v1/uploads/ and /worker/v1/attempts/ (C74); both are
 	// ClassMachine (the signed URL is the credential). nil => 404 problem NOT_FOUND.
 	Uploads *upload.Service
+	// Pods serves /worker/v1/pods/{id}/poll (C395): the pod poll handler, ClassMachine like the upload routes (the signed link is the
+	// credential). nil (the pod backend is off, always in production until the lifecycle lane wires it) => 404 problem NOT_FOUND.
+	Pods http.Handler
 	// M4a (C114). Connectors verifies OAuth access tokens on /mcp: it must be a nil interface (never a typed nil)
 	// while hosted connectors are off. PRM serves /.well-known/oauth-protected-resource/mcp (nil => 404 problem).
 	// Subsonic serves /rest/ (nil => 404 problem NOT_FOUND). The remaining fields reach api.Deps.
@@ -374,6 +377,13 @@ func New(o Options) (http.Handler, error) {
 				writeProblem(w, http.StatusNotFound, "NOT_FOUND", "no such resource")
 			})
 		}
+	}
+	if o.Pods != nil {
+		mux.Handle("/worker/v1/pods/", o.Pods)
+	} else {
+		mux.HandleFunc("/worker/v1/pods/", func(w http.ResponseWriter, r *http.Request) {
+			writeProblem(w, http.StatusNotFound, "NOT_FOUND", "no such resource")
+		})
 	}
 	if o.Media != nil {
 		mux.Handle("/media/", o.Media)

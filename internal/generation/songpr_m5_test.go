@@ -277,3 +277,28 @@ func TestEstimate_Backlog(t *testing.T) {
 		t.Errorf("no gate: %v", err)
 	}
 }
+
+// TestGeneration_SongPRCarriesABC: a patch row with a score (D-DESK-13) reaches every take's recipe patch and request, and
+// the lyrics stay the base's.
+func TestGeneration_SongPRCarriesABC(t *testing.T) {
+	t.Parallel()
+	r, svc, f := songPRRig(t)
+	score := "X:1\nM:4/4\nL:1/8\nK:C\nV:1\nc8 |\n"
+	f.row.Operator, f.row.Style, f.row.ABC = "abc_edit", nil, &score
+	e, err := estimateWith(t, svc, agent, spItem(2))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var docs []spTakeDoc
+	if err := json.Unmarshal([]byte(r.str(`SELECT items_json FROM estimates WHERE id = ?`, e.ID)), &docs); err != nil {
+		t.Fatal(err)
+	}
+	if len(docs) != 2 {
+		t.Fatalf("%d takes", len(docs))
+	}
+	for i, d := range docs {
+		if d.Operator != "abc_edit" || !strings.Contains(d.RequestJSON, `"abc":"X:1\nM:4/4`) {
+			t.Errorf("take %d = %s %s", i, d.Operator, d.RequestJSON)
+		}
+	}
+}

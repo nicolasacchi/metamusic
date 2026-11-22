@@ -15,9 +15,10 @@ import (
 type PatchRow struct {
 	ID          string
 	BaseTrackID string
-	Operator    string  // lyric_edit | style_edit | multi_edit
+	Operator    string  // lyric_edit | style_edit | multi_edit | abc_edit
 	Lyrics      *string // the compiled patch (M3 Patch fields): only the changed fields are set
 	Style       *string
+	ABC         *string  // the whole patched score (replace_bars, D-DESK-13); nil without bar edits
 	CommentIDs  []string // the comments the patch addresses, carried into items_json
 }
 

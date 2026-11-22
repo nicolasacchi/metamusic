@@ -1311,7 +1311,7 @@ export interface paths {
         put?: never;
         /**
          * Propose a Song PR
-         * @description Stores a bounded patch to a take (at most 8 lyric lines in at most 4 sections, or a style change of at most 3 terms and 20 BPM) that names the fix or note comments it addresses. Free; rendering goes through estimate_generation with item mode song_pr.
+         * @description Stores a bounded patch to a take (at most 8 lyric lines in at most 4 sections, a style change of at most 3 terms and 20 BPM, or replace_bars: at most 16 bars of an aligned score inside the scoped sections) that names the fix or note comments it addresses. Free; rendering goes through estimate_generation with item mode song_pr.
          */
         post: operations["propose_patch"];
         delete?: never;
@@ -3500,6 +3500,15 @@ export interface components {
             min_hz: number | null;
             /** Format: int64 */
             n: number;
+        };
+        BarChange: {
+            after: string;
+            /** Format: int64 */
+            bar_from: number;
+            /** Format: int64 */
+            bar_to: number;
+            before: string;
+            voice: string;
         };
         BasisCounts: {
             /** Format: int64 */
@@ -6931,9 +6940,13 @@ export interface components {
         };
         PatchBounds: {
             /** Format: int64 */
+            bars_changed?: number;
+            /** Format: int64 */
             bpm_delta: number;
             /** Format: int64 */
             lines_changed: number;
+            /** Format: int64 */
+            max_bars?: number;
             /** Format: int64 */
             max_bpm_delta: number;
             /** Format: int64 */
@@ -6964,10 +6977,13 @@ export interface components {
             worse: number;
         };
         PatchCompiled: {
+            /** @description The whole patched score (replace_bars) */
+            abc?: string;
             lyrics?: string;
             style?: string;
         };
         PatchDiff: {
+            abc?: components["schemas"]["BarChange"][] | null;
             lyrics: components["schemas"]["PatchLineChange"][] | null;
             style: components["schemas"]["PatchStyleChange"];
         };
@@ -6980,13 +6996,25 @@ export interface components {
             section_idx: number;
         };
         PatchOp: {
+            /** @description replace_bars: the new bars, one |-separated segment per bar, no comment and no field */
+            abc?: string;
+            /**
+             * Format: int64
+             * @description replace_bars: first bar, 0-based
+             */
+            bar_from?: number;
+            /**
+             * Format: int64
+             * @description replace_bars: last bar, inclusive; at most 16 bars per patch
+             */
+            bar_to?: number;
             /**
              * Format: int64
              * @description replace_line
              */
             line_idx?: number;
             /** @enum {string} */
-            op: "replace_line" | "set_style";
+            op: "replace_line" | "set_style" | "replace_bars";
             /**
              * Format: int64
              * @description replace_line
@@ -6996,6 +7024,8 @@ export interface components {
             style?: string;
             /** @description replace_line: one lyric line, no tags, no newline */
             text?: string;
+            /** @description replace_bars: the voice id of the score (one voice per op) */
+            voice?: string;
         };
         PatchPage: {
             items: components["schemas"]["SongPRSummary"][];
@@ -8491,7 +8521,7 @@ export interface components {
             diff: components["schemas"]["PatchDiff"];
             id: string;
             /** @enum {string} */
-            operator: "lyric_edit" | "style_edit" | "multi_edit";
+            operator: "lyric_edit" | "style_edit" | "multi_edit" | "abc_edit";
             ops: components["schemas"]["PatchOp"][];
             rationale: string;
             renders: components["schemas"]["PatchRender"][];
@@ -8505,7 +8535,7 @@ export interface components {
             created_at: string;
             id: string;
             /** @enum {string} */
-            operator: "lyric_edit" | "style_edit" | "multi_edit";
+            operator: "lyric_edit" | "style_edit" | "multi_edit" | "abc_edit";
             rationale: string;
             renders: components["schemas"]["PatchRender"][];
             title: string | null;
