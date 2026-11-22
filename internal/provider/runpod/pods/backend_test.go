@@ -561,7 +561,7 @@ func TestPodBackend_Quote(t *testing.T) {
 func TestImageDigest(t *testing.T) {
 	t.Parallel()
 	d := "sha256:" + strings.Repeat("c", 64)
-	for in, want := range map[string]string{"ghcr.io/example/mm-worker@" + d: d, "ghcr.io/example/mm-worker:latest": "", "": "", "x@md5:abc": ""} {
+	for in, want := range map[string]string{"ghcr.io/example/mm-worker@" + d: d, "ghcr.io/example/mm-worker:latest": "", "": "", "x@md5:abc": "", "x@sha256:": "", "x@sha256:xyz": "", "x@sha256:" + strings.Repeat("A", 64): "", "x@sha256:" + strings.Repeat("c", 63): "", "x@sha256:" + strings.Repeat("c", 65): ""} {
 		if got := pods.ImageDigest(in); got != want {
 			t.Errorf("ImageDigest(%q) = %q, want %q", in, got, want)
 		}
@@ -613,5 +613,30 @@ func TestPodBackend_ScaleToZero(t *testing.T) {
 	x.srv.Fault(podtest.OpList, podtest.Fault{Status: 403})
 	if err := x.b.ScaleToZero(bg()); !errors.Is(err, provider.ErrAccess) {
 		t.Errorf("a refused key: %v", err)
+	}
+}
+
+func TestPodBackend_FakeQuoteHasADigest(t *testing.T) {
+	t.Parallel()
+	x := newBRig(t, func(o *pods.BackendOptions) { o.Name = provider.BackendFakePod; o.Image = "" })
+	x.srv.SetPrice(gpu4090, "0.34")
+	x.srv.SetPrice("NVIDIA RTX A5000", "0.27")
+	q, err := x.b.Quote(bg())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := provider.QuoteCheck(q, rigNow, provider.GateConfig{Mode: provider.ModeRunPod}); r != "" {
+		t.Errorf("an unpinned fake pod quote must pass its gate: %q (%+v)", r, q.Endpoint)
+	}
+	// the real backend with an unpinned image fails the gate
+	y := newBRig(t, func(o *pods.BackendOptions) { o.Image = "ghcr.io/example/mm-worker:latest" })
+	y.srv.SetPrice(gpu4090, "0.34")
+	y.srv.SetPrice("NVIDIA RTX A5000", "0.27")
+	q, err = y.b.Quote(bg())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := provider.QuoteCheck(q, rigNow, provider.GateConfig{Mode: provider.ModeRunPod}); r != provider.ReasonEndpointConfig {
+		t.Errorf("unpinned real image: %q", r)
 	}
 }
