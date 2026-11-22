@@ -143,6 +143,9 @@ func (d Deps) podAlerts(ctx context.Context, b BackendStatus) []string {
 			alerts = append(alerts, c)
 		}
 	}
+	if rows.Err() != nil {
+		slog.Warn("pod status: alerts truncated")
+	}
 	return alerts
 }
 

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -83,10 +84,11 @@ func podBackends(in e2Inputs) ([]e2Extra, error) {
 	}
 	w.backend = pods.NewBackend(bo)
 	m.pods = w
-	if m.Generation != nil {
-		m.Generation.UsePods(generation.PodConfig{MinTakes: cfg.PodMinTakes, MaxTakes: cfg.PodMaxTakes, BootS: cfg.PodBootS, IdleS: cfg.PodIdleS, SlackS: cfg.PodSlackS,
-			MaxRuntimeS: int(cfg.PodMaxRuntime / time.Second), MaxRecreate: 1, GPUTypes: cfg.PodGPUTypes, RequireCanary: !w.fake})
+	if m.Generation == nil {
+		return nil, errors.New("app: the pod backend needs the generation service built first")
 	}
+	m.Generation.UsePods(generation.PodConfig{MinTakes: cfg.PodMinTakes, MaxTakes: cfg.PodMaxTakes, BootS: cfg.PodBootS, IdleS: cfg.PodIdleS, SlackS: cfg.PodSlackS,
+		MaxRuntimeS: int(cfg.PodMaxRuntime / time.Second), MaxRecreate: 1, GPUTypes: cfg.PodGPUTypes, RequireCanary: !w.fake})
 	return []e2Extra{{Backend: w.backend, KeysLoaded: w.fake || podEstimatePriced, Expect: provider.WorkerExpect{Weights: yue2.Weights},
 		GateColdStartS: cfg.PodBootS, GateMaxRuntime: cfg.PodMaxRuntime, Meter: podMeter{}}}, nil
 }
