@@ -248,7 +248,7 @@ func (p *planner) quoteTakeIn(k int, t *planTake, ears earsPlan) spend.TakeIn {
 		_, _, _, fetchS := p.s.earsTerms()
 		return spend.TakeIn{AudioS: 0, LoadS: fetchS, EarsS: earsS}
 	}
-	return spend.TakeIn{AudioS: t.ExpectedAudioS, Full: cotIsFull(t.RequestJSON), EarsS: ears.secs(k)}
+	return spend.TakeIn{AudioS: t.ExpectedAudioS, Full: planPhase(t, cotIsFull(t.RequestJSON)), EarsS: ears.secs(k)}
 }
 
 // analyzeFits refuses an analyze take whose timeout would pass the runtime cap with the listening check on top (the same rule as
