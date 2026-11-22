@@ -29,6 +29,8 @@ func TestLoadDefaults(t *testing.T) {
 		TransformEnabled: true, TransformQueueMax: 6, TransformMaxCPUS: 600, TransformMaxOutS: 900, TransformMaxMemMB: 1024,
 		TransformAgentDailyCPUS: 1800, TransformHumanDailyCPUS: 14400,
 		EarsLoadS: 40, EarsRTFMilli: 150, EarsTranscribeRTFMilli: 40, AnalyzeFetchS: 20,
+		PodMinTakes: 30, PodMaxTakes: 100, PodBootS: 1200, PodIdleS: 120, PodSlackS: 300, PodMaxRuntime: 6 * time.Hour, PodDeadman: 10 * time.Minute,
+		PodOrphanAfter: 180 * time.Second, PodWindowMax: 8 * time.Hour, PodDiskGB: 40, FallbackAfterS: 120,
 		ACEStepColdStartS: 300, ACEStepMaxRuntime: 15 * time.Minute, ACEStepTasks: []string{"turbo"}, ACEStepPools: []string{"AMPERE_24", "ADA_24"},
 	}
 	if diff := cmp.Diff(want, c, cmp.Comparer(func(a, b netip.Prefix) bool { return a == b })); diff != "" {

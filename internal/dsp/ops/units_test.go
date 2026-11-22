@@ -23,6 +23,7 @@ var d5UnitCases = []d5UnitCase{
 	{kind: KindEnsemble, in: sec30, out: sec30 + 11*48000, params: `{"space":"cathedral","wet_db":-6,"dry_db":-12,"tail_s":20}`, want: 16170596448},
 	{kind: KindMaster, in: sec30, out: sec30, params: `{}`, want: 1195200000},
 	{kind: KindWiden, in: sec30, out: sec30, params: `{}`, want: 1152000000},
+	{kind: KindScoreRender, in: sec30, out: sec30, params: `{}`, want: 1008000000}, // the identity operator: the safety stage alone
 	{kind: KindMorph, in: 2 * sec30, out: 40 * 48000, params: `{"bars":8,"beats_per_bar":4,"bpm_a":92,"bpm_b":128,"semitones_b":-3}`, want: 5931310600},
 	{kind: KindPolytempo, in: 2 * sec30, out: 60 * 48000, params: `{"beats_per_bar":4,"bpm_a":90,"bpm_b":120,"converge_bar":12,"unison_bars":8}`, want: 7575521280},
 }

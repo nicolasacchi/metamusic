@@ -65,6 +65,9 @@ type Options struct {
 	RenderWarnings func(ctx context.Context, takeID string) ([]Warning, error)
 	// SoundfontSHA12 is the first 12 hex digits of a configured soundfont's sha256 for the capabilities answer (T1b); nil omits it.
 	SoundfontSHA12 func(config.Soundfont) string
+	// Score is the T1b score renderer (the synth, the soundfont set, the score reader); nil leaves score_render unavailable
+	// (503 UNAVAILABLE, C355.2). The one edit this lane makes to this file (DESK-T2).
+	Score *ScoreSupport
 }
 
 // ToolStatus is the media tools the host has (C212.3 tools block).
