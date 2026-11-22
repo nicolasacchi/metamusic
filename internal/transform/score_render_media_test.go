@@ -85,8 +85,9 @@ func TestScoreRender_EndToEndTake(t *testing.T) {
 	if err := r.st.R.QueryRow(`SELECT duration_s, COALESCE(parent_track_id,'') FROM tracks WHERE id = ?`, id).Scan(&dur, &parent); err != nil {
 		t.Fatal(err)
 	}
-	if parent != "" || dur < 4.9 || dur > 5.3 {
-		t.Errorf("parent %q duration %.3f s, want a rootless take of about 5 s (4 s of score and a 1 s tail)", parent, dur)
+	// 4 s of score and a 1 s tail; the engine's ~2 s of trailing digital silence is trimmed, so the promise holds.
+	if parent != "" || dur < 4.99 || dur > 5.05 {
+		t.Errorf("parent %q duration %.3f s, want a rootless take of 5 s (4 s of score, a 1 s tail)", parent, dur)
 	}
 	for _, f := range []string{"score.abc", "score.mid", "transform.json"} {
 		if !r.exists("takes/"+id+"/"+f) && !r.exists("takes/"+id+"/artifacts/"+f) {

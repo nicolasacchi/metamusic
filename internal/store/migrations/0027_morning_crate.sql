@@ -1,4 +1,4 @@
--- 0026_morning_crate.sql: M6N-C3 (C382). The Morning Crate: a blind commute tape built daily from unjudged takes. Additive and
+-- 0027_morning_crate.sql: M6N-C3 (C382). The Morning Crate: a blind commute tape built daily from unjudged takes. Additive and
 -- up-only: five new tables, no existing table is touched. Rows are never deleted (the 7-day retention removes FILES and marks the
 -- side rows), and every column that decides a reveal or a mapping is set once.
 

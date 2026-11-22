@@ -641,6 +641,23 @@ The binaural kind embeds a derived head-related impulse response table from SADI
 which needs the dataset, never committed); do not regenerate it casually, because changing it changes every binaural render.
 A binaural take is for headphones; do not play it through spatial or crossfeed processing.
 
+### Score renders: fluidsynth and the soundfont (T1b)
+
+The `score_render` transform kind synthesises an ABC score on the application host with fluidsynth (a separate process; LGPL, not
+linked) and a General MIDI soundfont. The app image carries both: the Alpine `fluidsynth` package and `FluidR3_GM.sf2` (MIT, about
+148 MB, fetched at build time by exact URL and sha256 from the Debian snapshot archive, never committed) at
+`/opt/mm/soundfonts/FluidR3_GM.sf2` with its licence beside it. **The image sets no `MM_SOUNDFONTS`**: enable the kind by adding
+`MM_SOUNDFONTS=gm=/opt/mm/soundfonts/FluidR3_GM.sf2` to the deployment environment (up to 8 `name=path` entries, separated by `;`).
+`metamusic config check` prints `soundfonts: gm <sha256[:12]> <bytes>` and `fluidsynth: <version>`; without either, the kind is
+simply unavailable (a configuration state, not an error).
+
+Development: `scripts/tools.sh soundfont` (opt-in, never in CI) installs `./bin/soundfonts/FluidR3_GM.sf2` (0444) with its licence,
+sha256-verified (it needs `ar` and `xz`), and `make dev` then sets `MM_SOUNDFONTS` for you; install fluidsynth with your package
+manager (`MM_FLUIDSYNTH` overrides the binary). Changing the soundfont or the fluidsynth version changes the rendered PCM, so
+`transform verify` reports older score renders as `inconclusive`, not as corruption. The pins live in `scripts/tools.sh` and the
+`Dockerfile` and must stay equal (`TestDockerfile_SoundfontPinned`); bumping the soundfont means new pins, a new licence check and a
+new `THIRD_PARTY_NOTICES.md` entry.
+
 ## Close the loop (M5)
 
 ### Pacing guard

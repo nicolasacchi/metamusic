@@ -59,6 +59,7 @@
 ./internal/voice 18
 ./internal/httpserver 16
 ./internal/analysis/spectro 15
+./internal/nightshift 15
 ./internal/connectors 14
 ./internal/upload 14
 ./internal/media/tagged 13

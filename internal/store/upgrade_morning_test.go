@@ -10,8 +10,8 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
-// morningMigration is the position of 0026_morning_crate.sql (M6N-C3, C382); renumber here and rename the file if main moved.
-const morningMigration = 26
+// morningMigration is the position of 0027_morning_crate.sql (M6N-C3, C382); renumber here and rename the file if main moved.
+const morningMigration = 27
 
 var morningTables = []string{"morning_crate_settings", "morning_crates", "morning_crate_items", "morning_crate_sides", "morning_crate_events"}
 

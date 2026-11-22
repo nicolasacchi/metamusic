@@ -50,6 +50,13 @@ done
 case "$(FAKE_MISSING=showspectrumpic caps_missing "$fake")" in RequireTierA:*) ;; *) fail "missing showspectrumpic not attributed to RequireTierA" ;; esac
 case "$(FAKE_MISSING=atrim caps_missing "$fake")" in RequireClips:*) ;; *) fail "missing atrim not attributed to RequireClips" ;; esac
 echo "tools-selftest: capability check flags a fake ffmpeg missing RequireClips/RequireTierA items"
+# 5. (C356) the soundfont is a listed, pinned, opt-in tool: both URLs printed, never in the default set, the two pins well-formed.
+urls=$("$root/scripts/tools.sh" --print-urls)
+[ "$(grep -c '^soundfont https://' <<<"$urls")" = 2 ] || fail "tools.sh --print-urls does not list the two soundfont URLs"
+grep -q '^soundfont https://snapshot.debian.org/archive/debian/[0-9TZ]*/pool/main/f/fluid-soundfont/fluid-soundfont-gm_.*\.deb$' <<<"$urls" || fail "soundfont is not fetched from the pinned Debian snapshot"
+grep -q '^default_tools=.*\(soundfont\)' "$root/scripts/tools.sh" && fail "soundfont is in the default tool set"
+for k in soundfont-deb soundfont-sf2; do grep -Eq "^  \[$k\]=[0-9a-f]{64}\$" "$root/scripts/tools.sh" || fail "no well-formed sha256 pin for $k"; done
+echo "tools-selftest: soundfont is listed, pinned and opt-in"
 real=${TOOLS_SELFTEST_FFMPEG:-$root/bin/ffmpeg}
 if [ -x "$real" ]; then
   missing=$(caps_missing "$real")

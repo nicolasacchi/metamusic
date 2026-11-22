@@ -184,7 +184,7 @@ func TestRenderScore_Direct(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out.PCMSHA256 == "" || out.Frames != 48000*6 || out.Seconds != 6 || out.Synth.Version != fs.info.Version || len(out.SoundfontSHA256) != 64 || len(out.Report) == 0 {
+	if out.PCMSHA256 == "" || out.Frames != 48000*5 || out.Seconds != 5 || out.Synth.Version != fs.info.Version || len(out.SoundfontSHA256) != 64 || len(out.Report) == 0 {
 		t.Errorf("out %+v", out)
 	}
 	for _, f := range []string{"score.abc", "score.mid", "out.pcm24", "report.json"} {
