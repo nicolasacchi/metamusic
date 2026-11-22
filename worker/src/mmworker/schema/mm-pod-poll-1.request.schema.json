@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "mm.pod-poll/1 request: what a pod agent POSTs to its signed poll link",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["state", "agent", "boot", "attempt_id", "done"],
+  "properties": {
+    "state": {"enum": ["booting", "idle", "busy"]},
+    "agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "build"],
+      "properties": {
+        "version": {"type": "string", "minLength": 1, "maxLength": 64},
+        "build": {"type": "string", "minLength": 1, "maxLength": 64}
+      }
+    },
+    "boot": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["gpu_name", "cuda", "weights_ready", "load_s"],
+          "properties": {
+            "gpu_name": {"type": "string", "maxLength": 128},
+            "cuda": {"type": "string", "maxLength": 32},
+            "weights_ready": {"type": "boolean"},
+            "load_s": {"type": "number", "minimum": 0, "maximum": 86400}
+          }
+        }
+      ]
+    },
+    "attempt_id": {"oneOf": [{"type": "null"}, {"type": "string", "pattern": "^[0-9a-f-]{36}$"}]},
+    "done": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["attempt_id", "status", "execution_ms", "error_code"],
+          "properties": {
+            "attempt_id": {"type": "string", "pattern": "^[0-9a-f-]{36}$"},
+            "status": {"enum": ["ok", "error"]},
+            "execution_ms": {"type": "integer", "minimum": 0},
+            "error_code": {"oneOf": [{"type": "null"}, {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,63}$"}]}
+          }
+        }
+      ]
+    }
+  }
+}

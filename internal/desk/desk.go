@@ -1,7 +1,7 @@
 // Package desk is the Composer's Desk store and service (M5b C357, C358): immutable candidate scores (plans) from a take, from
 // an edit of another plan and (a later lane) from a plan job, one verdict per rater, and the files that belong to a plan. A plan
 // is never a Take and never enters the library views. The package reads the library tables and writes only the desk_* tables and
-// the plans/ tree of the data directory. It never imports api, generation, jobs, transform, library or songpr (C350.2).
+// the plans/ tree of the data directory. It never imports api, generation, jobs, library or songpr (C350.2); it uses the transform service for auditions (C358) and nothing imports it back.
 package desk
 
 import (
@@ -38,9 +38,19 @@ type Options struct {
 	Store  *store.Store
 	Data   *os.Root
 	Signer *serve.Signer // signs the playback links of auditions; nil leaves their url empty
-	Now    func() time.Time
-	NewID  func() string
-	Log    *slog.Logger
+	// Transform is the T1b pipeline an audition runs through (nil: auditions answer 503 UNAVAILABLE {component: transform}).
+	Transform Renderer
+	// DataDir is the absolute path of Data (the tools take paths); FFmpeg encodes the audition MP3.
+	DataDir string
+	FFmpeg  string
+	// Encode replaces the ffmpeg MP3 encode (tests).
+	Encode func(ctx context.Context, pcmPath, mp3Path string) error
+	// Zone is the zone of the local day of the daily limit (default UTC); AuditionsPerDay overrides AuditionsPerDay.
+	Zone            *time.Location
+	AuditionsPerDay int
+	Now             func() time.Time
+	NewID           func() string
+	Log             *slog.Logger
 }
 
 // Service is the Desk.

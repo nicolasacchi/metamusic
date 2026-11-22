@@ -201,3 +201,59 @@ func TestGate_ForeignQuoteNeverEnables(t *testing.T) {
 		t.Fatalf("own quote must enable: %+v %v", s, err)
 	}
 }
+
+// TestQuoteCheck_PodBranch: a quote whose endpoint type is POD is judged by the pod rules (fresh, one worker, a digest, a price), never by
+// the serverless queue rules; a serverless quote is judged exactly as before.
+func TestQuoteCheck_PodBranch(t *testing.T) {
+	t.Parallel()
+	pod := func(f func(q *provider.Quote)) provider.Quote {
+		q := provider.Quote{Backend: provider.BackendRunPodPod, ListPricePPH: 340000, ObservedAt: gateNow.Add(-time.Minute),
+			Endpoint: provider.EndpointConfig{Name: "runpod-pod", Type: provider.EndpointTypePod, WorkersMax: 1, GPUCount: 1,
+				ImageDigest: "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}}
+		if f != nil {
+			f(&q)
+		}
+		return q
+	}
+	cfg := provider.GateConfig{Mode: provider.ModeRunPod, ColdStartS: 0, MaxRuntime: 6 * time.Hour}
+	rows := []struct {
+		name string
+		q    provider.Quote
+		want string
+	}{
+		{"good", pod(nil), ""},
+		{"stale", pod(func(q *provider.Quote) { q.ObservedAt = gateNow.Add(-2 * time.Hour) }), provider.ReasonQuoteStale},
+		{"never observed", pod(func(q *provider.Quote) { q.ObservedAt = time.Time{} }), provider.ReasonQuoteStale},
+		{"sweep unreadable", pod(func(q *provider.Quote) { q.SweepUnreadable = true }), provider.ReasonSweepUnreadable},
+		{"two workers", pod(func(q *provider.Quote) { q.Endpoint.WorkersMax = 2 }), provider.ReasonEndpointConfig},
+		{"no workers", pod(func(q *provider.Quote) { q.Endpoint.WorkersMax = 0 }), provider.ReasonEndpointConfig},
+		{"two gpus", pod(func(q *provider.Quote) { q.Endpoint.GPUCount = 2 }), provider.ReasonEndpointConfig},
+		{"no digest", pod(func(q *provider.Quote) { q.Endpoint.ImageDigest = "" }), provider.ReasonEndpointConfig},
+		{"no price", pod(func(q *provider.Quote) { q.ListPricePPH = 0 }), provider.ReasonCatalogUnreadable},
+		{"negative price", pod(func(q *provider.Quote) { q.ListPricePPH = -1 }), provider.ReasonCatalogUnreadable},
+		{"serverless fields are not asked of a pod", pod(func(q *provider.Quote) { q.Endpoint.ScalerType, q.Endpoint.TimeoutMS = "", 1 }), ""},
+		{"serverless unchanged: good", goodQuote(gateNow.Add(-time.Minute)), ""},
+	}
+	for _, r := range rows {
+		c := cfg
+		if r.q.Endpoint.Type == "QUEUE" {
+			c = provider.GateConfig{Mode: provider.ModeRunPod, ColdStartS: 180, MaxRuntime: 15 * time.Minute}
+		}
+		if got := provider.QuoteCheck(r.q, gateNow, c); got != r.want {
+			t.Errorf("%s: %q, want %q", r.name, got, r.want)
+		}
+	}
+	// the pod gate enables from a pod quote, and fails closed without the key
+	st := openGateStore(t)
+	q := pod(nil)
+	putState(t, st, provider.BackendRunPodPod, 1, &q)
+	g := provider.NewGate(st.R, provider.GateConfig{Mode: provider.ModeRunPod, Backend: provider.BackendRunPodPod, KeysLoaded: true, MaxRuntime: 6 * time.Hour}, func() time.Time { return gateNow })
+	s, err := g.State(context.Background())
+	if err != nil || !s.Enabled || s.Backend != provider.BackendRunPodPod {
+		t.Fatalf("pod gate: %+v, %v", s, err)
+	}
+	g = provider.NewGate(st.R, provider.GateConfig{Mode: provider.ModeRunPod, Backend: provider.BackendRunPodPod, KeysLoaded: false}, func() time.Time { return gateNow })
+	if s, _ := g.State(context.Background()); s.Enabled || s.Reason != provider.ReasonKeysAbsent {
+		t.Errorf("without the key: %+v", s)
+	}
+}

@@ -1517,6 +1517,36 @@
         ],
         "type": "object"
       },
+      "BarChange": {
+        "additionalProperties": false,
+        "properties": {
+          "after": {
+            "type": "string"
+          },
+          "bar_from": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "bar_to": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "before": {
+            "type": "string"
+          },
+          "voice": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "voice",
+          "bar_from",
+          "bar_to",
+          "before",
+          "after"
+        ],
+        "type": "object"
+      },
       "BasisCounts": {
         "additionalProperties": false,
         "properties": {
@@ -4737,6 +4767,38 @@
         "required": [
           "name"
         ],
+        "type": "object"
+      },
+      "CreatePlanAuditionInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "chords": {
+            "description": "How chord symbols sound; default block",
+            "enum": [
+              "none",
+              "block"
+            ],
+            "type": "string"
+          },
+          "gain": {
+            "description": "Synth gain; default 0.6",
+            "format": "double",
+            "maximum": 1.5,
+            "minimum": 0.1,
+            "type": "number"
+          },
+          "soundfont": {
+            "description": "A configured soundfont name; default the first",
+            "type": "string"
+          },
+          "tail_s": {
+            "description": "Seconds of tail after the last note; default 3",
+            "format": "double",
+            "maximum": 10,
+            "minimum": 0,
+            "type": "number"
+          }
+        },
         "type": "object"
       },
       "CreatePlaylistInBody": {
@@ -13636,11 +13698,19 @@
       "PatchBounds": {
         "additionalProperties": false,
         "properties": {
+          "bars_changed": {
+            "format": "int64",
+            "type": "integer"
+          },
           "bpm_delta": {
             "format": "int64",
             "type": "integer"
           },
           "lines_changed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_bars": {
             "format": "int64",
             "type": "integer"
           },
@@ -13727,6 +13797,10 @@
       "PatchCompiled": {
         "additionalProperties": false,
         "properties": {
+          "abc": {
+            "description": "The whole patched score (replace_bars)",
+            "type": "string"
+          },
           "lyrics": {
             "type": "string"
           },
@@ -13739,6 +13813,15 @@
       "PatchDiff": {
         "additionalProperties": false,
         "properties": {
+          "abc": {
+            "items": {
+              "$ref": "#/components/schemas/BarChange"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "lyrics": {
             "items": {
               "$ref": "#/components/schemas/PatchLineChange"
@@ -13787,6 +13870,26 @@
       "PatchOp": {
         "additionalProperties": false,
         "properties": {
+          "abc": {
+            "description": "replace_bars: the new bars, one |-separated segment per bar, no comment and no field",
+            "maxLength": 4000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "bar_from": {
+            "description": "replace_bars: first bar, 0-based",
+            "format": "int64",
+            "maximum": 9999,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "bar_to": {
+            "description": "replace_bars: last bar, inclusive; at most 16 bars per patch",
+            "format": "int64",
+            "maximum": 9999,
+            "minimum": 0,
+            "type": "integer"
+          },
           "line_idx": {
             "description": "replace_line",
             "format": "int64",
@@ -13797,7 +13900,8 @@
           "op": {
             "enum": [
               "replace_line",
-              "set_style"
+              "set_style",
+              "replace_bars"
             ],
             "type": "string"
           },
@@ -13817,6 +13921,12 @@
           "text": {
             "description": "replace_line: one lyric line, no tags, no newline",
             "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "voice": {
+            "description": "replace_bars: the voice id of the score (one voice per op)",
+            "maxLength": 64,
             "minLength": 1,
             "type": "string"
           }
@@ -14593,6 +14703,60 @@
           "soundfont",
           "chords",
           "seconds",
+          "url",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "PlanAuditionDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "chords": {
+            "enum": [
+              "none",
+              "block"
+            ],
+            "type": "string"
+          },
+          "cpu_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "plan_id": {
+            "type": "string"
+          },
+          "seconds": {
+            "format": "double",
+            "type": "number"
+          },
+          "soundfont": {
+            "type": "string"
+          },
+          "soundfont_sha256_12": {
+            "type": "string"
+          },
+          "synth_version": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "plan_id",
+          "soundfont",
+          "soundfont_sha256_12",
+          "synth_version",
+          "chords",
+          "seconds",
+          "cpu_ms",
           "url",
           "created_at"
         ],
@@ -19269,7 +19433,8 @@
             "enum": [
               "lyric_edit",
               "style_edit",
-              "multi_edit"
+              "multi_edit",
+              "abc_edit"
             ],
             "type": "string"
           },
@@ -19341,7 +19506,8 @@
             "enum": [
               "lyric_edit",
               "style_edit",
-              "multi_edit"
+              "multi_edit",
+              "abc_edit"
             ],
             "type": "string"
           },
@@ -30864,7 +31030,7 @@
         }
       },
       "post": {
-        "description": "Stores a bounded patch to a take (at most 8 lyric lines in at most 4 sections, or a style change of at most 3 terms and 20 BPM) that names the fix or note comments it addresses. Free; rendering goes through estimate_generation with item mode song_pr.",
+        "description": "Stores a bounded patch to a take (at most 8 lyric lines in at most 4 sections, a style change of at most 3 terms and 20 BPM, or replace_bars: at most 16 bars of an aligned score inside the scoped sections) that names the fix or note comments it addresses. Free; rendering goes through estimate_generation with item mode song_pr.",
         "operationId": "propose_patch",
         "parameters": [
           {
@@ -31317,6 +31483,137 @@
           }
         },
         "summary": "Get a Desk plan",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/desk/plans/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/plans/{id}/auditions": {
+      "post": {
+        "description": "Renders the plan's score on the server through a General MIDI soundfont (CPU only, free, up to 90 s) and returns an MP3 preview with a signed url. The same plan and settings return the stored audition (200 instead of 201) at no cost. Options: soundfont, chords (none or block, default block), tail_s, gain. An audition is a preview, never a take; keep one as a take with create_transform kind score_render. 409 AUDITION_BUSY (retry after retry_after_s), 429 AUDITION_LIMIT, 422 AUDITION_TOO_LONG or SCORE_INVALID, 503 UNAVAILABLE naming transform, soundfont or fluidsynth. Needs an Idempotency-Key.",
+        "operationId": "create_plan_audition",
+        "parameters": [
+          {
+            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Plan id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Plan id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePlanAuditionInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanAuditionDetail"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Audition a plan",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/desk/plans/:id",
+          "human_only": false,
+          "idempotency": "create",
+          "rate": "heavy"
+        }
+      }
+    },
+    "/api/plans/{id}/auditions/{aid}": {
+      "get": {
+        "description": "One stored audition of a plan: its soundfont, synth version, chords, seconds, CPU time and a signed playback url for you.",
+        "operationId": "get_plan_audition",
+        "parameters": [
+          {
+            "description": "Plan id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Plan id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Audition id",
+            "in": "path",
+            "name": "aid",
+            "required": true,
+            "schema": {
+              "description": "Audition id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanAuditionDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a plan's audition",
         "x-mm": {
           "scope": "read",
           "cost": "free",

@@ -14,6 +14,9 @@ export const PENDING_UI: ReadonlySet<string> = new Set<string>([
   "set_diction_marks",
   "get_diction_lexicon",
   "update_lexicon_entry",
+  // DESK-W2 (lane desk-web) adds the audition player and the Audition button on /desk/plans/:id (m5b-desk C363); it removes these two.
+  "create_plan_audition",
+  "get_plan_audition",
   // M6N-W1 (lane loop-web-a) adds the /mandates and /mandates/:id pages and the secure /human/mandates/new form (m6-night C388.1); it removes these four.
   "create_mandate",
   "list_mandates",

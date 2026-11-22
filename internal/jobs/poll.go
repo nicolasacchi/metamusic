@@ -177,7 +177,7 @@ func (r *Runner) observe(ctx context.Context, jobID, attemptID string, st provid
 		cls := Classify(ClassifyInput{
 			Status: st, Now: f.Now, TTL: r.o.TTL, SubmittedAt: a.SubmittedAt, LastQueued: a.LastQueuedAt,
 			InProgressSeen: a.InProgressSeen, Announced: a.AnnouncedAt != nil, HasUpload: hasUpload > 0,
-			WasRunning: a.RemoteStatus == string(provider.Running), VerifiedOK: verified > 0, Shapes: r.o.NeverRan,
+			WasRunning: a.RemoteStatus == string(provider.Running), VerifiedOK: verified > 0, Shapes: r.neverRanFor(a.Backend),
 		})
 		if err := r.recordObservation(ctx, tx, f, &j, &a, st, cls); err != nil {
 			return err
@@ -209,6 +209,19 @@ func (r *Runner) observe(ctx context.Context, jobID, attemptID string, st provid
 		}
 	}
 	return post, nil
+}
+
+// neverRanFor is the never-ran shapes of an attempt's backend: the runner-wide pinned shapes (the serverless probe's), except that a
+// backend that pins its own cancelled-while-queued shape (provider.ShapePinner, the pod backend) answers for itself. A backend
+// without the interface, and any process without a backend set, behaves exactly as before.
+func (r *Runner) neverRanFor(backend string) NeverRanShapes {
+	shapes := r.o.NeverRan
+	if be, ok := r.backendFor(backend); ok {
+		if sp, ok := be.(provider.ShapePinner); ok {
+			shapes.CancelledWhileQueued = sp.CancelledWhileQueuedIsNeverRan()
+		}
+	}
+	return shapes
 }
 
 // obs carries one observation through the handlers.

@@ -271,3 +271,46 @@ func parseAt(s string) time.Time {
 	}
 	return time.Time{}
 }
+
+// TrustedMetric is a metric critic the Owner's own ratings have shown to be right (state trusted), with its values for the
+// requested takes. Contrary and unknown critics are never returned, and never inverted (C387.4).
+type TrustedMetric struct {
+	ID        string
+	Direction int
+	Values    map[string]float64
+}
+
+// TrustedMetrics returns the trusted metric critics with their values for the given takes: the night planner's last tie-breaker
+// (C387.4). It only reads. A trusted critic whose source cannot give values (an agent's stars) is left out.
+func (s *Service) TrustedMetrics(ctx context.Context, tracks []string) ([]TrustedMetric, error) {
+	b, err := s.Bench(ctx, Query{IncludeUnknown: true})
+	if err != nil {
+		return nil, err
+	}
+	var out []TrustedMetric
+	tx, err := s.o.Store.R.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, fmt.Errorf("criticbench: begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	for _, c := range b.Critics {
+		if c.Kind != KindMetric || c.State != StateTrusted || c.Direction == nil {
+			continue
+		}
+		for _, src := range s.allSources() {
+			mv, ok := src.(MetricValuer)
+			if !ok {
+				continue
+			}
+			vals, owns, err := mv.MetricValues(ctx, tx, c.ID, tracks)
+			if err != nil {
+				return nil, err
+			}
+			if owns {
+				out = append(out, TrustedMetric{ID: c.ID, Direction: *c.Direction, Values: vals})
+				break
+			}
+		}
+	}
+	return out, nil
+}

@@ -1311,7 +1311,7 @@ export interface paths {
         put?: never;
         /**
          * Propose a Song PR
-         * @description Stores a bounded patch to a take (at most 8 lyric lines in at most 4 sections, or a style change of at most 3 terms and 20 BPM) that names the fix or note comments it addresses. Free; rendering goes through estimate_generation with item mode song_pr.
+         * @description Stores a bounded patch to a take (at most 8 lyric lines in at most 4 sections, a style change of at most 3 terms and 20 BPM, or replace_bars: at most 16 bars of an aligned score inside the scoped sections) that names the fix or note comments it addresses. Free; rendering goes through estimate_generation with item mode song_pr.
          */
         post: operations["propose_patch"];
         delete?: never;
@@ -1432,6 +1432,46 @@ export interface paths {
          * @description One plan with its score: header facts, voices, sections with their bar ranges and seconds, the edit that made it, the plans edited from it, both raters' verdicts, its auditions and the render jobs that used it. include picks abc (the score text), bars (the byte span and start second of every bar, for bar editing), display (a standard-ABC rewrite when a YuE2 score reads differently under the standard accidental rule), auditions and renders; the default is every part but bars.
          */
         get: operations["get_plan"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{id}/auditions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Audition a plan
+         * @description Renders the plan's score on the server through a General MIDI soundfont (CPU only, free, up to 90 s) and returns an MP3 preview with a signed url. The same plan and settings return the stored audition (200 instead of 201) at no cost. Options: soundfont, chords (none or block, default block), tail_s, gain. An audition is a preview, never a take; keep one as a take with create_transform kind score_render. 409 AUDITION_BUSY (retry after retry_after_s), 429 AUDITION_LIMIT, 422 AUDITION_TOO_LONG or SCORE_INVALID, 503 UNAVAILABLE naming transform, soundfont or fluidsynth. Needs an Idempotency-Key.
+         */
+        post: operations["create_plan_audition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{id}/auditions/{aid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a plan's audition
+         * @description One stored audition of a plan: its soundfont, synth version, chords, seconds, CPU time and a signed playback url for you.
+         */
+        get: operations["get_plan_audition"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3461,6 +3501,15 @@ export interface components {
             /** Format: int64 */
             n: number;
         };
+        BarChange: {
+            after: string;
+            /** Format: int64 */
+            bar_from: number;
+            /** Format: int64 */
+            bar_to: number;
+            before: string;
+            voice: string;
+        };
         BasisCounts: {
             /** Format: int64 */
             d: number;
@@ -4393,6 +4442,25 @@ export interface components {
         CreatePairingInBody: {
             /** @description Label of the device being paired */
             name: string;
+        };
+        CreatePlanAuditionInBody: {
+            /**
+             * @description How chord symbols sound; default block
+             * @enum {string}
+             */
+            chords?: "none" | "block";
+            /**
+             * Format: double
+             * @description Synth gain; default 0.6
+             */
+            gain?: number;
+            /** @description A configured soundfont name; default the first */
+            soundfont?: string;
+            /**
+             * Format: double
+             * @description Seconds of tail after the last note; default 3
+             */
+            tail_s?: number;
         };
         CreatePlaylistInBody: {
             description?: string;
@@ -6872,9 +6940,13 @@ export interface components {
         };
         PatchBounds: {
             /** Format: int64 */
+            bars_changed?: number;
+            /** Format: int64 */
             bpm_delta: number;
             /** Format: int64 */
             lines_changed: number;
+            /** Format: int64 */
+            max_bars?: number;
             /** Format: int64 */
             max_bpm_delta: number;
             /** Format: int64 */
@@ -6905,10 +6977,13 @@ export interface components {
             worse: number;
         };
         PatchCompiled: {
+            /** @description The whole patched score (replace_bars) */
+            abc?: string;
             lyrics?: string;
             style?: string;
         };
         PatchDiff: {
+            abc?: components["schemas"]["BarChange"][] | null;
             lyrics: components["schemas"]["PatchLineChange"][] | null;
             style: components["schemas"]["PatchStyleChange"];
         };
@@ -6921,13 +6996,25 @@ export interface components {
             section_idx: number;
         };
         PatchOp: {
+            /** @description replace_bars: the new bars, one |-separated segment per bar, no comment and no field */
+            abc?: string;
+            /**
+             * Format: int64
+             * @description replace_bars: first bar, 0-based
+             */
+            bar_from?: number;
+            /**
+             * Format: int64
+             * @description replace_bars: last bar, inclusive; at most 16 bars per patch
+             */
+            bar_to?: number;
             /**
              * Format: int64
              * @description replace_line
              */
             line_idx?: number;
             /** @enum {string} */
-            op: "replace_line" | "set_style";
+            op: "replace_line" | "set_style" | "replace_bars";
             /**
              * Format: int64
              * @description replace_line
@@ -6937,6 +7024,8 @@ export interface components {
             style?: string;
             /** @description replace_line: one lyric line, no tags, no newline */
             text?: string;
+            /** @description replace_bars: the voice id of the score (one voice per op) */
+            voice?: string;
         };
         PatchPage: {
             items: components["schemas"]["SongPRSummary"][];
@@ -7118,6 +7207,21 @@ export interface components {
             /** Format: double */
             seconds: number;
             soundfont: string;
+            url: string;
+        };
+        PlanAuditionDetail: {
+            /** @enum {string} */
+            chords: "none" | "block";
+            /** Format: int64 */
+            cpu_ms: number;
+            created_at: string;
+            id: string;
+            plan_id: string;
+            /** Format: double */
+            seconds: number;
+            soundfont: string;
+            soundfont_sha256_12: string;
+            synth_version: string;
             url: string;
         };
         PlanBarSpan: {
@@ -8417,7 +8521,7 @@ export interface components {
             diff: components["schemas"]["PatchDiff"];
             id: string;
             /** @enum {string} */
-            operator: "lyric_edit" | "style_edit" | "multi_edit";
+            operator: "lyric_edit" | "style_edit" | "multi_edit" | "abc_edit";
             ops: components["schemas"]["PatchOp"][];
             rationale: string;
             renders: components["schemas"]["PatchRender"][];
@@ -8431,7 +8535,7 @@ export interface components {
             created_at: string;
             id: string;
             /** @enum {string} */
-            operator: "lyric_edit" | "style_edit" | "multi_edit";
+            operator: "lyric_edit" | "style_edit" | "multi_edit" | "abc_edit";
             rationale: string;
             renders: components["schemas"]["PatchRender"][];
             title: string | null;
@@ -12977,6 +13081,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Plan"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_plan_audition: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen key; a retry with the same key and body replays the first response (24 h). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                /** @description Plan id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePlanAuditionInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanAuditionDetail"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_plan_audition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Plan id */
+                id: string;
+                /** @description Audition id */
+                aid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanAuditionDetail"];
                 };
             };
             /** @description Error */
