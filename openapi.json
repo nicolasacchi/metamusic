@@ -514,7 +514,7 @@
             "type": "string"
           },
           "via": {
-            "description": "auto, human_create, web or expiry; null while pending",
+            "description": "auto, human_create, web, mandate or expiry; null while pending",
             "type": [
               "string",
               "null"

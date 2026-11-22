@@ -269,7 +269,7 @@ type ApprovalStatus struct {
 	BatchID              string              `json:"batch_id"`
 	State                string              `json:"state" enum:"pending,approved,rejected,expired,auto"`
 	Reasons              []string            `json:"reasons" nullable:"false"`
-	Via                  *string             `json:"via" doc:"auto, human_create, web or expiry; null while pending"`
+	Via                  *string             `json:"via" doc:"auto, human_create, web, mandate or expiry; null while pending"`
 	DecidedBy            *PrincipalRefOrNull `json:"decided_by"`
 	DecidedAt            *string             `json:"decided_at"`
 	Reason               *string             `json:"reason"`
