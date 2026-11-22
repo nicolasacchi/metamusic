@@ -11,7 +11,7 @@ Layout: `src/mmworker/` (package, JSON schemas under `schema/`), `tests/` (pytes
 cd worker && uv run pytest --cov=mmworker --cov-fail-under=90
 ```
 
-Modes (`python -m mmworker`, env `MODE`): `serverless`, `selftest`; `agent` exits 2 (arrives in M6).
+Modes (`python -m mmworker`, env `MODE`): `serverless`, `selftest`, `agent` (the pod loop, below).
 
 ## mm.worker/2
 
@@ -25,6 +25,18 @@ stage. `LABEL io.metamusic.caps` in the Dockerfile must equal the `caps:` line p
 CI smoke check it). Attachments are written to `<work dir>/attach/` after a sha256 check (`ATTACH_MISMATCH`) and are never
 collected as artifacts.
 The runtime dependency set contains no torch and no yue2: the image installs `yue2-infer` explicitly.
+
+## MODE=agent (pods, C397)
+
+The same image runs on a RunPod pod with `MODE=agent`: `agent.py` long-polls the app's signed link (`MM_POLL_URL`, schemas
+`schema/mm-pod-poll-1.*.json`), runs the takes it is handed with the unchanged `handler.process`, and reports `done`. Boot
+order: poll `booting` first, then `hubfetch.py` fetches the pinned `m-a-p/YuE2-3B` revision (`MM_YUE2_3B_REVISION`, 40 hex)
+into the hub cache under `MM_YUE2_3B_DIR` (every file sha256 or git-blob verified, at most 16 GiB, no token), then the engine
+loads and `boot.weights_ready` is reported. `watchdog.py` holds the absolute deadline (`MM_DEADLINE_UNIX`) and the dead-man
+(`MM_DEADMAN_S`, default 600, fed only by a 2xx poll answer); `terminate.py` is the Terminator: DELETE the pod, else action
+`terminate`, else action `stop` (bearer = the injected `RUNPOD_API_KEY`, pod `RUNPOD_POD_ID`), and `os._exit(3)` after 60 s.
+A take that overruns `timeout_s + 60 s` exits 4. The poll URL and the key are never logged. `agent` is advertised in
+`io.metamusic.caps`; `MODE=selftest` runs the agent against a local fake app that answers `stop`.
 
 ## Contract job and image
 

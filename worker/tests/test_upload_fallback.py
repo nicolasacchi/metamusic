@@ -195,13 +195,13 @@ def test_fallback_fields_only_in_v2(sink: Sink) -> None:
 
 
 def test_caps_fallback_registered(monkeypatch: pytest.MonkeyPatch) -> None:
-    assert "fallback" in caps.TRANSPORT_CAPS and caps.BUILT_IN_TRANSPORT == ("fallback",)
-    assert "fallback" in caps.advertised() and "agent" not in caps.advertised()
-    assert caps.advertised() == caps.image_caps(["fallback"])
+    assert "fallback" in caps.TRANSPORT_CAPS and caps.BUILT_IN_TRANSPORT == ("agent", "fallback")
+    assert "fallback" in caps.advertised() and "agent" in caps.advertised()
+    assert caps.advertised() == caps.image_caps(["agent", "fallback"])
     assert handler.caps_mod.advertised is caps.advertised and selftest.caps is caps
     # Dockerfile label equals the advertised list (the stage lane's label test covers the stage part)
     text = (Path(__file__).resolve().parents[1] / "Dockerfile").read_text()
-    assert 'io.metamusic.caps="analyze ears fallback v2"' in text
+    assert 'io.metamusic.caps="agent analyze ears fallback v2"' in text
 
 
 def test_window_clamps_long_retry_after(sink: Sink, data: Path) -> None:

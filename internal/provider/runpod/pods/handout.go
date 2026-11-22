@@ -129,6 +129,20 @@ func (q *Queue) Take(batchID string, fit func(provider.TakeSpec) bool) (provider
 	return t, TakeOK
 }
 
+// Has reports whether an unhanded take of the attempt is queued.
+func (q *Queue) Has(attemptID string) bool {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	for _, l := range q.byBatch {
+		for _, e := range l {
+			if e.spec.AttemptID == attemptID {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // Drop removes an unhanded take by attempt id (the runner cancelled it before any pod fetched it) and reports whether it was queued.
 func (q *Queue) Drop(attemptID string) bool {
 	q.mu.Lock()
