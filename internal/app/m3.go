@@ -33,6 +33,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/provider"
 	"github.com/nicolasacchi/metamusic/internal/provider/fake"
 	"github.com/nicolasacchi/metamusic/internal/provider/runpod"
+	"github.com/nicolasacchi/metamusic/internal/provider/runpod/pods"
 	"github.com/nicolasacchi/metamusic/internal/songwriting"
 	"github.com/nicolasacchi/metamusic/internal/spend"
 	"github.com/nicolasacchi/metamusic/internal/store"
@@ -62,6 +63,9 @@ type M3Options struct {
 	// the pinned weights are filled in by the wiring when left zero.
 	FakeACE       *fake.Options
 	FakeACEWorker *fake.SimWorkerOptions
+	// PodAPI replaces the RunPod pod client of the pod backend and its lifecycle loop (BULK-P5 test seam; the fake pod backend's simulated API,
+	// BULK-S1, plugs in here too). nil => the real client under MM_BACKEND=runpod, none under fake.
+	PodAPI pods.API
 	// Live marks a process that serves real traffic (serve, dev): the runner gets the claim preflight (D-M3-33)
 	// and the fake backend gets a simulated worker that talks to the upload handlers in process. Rigs leave it
 	// false and drive the runner and the fake worker themselves.
@@ -212,6 +216,8 @@ type m3Services struct {
 	opts  M3Options
 	clk   clock.Clock
 	media *lateHandler
+	// pods is the pod backend's wiring, left by its constructor (bulk.go) for the build hook; nil with MM_POD_BACKEND=0.
+	pods *podWiring
 }
 
 // buildM3 constructs the generation services (C39 amended): backend selection, the provider_state

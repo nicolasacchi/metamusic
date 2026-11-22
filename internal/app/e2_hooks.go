@@ -24,7 +24,7 @@ import (
 // Lane E2-INT-B owns this file: the constructors of the ACE-Step backends (installed from init, because they live in the
 // provider packages of lanes E2-PF and E2-PR) and the last wiring step.
 
-func init() { e2ExtraBackends = acestepBackends }
+func init() { e2ExtraBackends = append(e2ExtraBackends, acestepBackends) }
 
 // wireE2Hooks is the last E2 wiring step; Build calls it after every service exists. The wiring that needs the finished server
 // (the media route) is bound by Build through lateHandler before this runs, so nothing is left to do here in E2a/E2b; E2c's
@@ -60,6 +60,9 @@ func aceWeights(cfg config.Config) map[string]string {
 // all) no backend is built: the engine is registered but nothing renders it (reason keys_absent, logged once) and the M3
 // backend runs alone.
 func acestepBackends(in e2Inputs) ([]e2Extra, error) {
+	if !in.cfg.ACEStep {
+		return nil, nil // the ACE-Step backends exist only under MM_ACESTEP=1
+	}
 	m, cfg := in.m3, in.cfg
 	weights := aceWeights(cfg)
 	switch cfg.Backend {

@@ -18,6 +18,11 @@ fake idlelist '{"live_attempts":[]}'
 fake nofield '{"armed":true}'
 fake junk 'not json'
 printf '#!/usr/bin/env bash\nexit 7\n' >"$tmp/broken"; chmod +x "$tmp/broken"
+fake livepods '{"live_attempts":0,"live_pods":1,"armed":true}'
+fake livepodlist '{"live_attempts":[],"live_pods":[{"state":"ready"}]}'
+fake nopods '{"live_attempts":0,"live_pods":0}'
+fake oldinstance '{"live_attempts":0,"armed":false}'
+fake badpods '{"live_attempts":0,"live_pods":"x"}'
 
 chk "one live attempt (count) refuses" '! run live >/dev/null 2>&1'
 chk "one live attempt (list) refuses" '! run livelist >/dev/null 2>&1'
@@ -31,4 +36,15 @@ chk "unparseable status fails closed" '! run junk >/dev/null 2>&1'
 chk "a failing status command fails closed" '! run broken >/dev/null 2>&1'
 chk "--force proceeds (loudly) when the status command is broken" 'msg=$(run broken --force 2>&1) && grep -q "force" <<<"$msg"'
 chk "unknown flag is a usage error" 'rc=0; run idle --bogus >/dev/null 2>&1 || rc=$?; [ "$rc" = 2 ]'
+# the pod backend (C396.6): a live pod refuses like a live attempt
+chk "one live pod (count) refuses" '! run livepods >/dev/null 2>&1'
+chk "one live pod (list) refuses" '! run livepodlist >/dev/null 2>&1'
+msg=$(run livepods 2>&1 || true)
+chk "the pod refusal names the count and the disarm-drain order" 'grep -q "1 live pod" <<<"$msg" && grep -qi "disarm" <<<"$msg"'
+chk "--force proceeds with a live pod" 'msg=$(run livepods --force 2>&1) && grep -q "force" <<<"$msg"'
+chk "no live pod proceeds" 'run nopods >/dev/null 2>&1'
+chk "a status of an older instance (no live_pods) counts no pod" 'run oldinstance >/dev/null 2>&1'
+chk "an unreadable live_pods fails closed" '! run badpods >/dev/null 2>&1'
+chk "--force proceeds on an unreadable live_pods" 'run badpods --force >/dev/null 2>&1'
+chk "a live attempt still refuses first" '! run live >/dev/null 2>&1'
 exit $fail

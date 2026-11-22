@@ -795,6 +795,12 @@ startup and by `metamusic config check`, which prints `pod backend: on|off`, `po
 deleting the file closes the backend at once. Any other variable, and an all-access key, is refused. Keep it on the server during a bulk window only.
 `RUNPOD_POD_KEY` and the six `R2_` variables (`R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_REGION`, `R2_PREFIX`) in the process environment stop startup: secrets are files, not environment.
 
+**Windows and deploys (BULK-P5).** A bulk window starts when the operator arms `runpod-pod` (the pod key file in place, a probe row `ok`) and ends
+by itself: the server disarms the backend (`changed_by system:bulk`, reason `window_ended`) `MM_POD_WINDOW_MAX` after arming and stops any live pod
+then, or disarms with `window_idle` after 30 minutes with no pod batch active or awaiting confirmation and no live pod. Pods are created only inside
+the window, one at a time. After the window delete the key file. `scripts/deploy-preflight.sh` refuses while `metamusic runpod status --json`
+shows `live_pods` above zero: disarm, wait until it reads 0, deploy, arm (`--force` overrides, as for live attempts).
+
 ## Listening checks: the quote (M5b Ears)
 
 A new yue2 render with at least one lyric line gets a listening check (Tier B: vocal separation, speech recognition and, for a take

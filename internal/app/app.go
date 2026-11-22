@@ -209,6 +209,10 @@ type Services struct {
 	Media *Media
 	// Loops are the background loops serve starts through StartLoops (C324.4); tracks append from a build hook.
 	Loops []Loop
+
+	// pods is the pod backend's wiring (bulk.go); nil with MM_POD_BACKEND=0. podHandler serves /worker/v1/pods/ (nil: not mounted).
+	pods       *podWiring
+	podHandler http.Handler
 }
 
 // Build constructs the services over st and data. Every store and service
@@ -354,7 +358,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		Muses: l1.Muses, Songs: l1.Songs, SongView: l1.SongView, Sessions: l1.Sessions, Picks: l1.Picks, Sounds: l1.Sounds,
 		Board: l1.Board, Provenance: l1.Provenance,
 		Lineage: m3.Lineage, Spend: m3.Spend, Generation: m3.Generation, Jobs: m3.Jobs, Provider: m3.Provider, Uploads: m3.Uploads,
-		Backend: m3.Backend, Fake: m3.Fake, Gate: m3.Gate, Runner: m3.Runner, Reconciler: m3.Reconciler,
+		Backend: m3.Backend, Fake: m3.Fake, Gate: m3.Gate, Runner: m3.Runner, Reconciler: m3.Reconciler, pods: m3.pods,
 		Tokens:  tokens,
 		Local:   local,
 		Devices: devices,
@@ -406,8 +410,8 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		Features: l3.Features, Sequence: l3.Sequence, NextActions: l3.NextActions, Atlas: l3.Atlas, Transform: t1,
 		Engines: e2.Engines, Backends: e2.Backends, Gates: e2.Gates, Adoption: e2.Adoption,
 		SongPR: m5.SongPR, Callbacks: m5.Callbacks, Attention: m5.Attention, Voice: m5.Voice,
-		BaseContext: o.M3.Shutdown,
-		Connectors:  m4a.ConnVerifier, PRM: m4a.PRM, Subsonic: m4a.SubsonicHandler, ConnectorStore: m4a.Connectors, OIDC: m4a.OIDC,
+		BaseContext: o.M3.Shutdown, Pods: s.podHandler,
+		Connectors: m4a.ConnVerifier, PRM: m4a.PRM, Subsonic: m4a.SubsonicHandler, ConnectorStore: m4a.Connectors, OIDC: m4a.OIDC,
 		SubsonicStore: m4a.Subsonic, Covers: covers, Downloads: downloads, Renditions: renditions, Prompts: m4a.Prompts,
 		StepUp: m4a.StepUp,
 	}
