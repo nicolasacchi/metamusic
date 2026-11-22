@@ -39,6 +39,7 @@
   import Sounds from "./routes/Sounds.svelte";
   import Draft from "./routes/Draft.svelte";
   import Import from "./routes/Import.svelte";
+  import Diction from "./routes/Diction.svelte";
   import Settings from "./routes/Settings.svelte";
   import DraftNew from "./routes/DraftNew.svelte";
   import DraftUpload from "./routes/DraftUpload.svelte";
@@ -387,6 +388,8 @@
       <SecureGate><HumanSubsonic /></SecureGate>
     {:else if $router.route?.name === "import"}
       <Import />
+    {:else if $router.route?.name === "diction"}
+      <Diction />
     {:else if $router.route?.name === "settings"}
       <Settings />
     {:else}

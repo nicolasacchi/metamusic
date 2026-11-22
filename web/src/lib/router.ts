@@ -50,6 +50,7 @@ export const APP_ROUTES: Route[] = [
   { pattern: "/compare", name: "compare" },
   { pattern: "/export", name: "export" },
   { pattern: "/import", name: "import" },
+  { pattern: "/diction", name: "diction" }, // EARS-W2: the Diction Lab, the lexicon of sung words the recogniser mishears (More)
   { pattern: "/settings", name: "settings" },
   { pattern: "/settings/backups", name: "settings-backups" },
   { pattern: "/settings/audit", name: "settings-audit" },
