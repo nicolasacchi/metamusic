@@ -18,6 +18,10 @@ import (
 func init() { RegisterBuildHook(wireCriticBench) }
 
 func wireCriticBench(env *BuildEnv) error {
+	if env.Services.Ears != nil && env.Services.Deps.Diction == nil {
+		// hook order changed: failing loudly beats silently dropping the label critic
+		return fmt.Errorf("app: critic bench hook ran before the Ears hook set Deps.Diction")
+	}
 	svc := criticbench.New(criticbench.Options{Store: env.Store, Now: env.Now})
 	for _, src := range benchSources(env) {
 		svc.Use(src)

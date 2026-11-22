@@ -233,3 +233,21 @@ func TestScoreLines_Table(t *testing.T) {
 		t.Errorf("disagreement keys (-want +got):\n%s", d)
 	}
 }
+
+// The bench scores exactly the lines the source returns (the app passes the Owner-only Diction source), and asks for every language.
+func TestLabels_OnlySourceLinesScore(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	f := &fakeLabels{lines: lines40()[:30], th: diction.Thresholds{Mixed: 0.35}}
+	e.svc.Use(criticbench.NewLabels(f))
+	b := e.bench(criticbench.Query{IncludeUnknown: true})
+	if b.Window.Lines != 30 {
+		t.Errorf("window lines %d, want the 30 the source returned", b.Window.Lines)
+	}
+	if c := find(b, "diction.line_cer"); c == nil || c.Thresholds[0].N != 30 {
+		t.Errorf("critic %+v", c)
+	}
+	if len(f.langs) == 0 || f.langs[0] != "" || f.limits[0] != criticbench.WindowLines {
+		t.Errorf("asked %v %v", f.langs, f.limits)
+	}
+}
