@@ -2471,6 +2471,13 @@
             "backend": {
               "type": "string"
             },
+            "pod_canary": {
+              "description": "Pod canary; Owner approves",
+              "enum": [
+                "self_terminate"
+              ],
+              "type": "string"
+            },
             "tier_b": {
               "description": "Listening check: absent auto, true require, false skip",
               "type": "boolean"
@@ -2792,6 +2799,19 @@
             "type": "object"
           },
           "type": "array"
+        },
+        "pod": {
+          "properties": {
+            "boot_s": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "deadline_s": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          "type": "object"
         },
         "price": {
           "properties": {
@@ -3297,6 +3317,19 @@
             "type": "object"
           },
           "type": "array"
+        },
+        "pod": {
+          "properties": {
+            "boot_s": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "deadline_s": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          "type": "object"
         },
         "price": {
           "properties": {

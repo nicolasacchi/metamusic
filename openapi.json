@@ -1035,6 +1035,9 @@
               "null"
             ]
           },
+          "pods": {
+            "$ref": "#/components/schemas/PodsStatus"
+          },
           "price": {
             "additionalProperties": false,
             "properties": {
@@ -7834,6 +7837,9 @@
             },
             "type": "array"
           },
+          "pod": {
+            "$ref": "#/components/schemas/EstimatePod"
+          },
           "price": {
             "$ref": "#/components/schemas/EstimatePrice"
           },
@@ -8029,6 +8035,13 @@
           "backend": {
             "type": "string"
           },
+          "pod_canary": {
+            "description": "Pod canary; Owner approves",
+            "enum": [
+              "self_terminate"
+            ],
+            "type": "string"
+          },
           "tier_b": {
             "description": "Listening check: absent auto, true require, false skip",
             "type": "boolean"
@@ -8037,6 +8050,24 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "EstimatePod": {
+        "additionalProperties": false,
+        "properties": {
+          "boot_s": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "deadline_s": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "boot_s",
+          "deadline_s"
+        ],
         "type": "object"
       },
       "EstimatePrice": {
@@ -16658,6 +16689,232 @@
         },
         "required": [
           "items"
+        ],
+        "type": "object"
+      },
+      "PodCost": {
+        "additionalProperties": false,
+        "properties": {
+          "reserved_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "reserved_usd": {
+            "type": "string"
+          },
+          "settled_micro_usd": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "settled_usd": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "reserved_micro_usd",
+          "reserved_usd",
+          "settled_micro_usd",
+          "settled_usd"
+        ],
+        "type": "object"
+      },
+      "PodList": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PodSummary"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "PodSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "batch_id": {
+            "type": "string"
+          },
+          "booted_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cost": {
+            "$ref": "#/components/schemas/PodCost"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "deadline_at": {
+            "type": "string"
+          },
+          "error_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "first_poll_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "gpu_try": {
+            "description": "Which create attempt of this pod this is (1..4)",
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "batch",
+              "canary"
+            ],
+            "type": "string"
+          },
+          "last_poll_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lifetime_s": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "name": {
+            "description": "mm-\u003c12 hex of the id\u003e; the name the pod carries at the provider",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "intent",
+              "creating",
+              "booting",
+              "ready",
+              "busy",
+              "orphaned",
+              "terminating",
+              "terminated"
+            ],
+            "type": "string"
+          },
+          "terminated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "batch_id",
+          "state",
+          "gpu_try",
+          "created_at",
+          "booted_at",
+          "first_poll_at",
+          "last_poll_at",
+          "deadline_at",
+          "terminated_at",
+          "lifetime_s",
+          "error_code",
+          "cost"
+        ],
+        "type": "object"
+      },
+      "PodWindow": {
+        "additionalProperties": false,
+        "properties": {
+          "armed_at": {
+            "type": "string"
+          },
+          "auto_disarm_at": {
+            "description": "armed_at plus MM_POD_WINDOW_MAX; the loop disarms and stops pods then",
+            "type": "string"
+          }
+        },
+        "required": [
+          "armed_at",
+          "auto_disarm_at"
+        ],
+        "type": "object"
+      },
+      "PodsStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "alerts": {
+            "description": "Open pod alert codes: events of live pods and an open pod trip",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "key_present": {
+            "type": "boolean"
+          },
+          "live": {
+            "items": {
+              "$ref": "#/components/schemas/PodSummary"
+            },
+            "type": "array"
+          },
+          "probe": {
+            "description": "The latest probe of the pod key",
+            "enum": [
+              "ok",
+              "too_broad",
+              "failed",
+              "missing"
+            ],
+            "type": "string"
+          },
+          "safety": {
+            "description": "The latest self-termination canary for the configured image digest",
+            "enum": [
+              "verified",
+              "failed",
+              "inconclusive",
+              "unverified"
+            ],
+            "type": "string"
+          },
+          "safety_digest_matches": {
+            "description": "The latest canary row names the configured image digest",
+            "type": "boolean"
+          },
+          "window": {
+            "$ref": "#/components/schemas/PodWindow"
+          }
+        },
+        "required": [
+          "key_present",
+          "probe",
+          "safety",
+          "safety_digest_matches",
+          "live",
+          "window",
+          "alerts"
         ],
         "type": "object"
       },
@@ -33791,6 +34048,84 @@
           "human_only": false,
           "idempotency": "create",
           "rate": "heavy"
+        }
+      }
+    },
+    "/api/pods": {
+      "get": {
+        "description": "The pods of the pod backend, newest first: live ones by default, or all, optionally of one batch. Never the provider reference, the poll URL or a key.",
+        "operationId": "list_pods",
+        "parameters": [
+          {
+            "description": "Only the pods of this batch",
+            "explode": false,
+            "in": "query",
+            "name": "batch_id",
+            "schema": {
+              "description": "Only the pods of this batch",
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9-]*$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "live: not yet terminated",
+            "explode": false,
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "default": "live",
+              "description": "live: not yet terminated",
+              "enum": [
+                "live",
+                "all"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PodList"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List the bulk pods",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/jobs",
+          "human_only": false,
+          "owner_only": true
         }
       }
     },

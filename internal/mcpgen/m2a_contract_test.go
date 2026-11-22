@@ -108,7 +108,11 @@ import (
 // DESK-M1 (M5b C360.2, lane desk-gen): estimate_generation's item gains the mode render_plan and the nested desk object (DeskItemIn:
 // plan_ids, and the plan_seeds fields n_seeds, seeds and cot that DESK-M2 reads). Re-baselined 118071 -> 118756 (measured 118656,
 // +685 over 117971, +100 headroom); the Desk track's 1 000-byte share of the program budget has 685 bytes spent.
-const toolsCeilingBytes = 118756
+//
+// BULK-P6 (C398.2): estimate_generation gains options.pod_canary (an enum of one value, a three-word doc). Re-baselined 118756 -> 119142
+// (measured 119042, +286 over the 118756 the tree measured before this lane, +100 headroom; the plan's budget is 300 bytes). The estimate
+// output's pod block and list_pods (generic) add nothing to tools/list.
+const toolsCeilingBytes = 119142
 
 // TestToolsList_Ceiling: tools/list stays within the absolute ceiling. The
 // measured size at the M2a-B4a contract freeze is recorded in its commit message.

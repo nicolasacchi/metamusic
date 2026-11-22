@@ -1756,6 +1756,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the bulk pods
+         * @description The pods of the pod backend, newest first: live ones by default, or all, optionally of one batch. Never the provider reference, the poll URL or a key.
+         */
+        get: operations["list_pods"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/prompts/{name}": {
         parameters: {
             query?: never;
@@ -3563,6 +3583,7 @@ export interface components {
                 /** Format: int64 */
                 max_workers_seen_24h: number;
             } | null;
+            pods?: components["schemas"]["PodsStatus"];
             price: {
                 observed_at: string;
                 /** Format: int64 */
@@ -5484,6 +5505,7 @@ export interface components {
             /** @description RFC 3339 UTC */
             expires_at: string;
             items: components["schemas"]["EstimateItem"][];
+            pod?: components["schemas"]["EstimatePod"];
             price?: components["schemas"]["EstimatePrice"];
             provider: components["schemas"]["ProviderBrief"];
             requires_human_approval: boolean;
@@ -5546,9 +5568,20 @@ export interface components {
         };
         EstimateOptions: {
             backend?: string;
+            /**
+             * @description Pod canary; Owner approves
+             * @enum {string}
+             */
+            pod_canary?: "self_terminate";
             /** @description Listening check: absent auto, true require, false skip */
             tier_b?: boolean;
             trial_id?: string;
+        };
+        EstimatePod: {
+            /** Format: int64 */
+            boot_s: number;
+            /** Format: int64 */
+            deadline_s: number;
         };
         EstimatePrice: {
             gpu_pools: string[];
@@ -7979,6 +8012,66 @@ export interface components {
         };
         PlaylistsOutBody: {
             items: components["schemas"]["PlaylistSummary"][];
+        };
+        PodCost: {
+            /** Format: int64 */
+            reserved_micro_usd: number;
+            reserved_usd: string;
+            /** Format: int64 */
+            settled_micro_usd: number | null;
+            settled_usd: string | null;
+        };
+        PodList: {
+            items: components["schemas"]["PodSummary"][];
+        };
+        PodSummary: {
+            batch_id: string;
+            booted_at: string | null;
+            cost: components["schemas"]["PodCost"];
+            created_at: string;
+            deadline_at: string;
+            error_code: string | null;
+            first_poll_at: string | null;
+            /**
+             * Format: int64
+             * @description Which create attempt of this pod this is (1..4)
+             */
+            gpu_try: number;
+            id: string;
+            /** @enum {string} */
+            kind: "batch" | "canary";
+            last_poll_at: string | null;
+            /** Format: int64 */
+            lifetime_s: number | null;
+            /** @description mm-<12 hex of the id>; the name the pod carries at the provider */
+            name: string;
+            /** @enum {string} */
+            state: "intent" | "creating" | "booting" | "ready" | "busy" | "orphaned" | "terminating" | "terminated";
+            terminated_at: string | null;
+        };
+        PodWindow: {
+            armed_at: string;
+            /** @description armed_at plus MM_POD_WINDOW_MAX; the loop disarms and stops pods then */
+            auto_disarm_at: string;
+        };
+        PodsStatus: {
+            /** @description Open pod alert codes: events of live pods and an open pod trip */
+            alerts: string[];
+            key_present: boolean;
+            live: components["schemas"]["PodSummary"][];
+            /**
+             * @description The latest probe of the pod key
+             * @enum {string}
+             */
+            probe: "ok" | "too_broad" | "failed" | "missing";
+            /**
+             * @description The latest self-termination canary for the configured image digest
+             * @enum {string}
+             */
+            safety: "verified" | "failed" | "inconclusive" | "unverified";
+            /** @description The latest canary row names the configured image digest */
+            safety_digest_matches: boolean;
+            window: components["schemas"]["PodWindow"];
         };
         Point: {
             /** Format: int64 */
@@ -14336,6 +14429,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Export"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_pods: {
+        parameters: {
+            query?: {
+                /** @description Only the pods of this batch */
+                batch_id?: string;
+                /** @description live: not yet terminated */
+                state?: "live" | "all";
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PodList"];
                 };
             };
             /** @description Error */

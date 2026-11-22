@@ -200,8 +200,10 @@ func TestApp_PodBackendBuiltUnderFake(t *testing.T) {
 	}
 }
 
-// Until the pod estimate is priced (BULK-P6) the real backend is built but closed: it cannot be armed and nothing is created for it.
-func TestApp_RealPodBackendClosedUntilPriced(t *testing.T) {
+// With BULK-P6 the pod estimate is priced by QuotePod, so the real backend is no longer held closed by a constant. It is still closed
+// by everything the operator controls: no quote is cached without the pod key (the gate says quote_stale), and a new real backend starts
+// disarmed. Nothing is created for it and no pod API call is made.
+func TestApp_RealPodBackendClosedWithoutKey(t *testing.T) {
 	t.Parallel()
 	e := newM3Env(t, func(c *config.Config) { c.Backend = config.BackendRunPod; podCfg(c) })
 	writeRunPodEnv(t, e, "")
@@ -211,11 +213,42 @@ func TestApp_RealPodBackendClosedUntilPriced(t *testing.T) {
 	}
 	g, _ := s.Gates.For(provider.BackendRunPodPod)
 	st, err := g.State(context.Background())
-	if err != nil || st.Enabled || st.Reason != provider.ReasonKeysAbsent {
+	if err != nil || st.Enabled || st.Reason != provider.ReasonQuoteStale || st.Armed {
 		t.Errorf("gate state %+v %v", st, err)
 	}
 	if r, ok := e.row(t, provider.BackendRunPodPod); !ok || r.Armed != 0 {
 		t.Errorf("real pod backend row %+v %v: a new real backend starts disarmed", r, ok)
+	}
+	// the estimate service knows the pod rules, so a pod estimate is never priced by the serverless path; the real backend keeps the canary rule
+	if c, ok := s.Generation.Pods(); !ok || !c.RequireCanary || c.MinTakes != 30 || c.MaxTakes != 100 || c.BootS != 1200 || c.MaxRuntimeS != 6*3600 || c.MaxRecreate != 1 ||
+		!slices.Equal(c.GPUTypes, []string{"NVIDIA GeForce RTX 4090"}) {
+		t.Errorf("pod estimate config %+v %v", c, ok)
+	}
+	if s.Deps.Pods == nil || s.Deps.Pods.WindowMax != 8*time.Hour || s.Deps.Pods.ImageDigest != "sha256:"+strings.Repeat("a", 64) || s.Deps.Pods.KeyPresent() {
+		t.Errorf("pod views: %+v", s.Deps.Pods)
+	}
+}
+
+// The app hands the pod configuration to the estimate: an Owner's pod estimate under the simulated backend is judged by the pod window
+// (MM_POD_MIN_TAKES), not priced by the serverless path, and the status views know the pod backend.
+func TestApp_PodEstimateConfigured(t *testing.T) {
+	t.Parallel()
+	e := newM3Env(t, func(c *config.Config) { c.Backend = config.BackendFake; podCfg(c) })
+	s := e.build(t, app.Options{})
+	if c, ok := s.Generation.Pods(); !ok || c.RequireCanary || c.MinTakes != 30 {
+		t.Errorf("pod estimate config %+v %v", c, ok)
+	}
+	if s.Deps.Pods == nil || s.Deps.Pods.WindowMax != 0 || s.Deps.Pods.KeyPresent == nil {
+		t.Errorf("pod views not wired: %+v", s.Deps.Pods)
+	}
+	// production (no pod backend): nothing of it is wired
+	off := newM3Env(t, func(c *config.Config) { c.Backend = config.BackendFake })
+	so := off.build(t, app.Options{})
+	if so.Deps.Pods != nil {
+		t.Error("pod views wired with MM_POD_BACKEND=0")
+	}
+	if _, ok := so.Generation.Pods(); ok {
+		t.Error("pod estimate configured with MM_POD_BACKEND=0")
 	}
 }
 

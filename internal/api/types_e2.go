@@ -34,6 +34,8 @@ type EstimateOptions struct {
 	TrialID string `json:"trial_id,omitempty"`
 	// TierB: absent = a listening check where the take has lyric lines and fits; true refuses on a closed capability or a runtime-cap miss (a take with no lyric lines only warns); false skips it.
 	TierB *bool `json:"tier_b,omitempty" doc:"Listening check: absent auto, true require, false skip"`
+	// PodCanary makes the estimate the one-take self-termination canary of the pod backend (C399.2): it always waits for the Owner's approval.
+	PodCanary string `json:"pod_canary,omitempty" enum:"self_terminate" doc:"Pod canary; Owner approves"`
 }
 
 // ---- per-take plan additions (C149.2) ----
@@ -172,6 +174,8 @@ type GlobalBound struct {
 type BackendStatus struct {
 	ProviderStatusBody
 	Engine string `json:"engine"`
+	// Pods is the pod bulk block (BULK-P6): present only on a pod backend's entry, absent from every other.
+	Pods *PodsStatus `json:"pods,omitempty"`
 }
 
 // ---- stems and LRC links (C157.1, C166) ----

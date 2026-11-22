@@ -121,6 +121,7 @@ list_patches	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 list_pick_events	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 list_plans	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 list_playlists	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
+list_pods	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
 list_records	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 list_sessions	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 list_songs	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
