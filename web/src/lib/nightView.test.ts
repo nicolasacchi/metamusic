@@ -57,6 +57,13 @@ describe("settings form", () => {
     expect(percentToPpm("-1")).toBeNull();
     expect(percentToPpm("1e1")).toBeNull();
   });
+  test("switching off ignores a bad field in the form", () => {
+    const f = settingsToForm(settings);
+    f.at = "25:99";
+    f.maxTakes = "zz";
+    expect(formToPatch(f, settings, false)).toEqual({ ok: true, body: { enabled: false } });
+    expect(formToPatch(f, settings, true).ok).toBe(false);
+  });
   test("only changed fields are sent; enabled rides along", () => {
     const f = settingsToForm(settings);
     expect(formToPatch(f, settings)).toEqual({ ok: false, error: "Nothing changed." });

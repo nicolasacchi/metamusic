@@ -117,6 +117,12 @@ export type PatchResult = { ok: true; body: NightPatch } | { ok: false; error: s
 
 /** Only changed fields are sent; `enabled` is added when the button asks for it. */
 export function formToPatch(f: NightForm, current: NightSettings, enabled?: boolean): PatchResult {
+  const res = formToPatchStrict(f, current, enabled);
+  // Switching off is the safe action: it never depends on the other fields being valid.
+  return !res.ok && enabled === false ? { ok: true, body: { enabled: false } } : res;
+}
+
+function formToPatchStrict(f: NightForm, current: NightSettings, enabled?: boolean): PatchResult {
   const body: NightPatch = {};
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(f.at.trim())) return { ok: false, error: "Time: use 24-hour HH:MM, for example 01:30." };
   if (f.at.trim() !== current.at) body.at = f.at.trim();

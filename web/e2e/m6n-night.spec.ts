@@ -45,6 +45,14 @@ test("the mandates page starts empty and links to the secure form", async ({ pag
   await expect(page.getByTestId("mandate-new-link")).toHaveAttribute("href", "/human/mandates/new");
 });
 
+test("enabling the night shift without a live mandate is refused and the page stays off", async ({ page }) => {
+  await page.goto("/human/night-shift");
+  await page.getByTestId("night-enable").click();
+  await expect(page.getByTestId("night-settings-error")).toContainText(/live spending mandate/);
+  await expect(page.getByTestId("night-settings-status")).toContainText("Off");
+  await expect(page.getByTestId("night-enable")).toBeVisible();
+});
+
 test("the secure form creates a mandate: nothing is prefilled, a bad figure is refused, then it is created", async ({ page }) => {
   await page.goto("/human/mandates/new");
   await expect(page.getByTestId("human-mandate-new-page")).toBeVisible();
@@ -123,9 +131,13 @@ test("a mandate is revoked with a reason", async ({ page }) => {
 
 test("an agent token can neither create a mandate nor change the night shift", async ({ playwright, baseURL, agentToken }) => {
   const agent = await agentContext(playwright, baseURL, agentToken);
+  // control: the same token is valid and may read, so the refusals below come from the human-only rule, not a bad token
+  expect((await agent.get("/api/night-shift")).status()).toBe(200);
   const create = await agent.post("/human/api/mandates", { headers: { "Idempotency-Key": "agent-try-1" }, data: { holder: "night_shift", title: "x", budget_micro_usd: 1_000_000, valid_until: new Date(Date.now() + 86_400_000).toISOString(), scope: { modes: ["new_seed"], engines: ["yue2"], min_stars: 4, max_takes_per_lineage: 1, max_takes_per_batch: 1, max_batch_ceiling_micro_usd: 500_000, max_batches_per_day: 1, tier_b: false } } });
-  expect([401, 403]).toContain(create.status());
-  const update = await agent.put("/human/api/night-shift", { data: { enabled: true } });
-  expect([401, 403]).toContain(update.status());
+  expect(create.status()).toBe(403);
+  expect((await create.json()).code).toBe("HUMAN_ONLY");
+  const update = await agent.put("/human/api/night-shift", { headers: { "Idempotency-Key": "agent-try-2" }, data: { enabled: true } });
+  expect(update.status()).toBe(403);
+  expect((await update.json()).code).toBe("HUMAN_ONLY");
   await agent.dispose();
 });

@@ -30,6 +30,14 @@ describe("mandate form", () => {
     expect(r.body.valid_from).toBeUndefined();
     expect(Number.isInteger(r.body.budget_micro_usd)).toBe(true);
   });
+  test("the 31-day limit is judged on the two instants, at the boundary", () => {
+    const f = good();
+    f.from = "2026-11-22T10:00";
+    f.until = "2026-12-22T10:00"; // 30 days
+    expect(formToMandate(f, now).ok).toBe(true);
+    f.until = "2027-01-22T10:00"; // 61 days
+    expect(formToMandate(f, now).ok).toBe(false);
+  });
   test("a start time, lineages and listening checks are carried over", () => {
     const f = good();
     f.from = "2026-11-22T10:30";
