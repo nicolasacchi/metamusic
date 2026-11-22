@@ -62,6 +62,8 @@ type uiState struct {
 	plan, planChild string
 	// M6N-M1: the live mandate the operator created (seeded; an agent never creates one)
 	mandate string
+	// M6N-C4: a ready, unrevealed Morning Crate (seeded; the rig has no media tools to build one)
+	morningCrate string
 }
 
 // uiScript holds one scripted call per operation the web UI offers an agent.
@@ -162,6 +164,13 @@ var uiScript = map[string]func(s *uiState) map[string]any{
 	"revoke_mandate": func(s *uiState) map[string]any {
 		return map[string]any{"id": s.mandate, "reason": "scripted: an agent may only reduce spend"}
 	},
+	// M6N-C4: the Morning Crate reads and writes an agent may do (the page /morning comes in M6N-W2). submit_morning_crate_events and
+	// reveal_morning_crate are person-only (exclude:person-only), so they are not scripted.
+	"get_morning_crate_settings":    func(*uiState) map[string]any { return nil },
+	"update_morning_crate_settings": func(*uiState) map[string]any { return map[string]any{"wait_minutes": 30, "minutes": 40} },
+	"list_morning_crates":           func(*uiState) map[string]any { return map[string]any{"limit": 10} },
+	"get_morning_crate":             func(s *uiState) map[string]any { return map[string]any{"id": s.morningCrate} },
+	"build_morning_crate":           func(*uiState) map[string]any { return map[string]any{"minutes": 20} },
 	// EARS-D1: the take is seeded by seedTierBDocument (its lyrics are the recognised words); the word is invented.
 	"get_track_diction": func(s *uiState) map[string]any { return map[string]any{"id": s.track} },
 	"set_diction_marks": func(s *uiState) map[string]any {
@@ -361,6 +370,8 @@ var uiOrder = []string{
 	"check_abc", "create_plan_from_take", "get_plan", "edit_plan", "set_plan_verdict", "list_plans",
 	// M6N-M1: the mandate reads, then the revoke (last: it ends the mandate)
 	"list_mandates", "get_mandate", "revoke_mandate",
+	// M6N-C4: the Morning Crate settings, the list and the seeded crate, then a build (last: it starts a background build)
+	"get_morning_crate_settings", "update_morning_crate_settings", "list_morning_crates", "get_morning_crate", "build_morning_crate",
 }
 
 // afterStep records the ids later steps need.
@@ -472,7 +483,8 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 	seedTierBDocument(t, r, st.track)                        // EARS-S1: get_track_tier_b answers 200 only for a take that has a listening check
 	st.reference = seedReference(t, r, "scripted-reference") // EARS-R1: recover_recipe needs a reference with a stored listening check
 	seedRecoverDocument(t, r, st.reference, knownSungLyric)
-	st.mandate = seedMandateM6N(t, r) // M6N-M1: the mandate reads and the revoke need a live mandate
+	st.mandate = seedMandateM6N(t, r)                     // M6N-M1: the mandate reads and the revoke need a live mandate
+	st.morningCrate = seedMorningCrateM6N(t, r, st.track) // M6N-C4: get_morning_crate needs a crate
 	if err := r.Store.R.QueryRow(`SELECT t.id FROM tracks t JOIN recipes rc ON rc.id = t.recipe_id WHERE rc.engine <> 'unknown' AND t.lossy = 0 ORDER BY t.id LIMIT 1`).Scan(&st.mother); err != nil {
 		t.Fatal(err)
 	}
@@ -569,7 +581,7 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 	// Spend, cancel and transform-create operations write their audit row inside their own transaction (C80), with an id
 	// drawn there, so under the rig's fixed clock they sort apart from the gate-written rows. Order is
 	// compared without them; their presence is compared as a set.
-	inTx := map[string]bool{"create_variant": true, "cancel_job": true, "cancel_batch": true, "create_transform": true, "revoke_mandate": true}
+	inTx := map[string]bool{"create_variant": true, "cancel_job": true, "cancel_batch": true, "create_transform": true, "revoke_mandate": true, "build_morning_crate": true, "update_morning_crate_settings": true}
 	split := func(ops []string) (rest, tx []string) {
 		for _, o := range ops {
 			if inTx[o] {

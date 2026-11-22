@@ -1188,6 +1188,114 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/morning-crates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Morning Crates
+         * @description Crates newest first as summaries (state, counts, length, whether revealed). A summary names no take. Filter by state.
+         */
+        get: operations["list_morning_crates"];
+        put?: never;
+        /**
+         * Build a Morning Crate now
+         * @description Starts a crate out of the unjudged takes (plus the ones named in include_track_ids) and answers 202 with the building row; poll get_morning_crate. One build at a time (409 MORNING_CRATE_BUILD_IN_PROGRESS). Free: it only reads takes that exist. Needs an Idempotency-Key.
+         */
+        post: operations["build_morning_crate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/morning-crates/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the Morning Crate settings
+         * @description When the crate is built each day (local time), how long it is, how many takes and anchors it holds, how long the side files are kept. Behaviour only: it holds no money.
+         */
+        get: operations["get_morning_crate_settings"];
+        /**
+         * Change the Morning Crate settings
+         * @description Changes the fields that are sent: enabled, the local build time (HH:MM), length, side length, takes, anchors, truncated takes, retention and the wait for tonight's batch. A rule breach is 422 MORNING_SETTINGS_INVALID {field, rule}.
+         */
+        put: operations["update_morning_crate_settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/morning-crates/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a Morning Crate
+         * @description One crate with its sides (signed links) and chapters. Blind: until the crate is revealed every chapter is a number with the blind stars, markers and verdict so far, and no take, title, lineage, gain or playlist is given to anyone. After the reveal each chapter names its take and the playlist is listed. Never writes.
+         */
+        get: operations["get_morning_crate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/morning-crates/{id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit headset and rating events of a Morning Crate
+         * @description Up to 200 raw events (marker, strong_marker, skip, complete, play, rate with blind stars) addressed to the crate's own chapters. Idempotent by event id. Before the reveal they write nothing to the library; the batch that gives every non-anchor chapter blind stars reveals the crate in the same call, and after the reveal each event becomes the Owner's comment, rating or listen event at once. Only the operator and the operator's devices: an agent is refused 403 HUMAN_ONLY.
+         */
+        post: operations["submit_morning_crate_events"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/morning-crates/{id}/reveal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reveal a Morning Crate
+         * @description Names the crate's takes: in one transaction it maps the raw events to the Owner's comments, ratings and listen events and creates the shared playlist "Morning crate YYYY-MM-DD", which every listener then sees. Revealing a revealed crate changes nothing. Only the operator and the operator's devices: an agent is refused 403 HUMAN_ONLY.
+         */
+        post: operations["reveal_morning_crate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/muses": {
         parameters: {
             query?: never;
@@ -3718,6 +3826,15 @@ export interface components {
             /** @description RFC 3339, start of the month in the server's time zone */
             start: string;
         };
+        BuildMorningCrateBody: {
+            /** @description Takes to put in whatever their rating or age */
+            include_track_ids?: string[] | null;
+            /**
+             * Format: int64
+             * @description Length of this crate; the setting when absent
+             */
+            minutes?: number;
+        };
         Calibration: {
             /** Format: int64 */
             clear: number;
@@ -4069,7 +4186,7 @@ export interface components {
                 source: "manual" | "measured" | "plan";
             } | null;
             /** @enum {string} */
-            source: "web" | "api" | "mcp" | "stdio" | "subsonic" | "callback";
+            source: "web" | "api" | "mcp" | "stdio" | "subsonic" | "callback" | "headset";
             /** @enum {string} */
             state: "open" | "addressed" | "resolved" | "regressed";
             state_changed_at: string | null;
@@ -6467,6 +6584,223 @@ export interface components {
             /** Format: int64 */
             y: number;
         };
+        MorningChapter: {
+            anchor: boolean | null;
+            /** Format: int64 */
+            audio_start_ms: number;
+            /** Format: int64 */
+            end_ms: number;
+            /** Format: double */
+            gain_db: number | null;
+            limited: boolean | null;
+            /** Format: double */
+            lufs_after: number | null;
+            /** Format: int64 */
+            markers: number;
+            /**
+             * Format: int64
+             * @description 1-based, also the number in the slate tone
+             */
+            n: number;
+            /** Format: int64 */
+            side: number;
+            /** Format: int64 */
+            skipped_at_ms: number | null;
+            /**
+             * Format: int64
+             * @description The latest blind rating
+             */
+            stars: number | null;
+            /**
+             * Format: int64
+             * @description Start of the slate, relative to the side
+             */
+            start_ms: number;
+            /** Format: int64 */
+            strong_markers: number;
+            track: {
+                id: string;
+                root_track_id: string;
+                title: string;
+            } | null;
+            /** @enum {string} */
+            verdict: "kept" | "skipped" | "marked" | "heard" | "unheard";
+        };
+        MorningCrate: {
+            /** @description Two takes of one lineage sit side by side because the order could not avoid it */
+            adjacency_relaxed: boolean;
+            /** Format: int64 */
+            anchors: number;
+            /** Format: date-time */
+            built_at: string | null;
+            chapters: components["schemas"]["MorningChapter"][];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: int64 */
+            duration_ms: number;
+            error_code: string | null;
+            id: string;
+            /** @description The shared playlist made at the reveal */
+            playlist_id: string | null;
+            revealed: boolean;
+            /** Format: date-time */
+            revealed_at: string | null;
+            sides: components["schemas"]["MorningSide"][];
+            /** @enum {string} */
+            state: "building" | "ready" | "empty" | "failed";
+            /** Format: int64 */
+            takes: number;
+            /** @enum {string} */
+            trigger: "scheduled" | "manual";
+        };
+        MorningCratePage: {
+            items: components["schemas"]["MorningCrateSummary"][];
+            next_cursor?: string;
+        };
+        MorningCrateSummary: {
+            /** Format: int64 */
+            anchors: number;
+            /** Format: date-time */
+            built_at: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: int64 */
+            duration_ms: number;
+            error_code: string | null;
+            id: string;
+            revealed: boolean;
+            /** Format: date-time */
+            revealed_at: string | null;
+            /** Format: int64 */
+            sides: number;
+            /** @enum {string} */
+            state: "building" | "ready" | "empty" | "failed";
+            /** Format: int64 */
+            takes: number;
+            /** @enum {string} */
+            trigger: "scheduled" | "manual";
+        };
+        MorningEvent: {
+            /**
+             * Format: int64
+             * @description Chapter number (the number of the slate tone)
+             */
+            chapter: number;
+            /** Format: date-time */
+            client_at: string;
+            /** @description Client-made UUID (v7); a replay of the same id is counted as a duplicate */
+            id: string;
+            /** @enum {string} */
+            kind: "marker" | "strong_marker" | "skip" | "complete" | "play" | "rate";
+            /**
+             * Format: int64
+             * @description Headset latency, subtracted from a marker's position
+             */
+            latency_ms?: number;
+            /**
+             * Format: int64
+             * @description 0-based side the position is in
+             */
+            side: number;
+            /**
+             * Format: int64
+             * @description Position in the side, milliseconds
+             */
+            side_ms: number;
+            /**
+             * Format: int64
+             * @description rate only: 1..5, or null to clear the blind rating
+             */
+            stars?: number | null;
+        };
+        MorningEventRejection: {
+            /** @enum {string} */
+            code: "UNKNOWN_CHAPTER" | "OUT_OF_RANGE" | "INVALID_EVENT";
+            id: string;
+        };
+        MorningEventsResult: {
+            /** Format: int64 */
+            accepted: number;
+            /** Format: int64 */
+            duplicates: number;
+            rejected: components["schemas"]["MorningEventRejection"][];
+            /** @description The crate is revealed now: by this call (every chapter had blind stars) or earlier */
+            revealed: boolean;
+        };
+        MorningSettings: {
+            /**
+             * Format: int64
+             * @description Calibration takes the Owner rated five stars or marked final, mixed in blind
+             */
+            anchors: number;
+            /** @description Local time of day (MM_TZ) the crate is built, HH:MM */
+            at: string;
+            enabled: boolean;
+            include_truncated: boolean;
+            /**
+             * Format: int64
+             * @description How long the side files are kept
+             */
+            keep_days: number;
+            /** Format: int64 */
+            max_takes: number;
+            /**
+             * Format: int64
+             * @description Length of the whole crate
+             */
+            minutes: number;
+            /**
+             * Format: int64
+             * @description Longest side
+             */
+            side_minutes: number;
+            /** Format: date-time */
+            updated_at: string;
+            updated_by: components["schemas"]["PrincipalRef"];
+            /**
+             * Format: int64
+             * @description How long the 07:00 build waits for tonight's batch to finish
+             */
+            wait_minutes: number;
+        };
+        MorningSettingsPatch: {
+            /** Format: int64 */
+            anchors?: number;
+            at?: string;
+            enabled?: boolean;
+            include_truncated?: boolean;
+            /** Format: int64 */
+            keep_days?: number;
+            /** Format: int64 */
+            max_takes?: number;
+            /** Format: int64 */
+            minutes?: number;
+            /** Format: int64 */
+            side_minutes?: number;
+            /** Format: int64 */
+            wait_minutes?: number;
+        };
+        MorningSide: {
+            /** Format: int64 */
+            bytes: number;
+            /** Format: int64 */
+            chapters: number;
+            /** Format: int64 */
+            duration_ms: number;
+            /** Format: date-time */
+            expires_at: string | null;
+            /** @description Side A, Side B ... */
+            label: string;
+            removed: boolean;
+            sha256: string;
+            /**
+             * Format: int64
+             * @description 0-based
+             */
+            side: number;
+            /** @description Signed link, null once the file is swept */
+            url: string | null;
+        };
         MorphParams: {
             a_at?: {
                 /** Format: int64 */
@@ -8782,6 +9116,9 @@ export interface components {
              * @enum {string}
              */
             verdict: "a" | "b" | "tie" | "both_bad";
+        };
+        SubmitMorningEventsInBody: {
+            events: components["schemas"]["MorningEvent"][] | null;
         };
         SubmitResult: {
             duel: components["schemas"]["Duel"];
@@ -12481,6 +12818,238 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WhoamiOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_morning_crates: {
+        parameters: {
+            query?: {
+                /** @description Only crates in this state */
+                state?: "building" | "ready" | "empty" | "failed";
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MorningCratePage"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    build_morning_crate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen key; a retry with the same key and body replays the first response (24 h). */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BuildMorningCrateBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MorningCrate"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_morning_crate_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MorningSettings"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_morning_crate_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MorningSettingsPatch"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MorningSettings"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_morning_crate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Morning crate id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MorningCrate"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    submit_morning_crate_events: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Morning crate id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitMorningEventsInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MorningEventsResult"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    reveal_morning_crate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Morning crate id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MorningCrate"];
                 };
             };
             /** @description Error */

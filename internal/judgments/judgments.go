@@ -57,7 +57,7 @@ type Comment struct {
 	Section        *SectionRef       `json:"section" doc:"Section label; null when no timed section covers at_second"`
 	Kind           string            `json:"kind" enum:"note,fix,keep,marker"`
 	State          string            `json:"state" enum:"open,addressed,resolved,regressed"`
-	Source         string            `json:"source" enum:"web,api,mcp,stdio,subsonic,callback"`
+	Source         string            `json:"source" enum:"web,api,mcp,stdio,subsonic,callback,headset"`
 	Author         auth.PrincipalRef `json:"author"`
 	CreatedAt      string            `json:"created_at"`
 	UpdatedAt      string            `json:"updated_at"`

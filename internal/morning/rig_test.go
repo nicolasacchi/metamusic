@@ -12,8 +12,12 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/clock"
 	"github.com/nicolasacchi/metamusic/internal/clock/clocktest"
+	"github.com/nicolasacchi/metamusic/internal/judgments"
+	"github.com/nicolasacchi/metamusic/internal/library"
 	"github.com/nicolasacchi/metamusic/internal/library/librarytest"
+	"github.com/nicolasacchi/metamusic/internal/listening"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
+	"github.com/nicolasacchi/metamusic/internal/playlists"
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
@@ -91,6 +95,10 @@ type rig struct {
 	n     int
 	ids   int
 	night NightBatchFunc
+	mu    sync.Mutex
+	oids  int
+	judg  *judgments.Service
+	lists *playlists.Service
 }
 
 func newRig(t *testing.T) *rig {
@@ -120,7 +128,10 @@ func newRigAt(t *testing.T, dbPath, dir string, clk *clocktest.Manual) *rig {
 		clk = clocktest.NewManual(dawn)
 	}
 	r := &rig{t: t, st: st, clk: clk, data: data, dir: dir, build: &stubBuilder{data: data}}
-	r.svc = New(ServiceOptions{Store: st, Data: data, Builder: r.build, Signer: serve.NewSigner([]byte("k"), clk.Now), Clock: clk, Loc: time.UTC,
+	lib := library.New(st, data, clk.Now)
+	r.judg = judgments.New(st, lib, clk.Now, r.otherID)
+	r.lists = playlists.New(st, lib, clk.Now, r.otherID)
+	r.svc = New(ServiceOptions{Store: st, Data: data, Builder: r.build, Judgments: r.judg, Listening: listening.New(st, clk.Now), Playlists: r.lists, Signer: serve.NewSigner([]byte("k"), clk.Now), Clock: clk, Loc: time.UTC,
 		NewID: func() string { r.ids++; return fmt.Sprintf("01900000-0000-7000-8000-%012x", 0xc000+r.ids) },
 		NightBatch: func(ctx context.Context, day string) (string, bool, bool, error) {
 			if r.night == nil {
@@ -200,3 +211,11 @@ func (r realTimerT) C() <-chan time.Time { return r.t.C }
 func (r realTimerT) Stop() bool          { return r.t.Stop() }
 
 var auth0 = auth.Principal{}
+
+// otherID makes ids for the judgments and playlists services (distinct from the crate ids).
+func (r *rig) otherID() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.oids++
+	return fmt.Sprintf("01900000-0000-7000-8000-%012x", 0xd000+r.oids)
+}

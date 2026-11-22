@@ -31,6 +31,15 @@ export const PENDING_UI: ReadonlySet<string> = new Set<string>([
   "recover_recipe",
   // M6N-W1 (lane loop-web-a) adds the /critics page (m6n-night C388.1, spec m6n-critics.spec.ts); it removes this one.
   "get_critic_bench",
+  // M6N-W2 (lane loop-web-b) adds the /morning and /morning/:id pages: the player's crate mode, blind rating, the reveal and the settings
+  // (m6-night C384, spec m6n-morning.spec.ts); it removes these seven.
+  "get_morning_crate_settings",
+  "update_morning_crate_settings",
+  "list_morning_crates",
+  "get_morning_crate",
+  "build_morning_crate",
+  "submit_morning_crate_events",
+  "reveal_morning_crate",
 ]);
 
 /** Operation ids whose x-mm.ui is a route (not "none:<reason>"): the SPA must exercise them, except the PENDING_UI ones. */

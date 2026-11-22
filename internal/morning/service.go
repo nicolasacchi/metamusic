@@ -17,7 +17,10 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/clock"
 	"github.com/nicolasacchi/metamusic/internal/idem"
+	"github.com/nicolasacchi/metamusic/internal/judgments"
+	"github.com/nicolasacchi/metamusic/internal/listening"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
+	"github.com/nicolasacchi/metamusic/internal/playlists"
 	"github.com/nicolasacchi/metamusic/internal/problem"
 	"github.com/nicolasacchi/metamusic/internal/redact"
 	"github.com/nicolasacchi/metamusic/internal/schedule"
@@ -74,6 +77,10 @@ type ServiceOptions struct {
 	NewID      func() string
 	Loc        *time.Location // nil: the process zone
 	NightBatch NightBatchFunc
+	// The Owner's judgments, written only at the reveal (M6N C381): nil makes the events and the reveal answer 503.
+	Judgments *judgments.Service
+	Listening *listening.Service
+	Playlists *playlists.Service
 }
 
 // Service owns every SQL statement of the Morning Crate.

@@ -215,7 +215,8 @@ func (w *intbWorld) idsFor(tb testing.TB, op intbOp) (ids []string, gone map[str
 		table := ""
 		for prefix, tbl := range map[string]string{"/api/batches/": "batches", "/api/jobs/": "jobs", "/api/muses/": "muses", "/api/drafts/": "recipe_drafts",
 			"/api/exports/": "exports", "/api/callbacks/": "callbacks", "/api/patches/": "patches", "/api/transforms/": "transforms", "/api/comments/": "comments",
-			"/api/connectors/": "connector_grants", "/api/plans/": "desk_plans", "/api/duels/": "duels", "/api/imports/": "import_runs", "/api/sessions/": "sessions", "/api/mandates/": "mandates"} {
+			"/api/connectors/": "connector_grants", "/api/plans/": "desk_plans", "/api/duels/": "duels", "/api/imports/": "import_runs", "/api/sessions/": "sessions", "/api/mandates/": "mandates",
+			"/api/morning-crates/": "morning_crates"} {
 			if strings.HasPrefix(p, prefix) {
 				table = tbl
 			}

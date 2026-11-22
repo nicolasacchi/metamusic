@@ -23,7 +23,7 @@ import (
 var (
 	commentKinds  = []string{"note", "fix", "keep", "marker"}
 	commentStates = []string{"open", "addressed", "resolved", "regressed"}
-	commentSrcs   = []string{"web", "api", "mcp", "stdio", "subsonic", "callback"}
+	commentSrcs   = []string{"web", "api", "mcp", "stdio", "subsonic", "callback", "headset"}
 )
 
 // maxPageBytes is the serialized cap of a list page (M1 C17).
@@ -117,42 +117,61 @@ func sectionFor(ctx context.Context, q interface {
 
 // AddComment creates a comment; src is the transport label (web|api|mcp|stdio).
 func (s *Service) AddComment(ctx context.Context, p auth.Principal, src string, trackID string, in NewComment) (Comment, error) {
+	id, err := s.addComment(ctx, s.st.R, s.st.W, p, src, trackID, in)
+	if err != nil {
+		return Comment{}, err
+	}
+	audit.NoteCreated(ctx, id)
+	return s.comment(ctx, id)
+}
+
+// commentReader and commentWriter are the two halves addComment needs: *sql.DB pools for AddComment, one *sql.Tx for AddCommentTx.
+type commentReader interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+type commentWriter interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}
+
+func (s *Service) addComment(ctx context.Context, rd commentReader, wr commentWriter, p auth.Principal, src string, trackID string, in NewComment) (string, error) {
 	if !slices.Contains(commentSrcs, src) {
-		return Comment{}, inv("source", "unknown comment source %q", src)
+		return "", inv("source", "unknown comment source %q", src)
 	}
 	body, err := cleanBody(in.Body)
 	if err != nil {
-		return Comment{}, err
+		return "", err
 	}
 	kind := in.Kind
 	if kind == "" {
 		kind = "note"
 	}
 	if !slices.Contains(commentKinds, kind) {
-		return Comment{}, inv("kind", "must be note, fix, keep or marker")
+		return "", inv("kind", "must be note, fix, keep or marker")
 	}
 	var dur float64
-	switch err := s.st.R.QueryRowContext(ctx, `SELECT duration_s FROM tracks WHERE id = ?`, trackID).Scan(&dur); {
+	switch err := rd.QueryRowContext(ctx, `SELECT duration_s FROM tracks WHERE id = ?`, trackID).Scan(&dur); {
 	case errors.Is(err, sql.ErrNoRows):
-		return Comment{}, library.ErrNotFound
+		return "", library.ErrNotFound
 	case err != nil:
-		return Comment{}, fmt.Errorf("judgments: track lookup: %w", err)
+		return "", fmt.Errorf("judgments: track lookup: %w", err)
 	}
 	var at any
 	var sec *SectionRef
 	if in.AtSecond != nil {
 		t := *in.AtSecond
 		if math.IsNaN(t) || math.IsInf(t, 0) || t < 0 {
-			return Comment{}, inv("at_second", "must be 0 or more")
+			return "", inv("at_second", "must be 0 or more")
 		}
 		if t > dur {
-			return Comment{}, &Error{Status: http.StatusUnprocessableEntity, Code: "AT_SECOND_OUT_OF_RANGE", Field: "at_second",
+			return "", &Error{Status: http.StatusUnprocessableEntity, Code: "AT_SECOND_OUT_OF_RANGE", Field: "at_second",
 				Msg: fmt.Sprintf("at_second %.1f is after the end of the track (%.1f s)", t, dur)}
 		}
 		t = math.Round(t*10) / 10
 		at = t
-		if sec, err = sectionFor(ctx, s.st.R, trackID, t); err != nil {
-			return Comment{}, err
+		if sec, err = sectionFor(ctx, rd, trackID, t); err != nil {
+			return "", err
 		}
 	}
 	id := s.newID()
@@ -161,13 +180,12 @@ func (s *Service) AddComment(ctx context.Context, p auth.Principal, src string, 
 	if sec != nil {
 		label, lsrc, lconf = sec.Label, sec.Source, sec.Confidence
 	}
-	if _, err := s.st.W.ExecContext(ctx, `INSERT INTO comments(id, track_id, body, at_second, section_label, section_source, section_confidence, kind, state, source,
+	if _, err := wr.ExecContext(ctx, `INSERT INTO comments(id, track_id, body, at_second, section_label, section_source, section_confidence, kind, state, source,
 		principal_kind, principal_id, principal_name, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,'open',?,?,?,?,?,?)`,
 		id, trackID, body, at, label, lsrc, lconf, kind, src, string(p.Kind), p.Key(), p.Name, now, now); err != nil {
-		return Comment{}, fmt.Errorf("judgments: add comment: %w", err)
+		return "", fmt.Errorf("judgments: add comment: %w", err)
 	}
-	audit.NoteCreated(ctx, id)
-	return s.comment(ctx, id)
+	return id, nil
 }
 
 const commentCols = `id, track_id, body, at_second, section_label, section_source, section_confidence, kind, state, source,
