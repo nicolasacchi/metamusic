@@ -117,13 +117,29 @@ func (g *rig) ceilingOfOne() money.MicroUSD {
 }
 
 // grant creates the night's mandate as the Owner: room for fits one-take batches of budget, a per-night ceiling of ceilings one-take ceilings.
-func (g *rig) grant(fits, takes int) mandates.Mandate {
+func (g *rig) grant(fits, takes int) mandates.Mandate { return g.grantTier(fits, takes, true) }
+
+// grantCeiling is grant with an exact per-night ceiling and a budget that never binds.
+func (g *rig) grantCeiling(ceiling money.MicroUSD) mandates.Mandate {
+	g.t.Helper()
+	m, err := g.ms.Create(g.t.Context(), alice, mandates.CreateInput{Holder: mandates.HolderNightShift, Title: "Night shift",
+		Budget: ceiling * 10, ValidUntil: lt.FixedNow.Add(24 * time.Hour),
+		Scope: mandates.Scope{Modes: []string{"new_seed", "style_edit"}, Engines: []string{"yue2"}, MinStars: 3, MaxTakesPerLineage: 50,
+			MaxTakesPerBatch: 12, MaxBatchCeilingMicroUSD: ceiling, MaxBatchesPerDay: 4, TierB: true}})
+	if err != nil {
+		g.t.Fatal(err)
+	}
+	return m
+}
+
+// grantTier is grant with the mandate's tier_b allowance chosen.
+func (g *rig) grantTier(fits, takes int, tierB bool) mandates.Mandate {
 	g.t.Helper()
 	c := g.ceilingOfOne()
 	m, err := g.ms.Create(g.t.Context(), alice, mandates.CreateInput{Holder: mandates.HolderNightShift, Title: "Night shift",
 		Budget: money.MicroUSD(fits)*c*money.MicroUSD(takes) + c, ValidUntil: lt.FixedNow.Add(24 * time.Hour),
 		Scope: mandates.Scope{Modes: []string{"new_seed", "style_edit"}, Engines: []string{"yue2"}, MinStars: 3, MaxTakesPerLineage: 50,
-			MaxTakesPerBatch: 12, MaxBatchCeilingMicroUSD: money.MicroUSD(takes) * c, MaxBatchesPerDay: 4, TierB: true}})
+			MaxTakesPerBatch: 12, MaxBatchCeilingMicroUSD: money.MicroUSD(takes) * c, MaxBatchesPerDay: 4, TierB: tierB}})
 	if err != nil {
 		g.t.Fatal(err)
 	}

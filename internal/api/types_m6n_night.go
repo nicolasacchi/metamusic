@@ -99,7 +99,7 @@ type NightQuote struct {
 	MaxUSD           string `json:"max_usd"`
 	CeilingMicroUSD  int64  `json:"ceiling_micro_usd"`
 	CeilingUSD       string `json:"ceiling_usd"`
-	TierB            bool   `json:"tier_b" doc:"Not reported yet: M6N-N4 makes the listening checks explicit; always false until then"`
+	TierB            bool   `json:"tier_b" doc:"Whether some planned take has a listening check (Tier B); false when listening checks are off, the mandate does not allow them, or the worker capability is closed"`
 }
 
 // NightQuoteOrNull is a NightQuote that may be null.
