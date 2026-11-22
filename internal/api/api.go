@@ -48,6 +48,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/media/cover"
 	"github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/media/tagged"
+	"github.com/nicolasacchi/metamusic/internal/morning"
 	"github.com/nicolasacchi/metamusic/internal/muses"
 	"github.com/nicolasacchi/metamusic/internal/nextactions"
 	"github.com/nicolasacchi/metamusic/internal/oidc"
@@ -188,6 +189,10 @@ type Deps struct {
 	// M6N-B1 (C387): the Critic Bench; nil makes get_critic_bench answer 503 UNAVAILABLE {component: criticbench}. Set by the build hook in
 	// internal/app/m6n_bench.go.
 	CriticBench *criticbench.Service
+
+	// M6N-C3 (C380): the Morning Crate; nil makes its operations answer 503 UNAVAILABLE {component: morning}. Set by the build hook in
+	// internal/app/m6n_morning.go.
+	Morning *morning.Service
 
 	// NewID returns a fresh identifier; nil => uuid.NewV7().String(). Tests inject a deterministic sequence.
 	NewID func() string
