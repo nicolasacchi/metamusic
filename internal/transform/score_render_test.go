@@ -390,3 +390,17 @@ func TestScoreRow_SecondsNullBPMOverride(t *testing.T) {
 		t.Errorf("no override: %v s, want 8", got)
 	}
 }
+
+// TestScoreSupport_Accessor: the Desk reads the configured synth and soundfonts through the service, never a copy.
+func TestScoreSupport_Accessor(t *testing.T) {
+	t.Parallel()
+	r, _ := scoreRig(t, true, "gm")
+	sup := r.svc.ScoreSupport()
+	if sup == nil || sup.Fonts == nil || len(sup.Fonts.Names()) != 1 || sup.Info.Name != "fluidsynth" {
+		t.Errorf("ScoreSupport = %+v", sup)
+	}
+	bare := newRig(t)
+	if bare.svc.ScoreSupport() != nil {
+		t.Error("a service without T1b answers a ScoreSupport")
+	}
+}
