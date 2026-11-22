@@ -443,6 +443,8 @@ func (s *Service) ffmpegEncode(ctx context.Context, pcm, out string) error {
 	_, err := mediatool.Run(ctx, s.o.FFmpeg, []string{"-nostdin", "-hide_banner", "-loglevel", "error", "-y",
 		"-f", "s24le", "-ar", "48000", "-ac", "2", "-i", "file:" + pcm,
 		"-map_metadata", "-1", "-flags", "+bitexact", "-fflags", "+bitexact",
+		// no ID3v2 header: the mp3 muxer writes an (empty) one by default; without it the file is the bare frame stream
+		"-id3v2_version", "0",
 		"-c:a", "libmp3lame", "-b:a", auditionMP3, "-f", "mp3", "file:" + out},
 		mediatool.RunOpts{Timeout: AuditionTimeout, MaxStdout: 1 << 16, Group: true})
 	return err
