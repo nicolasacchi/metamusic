@@ -2,6 +2,8 @@ package judgments
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -36,17 +38,33 @@ func (s *Service) requireTrack(ctx context.Context, trackID string) error {
 // an agent as the critic, and a principal that cannot rate (system, anonymous) is refused. The result is the unshaped
 // rating set; the caller shapes it for the viewer (library.ShapeRating).
 func (s *Service) Rate(ctx context.Context, p auth.Principal, trackID string, stars *int, verdict *string) (TrackRating, error) {
+	if err := s.rate(ctx, s.st.R, s.st.W, p, trackID, stars, verdict); err != nil {
+		return TrackRating{}, err
+	}
+	return s.Ratings(ctx, trackID)
+}
+
+// ratingReader and ratingWriter are the halves rate needs: the pools for Rate, one *sql.Tx for RateTx.
+type ratingReader interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+type ratingWriter interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}
+
+func (s *Service) rate(ctx context.Context, rd ratingReader, wr ratingWriter, p auth.Principal, trackID string, stars *int, verdict *string) error {
 	if stars != nil && (*stars < 1 || *stars > 5) {
-		return TrackRating{}, inv("stars", "must be 1..5 or null")
+		return inv("stars", "must be 1..5 or null")
 	}
 	var v any
 	if verdict != nil {
 		t := strings.TrimSpace(*verdict)
 		if strings.ContainsRune(t, 0) {
-			return TrackRating{}, inv("verdict", "must not contain NUL")
+			return inv("verdict", "must not contain NUL")
 		}
 		if utf8.RuneCountInString(t) > 280 {
-			return TrackRating{}, inv("verdict", "at most 280 characters")
+			return inv("verdict", "at most 280 characters")
 		}
 		if t != "" {
 			v = t
@@ -58,24 +76,28 @@ func (s *Service) Rate(ctx context.Context, p auth.Principal, trackID string, st
 	}
 	rater := auth.RaterKey(p)
 	if rater == "" {
-		return TrackRating{}, &Error{Status: http.StatusForbidden, Code: "CANNOT_RATE", Msg: "this principal cannot rate"}
+		return &Error{Status: http.StatusForbidden, Code: "CANNOT_RATE", Msg: "this principal cannot rate"}
 	}
-	if err := s.requireTrack(ctx, trackID); err != nil {
-		return TrackRating{}, err
+	var one int
+	switch err := rd.QueryRowContext(ctx, `SELECT 1 FROM tracks WHERE id = ?`, trackID).Scan(&one); {
+	case errors.Is(err, sql.ErrNoRows):
+		return library.ErrNotFound
+	case err != nil:
+		return fmt.Errorf("judgments: track lookup: %w", err)
 	}
 	source := "agent"
 	if p.IsPerson() {
 		source = "human"
 	}
 	now := s.stamp()
-	if _, err := s.st.W.ExecContext(ctx, `INSERT INTO ratings(track_id,source,rater,stars,verdict,principal_kind,principal_id,principal_name,created_at,updated_at)
+	if _, err := wr.ExecContext(ctx, `INSERT INTO ratings(track_id,source,rater,stars,verdict,principal_kind,principal_id,principal_name,created_at,updated_at)
 		VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(track_id,source,rater) DO UPDATE SET stars=excluded.stars, verdict=excluded.verdict,
 		principal_kind=excluded.principal_kind, principal_id=excluded.principal_id,
 		principal_name=excluded.principal_name, updated_at=excluded.updated_at`,
 		trackID, source, rater, st, v, string(p.Kind), p.Key(), p.Name, now, now); err != nil {
-		return TrackRating{}, fmt.Errorf("judgments: rate: %w", err)
+		return fmt.Errorf("judgments: rate: %w", err)
 	}
-	return s.Ratings(ctx, trackID)
+	return nil
 }
 
 // Ratings returns a track's unshaped rating set (library.Ratings).

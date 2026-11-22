@@ -160,24 +160,16 @@ func (s *Service) checkTracks(ctx context.Context, q interface {
 
 // Create stores a new playlist.
 func (s *Service) Create(ctx context.Context, p auth.Principal, in NewPlaylist) (Playlist, error) {
-	name, err := cleanName(in.Name)
+	tx, err := s.st.W.BeginTx(ctx, nil)
 	if err != nil {
 		return Playlist{}, err
 	}
-	desc, err := cleanDesc(in.Description)
+	defer func() { _ = tx.Rollback() }()
+	id, err := s.CreateTx(ctx, tx, p, in)
 	if err != nil {
 		return Playlist{}, err
 	}
-	if len(in.TrackIDs) > MaxItems {
-		return Playlist{}, invalid("track_ids", fmt.Sprintf("at most %d tracks", MaxItems))
-	}
-	if err := s.checkTracks(ctx, s.st.R, in.TrackIDs); err != nil {
-		return Playlist{}, err
-	}
-	items, _ := json.Marshal(nonNil(in.TrackIDs))
-	id, now := s.newID(), s.stamp()
-	if _, err := s.st.W.ExecContext(ctx, `INSERT INTO playlists(id, name, description, items_json, items_count, revision, created_by, updated_by, created_at, updated_at)
-		VALUES (?,?,?,?,?,1,?,?,?,?)`, id, name, desc, string(items), len(in.TrackIDs), p.Key(), p.Key(), now, now); err != nil {
+	if err := tx.Commit(); err != nil {
 		return Playlist{}, fmt.Errorf("playlists: create: %w", err)
 	}
 	return s.Get(ctx, id)

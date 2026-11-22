@@ -138,7 +138,8 @@
             "mcp",
             "stdio",
             "subsonic",
-            "callback"
+            "callback",
+            "headset"
           ],
           "type": "string"
         },
@@ -10679,7 +10680,8 @@
             "mcp",
             "stdio",
             "subsonic",
-            "callback"
+            "callback",
+            "headset"
           ],
           "type": "string"
         },
