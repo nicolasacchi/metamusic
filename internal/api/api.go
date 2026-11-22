@@ -26,6 +26,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/connectors"
 	"github.com/nicolasacchi/metamusic/internal/crates"
+	"github.com/nicolasacchi/metamusic/internal/criticbench"
 	"github.com/nicolasacchi/metamusic/internal/curation"
 	"github.com/nicolasacchi/metamusic/internal/desk"
 	"github.com/nicolasacchi/metamusic/internal/diction"
@@ -187,6 +188,9 @@ type Deps struct {
 	// M6N-M1 (C369): the spending mandates; nil makes their operations answer 503 UNAVAILABLE {component: mandates}. Set by the
 	// build hook in internal/app/m6n_mandates.go.
 	Mandates *mandates.Service
+	// M6N-B1 (C387): the Critic Bench; nil makes get_critic_bench answer 503 UNAVAILABLE {component: criticbench}. Set by the build hook in
+	// internal/app/m6n_bench.go.
+	CriticBench *criticbench.Service
 
 	// NewID returns a fresh identifier; nil => uuid.NewV7().String(). Tests inject a deterministic sequence.
 	NewID func() string
@@ -293,6 +297,7 @@ func New(mux *http.ServeMux, d Deps) huma.API {
 	registerDuelsM5(a, d)
 	registerVoiceM5(a, d)
 	registerMandatesM6N(a, d)
+	registerBenchM6N(a, d)
 	relaxResponseSchemas(a) // C308: the keys a role may not receive are optional in the response schemas
 	notFound(mux, "/api/")
 	notFound(mux, "/human/api/")

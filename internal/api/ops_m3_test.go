@@ -110,8 +110,8 @@ func TestOps_RegisteredWithMetaM3(t *testing.T) {
 	if tools != 7 || generic != 11 || excluded != 5 { // C81 had 11/7/5; D-M3-36 demoted four tools
 		t.Errorf("tools/generic/excluded = %d/%d/%d, want 7/11/5", tools, generic, excluded)
 	}
-	if len(byID) != 166 { // 81 after M3 + 18 of L1 (C96) + 2 songwriting-target ops + 8 of M4a (C113) + 17 of L2 (C129) + 7 of L3 (C142) + 7 of T1 (C212) + 9 of M5 (C260) + 1 of E2 (C160) + 1 of EARS-S1 (get_track_tier_b) + 4 of EARS-D1 (diction lab) + 1 of EARS-R1 (recover_recipe) + 4 of M6N-M1 (mandates) + 6 of DESK-S1 (the Desk)
-		t.Errorf("registry holds %d operations, want 166", len(byID))
+	if len(byID) != 167 { // 81 after M3 + 18 of L1 (C96) + 2 songwriting-target ops + 8 of M4a (C113) + 17 of L2 (C129) + 7 of L3 (C142) + 7 of T1 (C212) + 9 of M5 (C260) + 1 of E2 (C160) + 1 of EARS-S1 (get_track_tier_b) + 4 of EARS-D1 (diction lab) + 1 of EARS-R1 (recover_recipe) + 4 of M6N-M1 (mandates) + 1 of M6N-B1 (critic bench) + 6 of DESK-S1 (the Desk)
+		t.Errorf("registry holds %d operations, want 167", len(byID))
 	}
 }
 

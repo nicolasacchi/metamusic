@@ -168,6 +168,8 @@ var uiScript = map[string]func(s *uiState) map[string]any{
 		return map[string]any{"id": s.track, "marks": []map[string]any{{"section_idx": 0, "line_idx": 0, "mark": "unclear"}}}
 	},
 	"get_diction_lexicon": func(*uiState) map[string]any { return map[string]any{"limit": 10} },
+	// M6N-B1: the Critic Bench (page /critics comes in M6N-W1); the Tier A critics read the rows seeded by the earlier steps.
+	"get_critic_bench": func(*uiState) map[string]any { return map[string]any{"include_unknown": true} },
 	"update_lexicon_entry": func(*uiState) map[string]any {
 		return map[string]any{"lang": "it", "word": "sorrinvento", "status": "ignored", "note": "scripted"}
 	},
@@ -351,6 +353,8 @@ var uiOrder = []string{
 	"suggest_sequence", "list_next_actions", "list_taxonomy_proposals", "get_song_atlas", "get_adherence",
 	// T1: transforms of a Take
 	"get_transform_capabilities", "estimate_transform", "create_transform", "get_transform", "list_transforms", "wait_for_transform", "cancel_transform",
+	// M6N-B1: the Critic Bench, after every rating, duel and analysis of the session
+	"get_critic_bench",
 	// E2: the engine matrix
 	"list_engines",
 	// DESK-S1: open a take's score on the Desk, read it, edit it, judge the edit, list
