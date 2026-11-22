@@ -174,8 +174,12 @@ func (s *Service) routeGate(ctx context.Context, engineName, requested string) (
 		}
 		if requested != "" {
 			if s.e2.backends != nil {
-				if _, err := s.e2.backends.Route(DefaultEngine, requested); err != nil {
+				name, err := s.e2.backends.Route(DefaultEngine, requested)
+				if err != nil {
 					return st, nil, backendUnavailable(engineName, requested)
+				}
+				if name != st.Backend && provider.IsPodBackend(name) { // the second yue2 backend (the pod backend, C396.2): its own gate, its own quote
+					return s.podGate(ctx, engineName, requested, name)
 				}
 			} else if requested != st.Backend {
 				return st, nil, backendUnavailable(engineName, requested)
@@ -188,6 +192,23 @@ func (s *Service) routeGate(ctx context.Context, engineName, requested string) (
 	}
 	name, err := s.e2.backends.Route(engineName, requested)
 	if err != nil {
+		return provider.State{}, nil, backendUnavailable(engineName, requested)
+	}
+	be, ok := s.e2.backends.Get(name)
+	if !ok {
+		return provider.State{}, nil, backendUnavailable(engineName, requested)
+	}
+	st, err := s.e2.gates.StateFor(ctx, name)
+	if errors.Is(err, provider.ErrNoBackend) {
+		return st, nil, backendUnavailable(engineName, requested)
+	}
+	return st, be, err
+}
+
+// podGate is the gate state and backend of a yue2 batch routed to the pod backend. Without a gate set the pod backend cannot be served.
+// The pod's gate is its own: its provider_state row, quote, trips and opened capabilities; nothing of the serverless gate carries over.
+func (s *Service) podGate(ctx context.Context, engineName, requested, name string) (provider.State, provider.Backend, error) {
+	if s.e2.gates == nil {
 		return provider.State{}, nil, backendUnavailable(engineName, requested)
 	}
 	be, ok := s.e2.backends.Get(name)
@@ -352,7 +373,14 @@ func (s *Service) batchCreated(ctx context.Context, tx *sql.Tx, e estimateRow, b
 // which ConsumeToken refuses), the estimate's own backend's gate for any other engine.
 func (s *Service) createGate(ctx context.Context, tx *sql.Tx, engineName, backend string) (provider.State, error) {
 	if engineName == "" || engineName == DefaultEngine {
-		return s.o.Gate.StateIn(ctx, tx)
+		st, err := s.o.Gate.StateIn(ctx, tx)
+		if err != nil || !provider.IsPodBackend(backend) || backend == st.Backend || s.e2.gates == nil {
+			return st, err
+		}
+		if _, ok := s.e2.gates.For(backend); !ok {
+			return st, nil // the pod backend left the set: the caller sees the backend change
+		}
+		return s.e2.gates.StateIn(ctx, tx, backend) // an estimate routed to the pod backend creates under the pod gate
 	}
 	if s.e2.gates == nil {
 		return provider.State{}, staleErr(map[string]any{"reason": "backend_changed"})

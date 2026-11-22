@@ -35,7 +35,7 @@ type deskRig struct {
 	svc *desk.Service
 }
 
-func newDeskRig(t *testing.T) *deskRig {
+func newDeskRig(t *testing.T, mods ...func(*desk.Options)) *deskRig {
 	t.Helper()
 	st, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "t.db"))
 	if err != nil {
@@ -58,7 +58,11 @@ func newDeskRig(t *testing.T) *deskRig {
 	t.Cleanup(func() { _ = root.Close() })
 	now := func() time.Time { return lt.FixedNow }
 	signer := serve.NewSigner(testKey, now)
-	svc := desk.New(desk.Options{Store: st, Data: root, Signer: signer, Now: now})
+	o := desk.Options{Store: st, Data: root, Signer: signer, Now: now, DataDir: dir}
+	for _, m := range mods {
+		m(&o)
+	}
+	svc := desk.New(o)
 	r := &rig{mux: http.NewServeMux(), signer: signer, svc: library.New(st, root, now), st: st}
 	api.New(r.mux, api.Deps{Store: st, Library: r.svc, Signer: signer, Now: now, Desk: svc})
 	return &deskRig{rig: r, dir: dir, svc: svc}
@@ -201,6 +205,7 @@ func TestOps_Desk_ListenerRefused(t *testing.T) {
 			{"GET", "/api/plans", nil}, {"GET", "/api/plans/" + id, nil}, {"POST", "/api/abc/check", map[string]any{"abc": "x"}},
 			{"POST", "/api/tracks/" + lt.TrackLuna + "/plan", nil}, {"POST", "/api/plans/" + id + "/edits", deskEdit("CDEFGABc")},
 			{"PUT", "/api/plans/" + id + "/verdict", map[string]any{"verdict": "liked"}},
+			{"POST", "/api/plans/" + id + "/auditions", map[string]any{}}, {"GET", "/api/plans/" + id + "/auditions/a1", nil},
 		} {
 			if code, m := r.do(p, c.method, c.path, c.body); code != 403 {
 				t.Errorf("%s %s %s: %d %v, want 403", p.Kind, c.method, c.path, code, m)
@@ -264,6 +269,7 @@ func TestOps_Desk_NilServiceUnavailable(t *testing.T) {
 		{"GET", "/api/plans", ""}, {"GET", "/api/plans/x", ""}, {"POST", "/api/abc/check", `{"abc":"x"}`},
 		{"PUT", "/api/plans/x/verdict", `{"verdict":null}`}, {"POST", "/api/tracks/x/plan", ""},
 		{"POST", "/api/plans/x/edits", `{"ops":[{"op":"set_tempo","bpm":90}]}`},
+		{"POST", "/api/plans/x/auditions", `{}`}, {"GET", "/api/plans/x/auditions/y", ""},
 	} {
 		req := httptest.NewRequest(c.method, c.path, strings.NewReader(c.body)).WithContext(auth.WithPrincipal(context.Background(), human))
 		req.Header.Set("Content-Type", "application/json")

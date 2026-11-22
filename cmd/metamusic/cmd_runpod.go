@@ -521,6 +521,9 @@ type statusView struct {
 	// LiveAttempts is always present (empty when none, or when there is no database): the attempts in a
 	// state that may still spend (pending, submitted, unknown). scripts/deploy-preflight.sh reads it.
 	LiveAttempts []liveAttemptView `json:"live_attempts"`
+	// LivePods is always present: the pods this server created that are not terminated (any backend of the set). scripts/deploy-preflight.sh
+	// refuses a deploy while it is above zero (C396.6): a deploy restarts the app, and a pod outside it keeps billing.
+	LivePods int `json:"live_pods"`
 }
 
 type liveAttemptView struct {
@@ -681,6 +684,9 @@ func fillStatusFromDB(ctx context.Context, db *sql.DB, v *statusView, jobID stri
 	if err := lrows.Close(); err != nil {
 		return err
 	}
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM pods WHERE state <> 'terminated'`).Scan(&v.LivePods); err != nil {
+		return err
+	}
 	if jobID == "" {
 		return nil
 	}
@@ -787,6 +793,9 @@ func printStatus(s streams, v statusView) {
 		fmt.Fprintf(s.out, "trip:           OPEN %s since %s: %s\n", v.Trip.ID, v.Trip.At, v.Trip.Reason)
 	} else {
 		fmt.Fprintf(s.out, "trip:           none\n")
+	}
+	if v.LivePods > 0 {
+		fmt.Fprintf(s.out, "live pods:      %d (a deploy is refused while any is live)\n", v.LivePods)
 	}
 	if v.LastReconcile != "" {
 		fmt.Fprintf(s.out, "last reconcile: %s\n", v.LastReconcile)

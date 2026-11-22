@@ -2423,6 +2423,30 @@
         ],
         "type": "object"
       },
+      "BuildMorningCrateBody": {
+        "additionalProperties": false,
+        "properties": {
+          "include_track_ids": {
+            "description": "Takes to put in whatever their rating or age",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 30,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "minutes": {
+            "description": "Length of this crate; the setting when absent",
+            "format": "int64",
+            "maximum": 120,
+            "minimum": 5,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "Calibration": {
         "additionalProperties": false,
         "properties": {
@@ -3680,7 +3704,8 @@
               "mcp",
               "stdio",
               "subsonic",
-              "callback"
+              "callback",
+              "headset"
             ],
             "type": "string"
           },
@@ -4769,6 +4794,38 @@
         ],
         "type": "object"
       },
+      "CreatePlanAuditionInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "chords": {
+            "description": "How chord symbols sound; default block",
+            "enum": [
+              "none",
+              "block"
+            ],
+            "type": "string"
+          },
+          "gain": {
+            "description": "Synth gain; default 0.6",
+            "format": "double",
+            "maximum": 1.5,
+            "minimum": 0.1,
+            "type": "number"
+          },
+          "soundfont": {
+            "description": "A configured soundfont name; default the first",
+            "type": "string"
+          },
+          "tail_s": {
+            "description": "Seconds of tail after the last note; default 3",
+            "format": "double",
+            "maximum": 10,
+            "minimum": 0,
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
       "CreatePlaylistInBody": {
         "additionalProperties": false,
         "properties": {
@@ -5217,6 +5274,47 @@
         "required": [
           "decision"
         ],
+        "type": "object"
+      },
+      "DeskItemIn": {
+        "additionalProperties": false,
+        "properties": {
+          "cot": {
+            "description": "plan_seeds only",
+            "enum": [
+              "full",
+              "melody"
+            ],
+            "type": "string"
+          },
+          "n_seeds": {
+            "description": "plan_seeds only",
+            "format": "int64",
+            "maximum": 16,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "plan_ids": {
+            "description": "render_plan: the plans whose score is rendered (1..10). Each plan renders its own seed plus n_seeds-1 new ones; the base take of a plan is the mother of its takes",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "seeds": {
+            "description": "plan_seeds only",
+            "items": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "maxItems": 16,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
         "type": "object"
       },
       "Device": {
@@ -9280,6 +9378,10 @@
       "ItemIn": {
         "additionalProperties": false,
         "properties": {
+          "desk": {
+            "$ref": "#/components/schemas/DeskItemIn",
+            "description": "render_plan: the Desk plans to render (the Desk's own modes only; any other mode refuses it)"
+          },
           "draft_ids": {
             "description": "from_draft: the drafts to render",
             "items": {
@@ -9317,6 +9419,7 @@
               "complete",
               "stems",
               "cover",
+              "render_plan",
               "analyze"
             ],
             "type": "string"
@@ -12137,6 +12240,645 @@
         "required": [
           "x",
           "y"
+        ],
+        "type": "object"
+      },
+      "MorningChapter": {
+        "additionalProperties": false,
+        "properties": {
+          "anchor": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "audio_start_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "end_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "gain_db": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "limited": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "lufs_after": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "markers": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "n": {
+            "description": "1-based, also the number in the slate tone",
+            "format": "int64",
+            "type": "integer"
+          },
+          "side": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "skipped_at_ms": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "stars": {
+            "description": "The latest blind rating",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "start_ms": {
+            "description": "Start of the slate, relative to the side",
+            "format": "int64",
+            "type": "integer"
+          },
+          "strong_markers": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "track": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "root_track_id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "root_track_id"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "verdict": {
+            "enum": [
+              "kept",
+              "skipped",
+              "marked",
+              "heard",
+              "unheard"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "n",
+          "side",
+          "start_ms",
+          "audio_start_ms",
+          "end_ms",
+          "stars",
+          "verdict",
+          "markers",
+          "strong_markers",
+          "skipped_at_ms",
+          "track",
+          "anchor",
+          "gain_db",
+          "limited",
+          "lufs_after"
+        ],
+        "type": "object"
+      },
+      "MorningCrate": {
+        "additionalProperties": false,
+        "properties": {
+          "adjacency_relaxed": {
+            "description": "Two takes of one lineage sit side by side because the order could not avoid it",
+            "type": "boolean"
+          },
+          "anchors": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "built_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "chapters": {
+            "items": {
+              "$ref": "#/components/schemas/MorningChapter"
+            },
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "duration_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "error_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "playlist_id": {
+            "description": "The shared playlist made at the reveal",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revealed": {
+            "type": "boolean"
+          },
+          "revealed_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sides": {
+            "items": {
+              "$ref": "#/components/schemas/MorningSide"
+            },
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "building",
+              "ready",
+              "empty",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "takes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "trigger": {
+            "enum": [
+              "scheduled",
+              "manual"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "trigger",
+          "created_at",
+          "built_at",
+          "revealed",
+          "revealed_at",
+          "adjacency_relaxed",
+          "takes",
+          "anchors",
+          "duration_ms",
+          "error_code",
+          "sides",
+          "chapters",
+          "playlist_id"
+        ],
+        "type": "object"
+      },
+      "MorningCratePage": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MorningCrateSummary"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "MorningCrateSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "anchors": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "built_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "duration_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "error_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "revealed": {
+            "type": "boolean"
+          },
+          "revealed_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sides": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "building",
+              "ready",
+              "empty",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "takes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "trigger": {
+            "enum": [
+              "scheduled",
+              "manual"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "trigger",
+          "created_at",
+          "built_at",
+          "revealed",
+          "revealed_at",
+          "takes",
+          "anchors",
+          "sides",
+          "duration_ms",
+          "error_code"
+        ],
+        "type": "object"
+      },
+      "MorningEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "chapter": {
+            "description": "Chapter number (the number of the slate tone)",
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "client_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "description": "Client-made UUID (v7); a replay of the same id is counted as a duplicate",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "marker",
+              "strong_marker",
+              "skip",
+              "complete",
+              "play",
+              "rate"
+            ],
+            "type": "string"
+          },
+          "latency_ms": {
+            "description": "Headset latency, subtracted from a marker's position",
+            "format": "int64",
+            "maximum": 5000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "side": {
+            "description": "0-based side the position is in",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "side_ms": {
+            "description": "Position in the side, milliseconds",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "stars": {
+            "description": "rate only: 1..5, or null to clear the blind rating",
+            "format": "int64",
+            "maximum": 5,
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "side",
+          "chapter",
+          "kind",
+          "side_ms",
+          "client_at"
+        ],
+        "type": "object"
+      },
+      "MorningEventRejection": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "enum": [
+              "UNKNOWN_CHAPTER",
+              "OUT_OF_RANGE",
+              "INVALID_EVENT"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "code"
+        ],
+        "type": "object"
+      },
+      "MorningEventsResult": {
+        "additionalProperties": false,
+        "properties": {
+          "accepted": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "duplicates": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "rejected": {
+            "items": {
+              "$ref": "#/components/schemas/MorningEventRejection"
+            },
+            "type": "array"
+          },
+          "revealed": {
+            "description": "The crate is revealed now: by this call (every chapter had blind stars) or earlier",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "accepted",
+          "duplicates",
+          "rejected",
+          "revealed"
+        ],
+        "type": "object"
+      },
+      "MorningSettings": {
+        "additionalProperties": false,
+        "properties": {
+          "anchors": {
+            "description": "Calibration takes the Owner rated five stars or marked final, mixed in blind",
+            "format": "int64",
+            "maximum": 2,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "at": {
+            "description": "Local time of day (MM_TZ) the crate is built, HH:MM",
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "include_truncated": {
+            "type": "boolean"
+          },
+          "keep_days": {
+            "description": "How long the side files are kept",
+            "format": "int64",
+            "maximum": 30,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "max_takes": {
+            "format": "int64",
+            "maximum": 30,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "minutes": {
+            "description": "Length of the whole crate",
+            "format": "int64",
+            "maximum": 120,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "side_minutes": {
+            "description": "Longest side",
+            "format": "int64",
+            "maximum": 15,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updated_by": {
+            "$ref": "#/components/schemas/PrincipalRef"
+          },
+          "wait_minutes": {
+            "description": "How long the 07:00 build waits for tonight's batch to finish",
+            "format": "int64",
+            "maximum": 120,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "enabled",
+          "at",
+          "minutes",
+          "side_minutes",
+          "max_takes",
+          "anchors",
+          "include_truncated",
+          "keep_days",
+          "wait_minutes",
+          "updated_by",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "MorningSettingsPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "anchors": {
+            "format": "int64",
+            "maximum": 2,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "at": {
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "include_truncated": {
+            "type": "boolean"
+          },
+          "keep_days": {
+            "format": "int64",
+            "maximum": 30,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "max_takes": {
+            "format": "int64",
+            "maximum": 30,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "minutes": {
+            "format": "int64",
+            "maximum": 120,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "side_minutes": {
+            "format": "int64",
+            "maximum": 15,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "wait_minutes": {
+            "format": "int64",
+            "maximum": 120,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "MorningSide": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "chapters": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "duration_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "description": "Side A, Side B ...",
+            "type": "string"
+          },
+          "removed": {
+            "type": "boolean"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "side": {
+            "description": "0-based",
+            "format": "int64",
+            "type": "integer"
+          },
+          "url": {
+            "description": "Signed link, null once the file is swept",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "side",
+          "label",
+          "duration_ms",
+          "bytes",
+          "chapters",
+          "url",
+          "expires_at",
+          "sha256",
+          "removed"
         ],
         "type": "object"
       },
@@ -15174,6 +15916,60 @@
           "soundfont",
           "chords",
           "seconds",
+          "url",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "PlanAuditionDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "chords": {
+            "enum": [
+              "none",
+              "block"
+            ],
+            "type": "string"
+          },
+          "cpu_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "plan_id": {
+            "type": "string"
+          },
+          "seconds": {
+            "format": "double",
+            "type": "number"
+          },
+          "soundfont": {
+            "type": "string"
+          },
+          "soundfont_sha256_12": {
+            "type": "string"
+          },
+          "synth_version": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "plan_id",
+          "soundfont",
+          "soundfont_sha256_12",
+          "synth_version",
+          "chords",
+          "seconds",
+          "cpu_ms",
           "url",
           "created_at"
         ],
@@ -21082,6 +21878,26 @@
         },
         "required": [
           "verdict"
+        ],
+        "type": "object"
+      },
+      "SubmitMorningEventsInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/MorningEvent"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "events"
         ],
         "type": "object"
       },
@@ -30924,6 +31740,382 @@
         }
       }
     },
+    "/api/morning-crates": {
+      "get": {
+        "description": "Crates newest first as summaries (state, counts, length, whether revealed). A summary names no take. Filter by state.",
+        "operationId": "list_morning_crates",
+        "parameters": [
+          {
+            "description": "Only crates in this state",
+            "explode": false,
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "description": "Only crates in this state",
+              "enum": [
+                "building",
+                "ready",
+                "empty",
+                "failed"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 20,
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MorningCratePage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List Morning Crates",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/morning",
+          "human_only": false,
+          "owner_only": true
+        }
+      },
+      "post": {
+        "description": "Starts a crate out of the unjudged takes (plus the ones named in include_track_ids) and answers 202 with the building row; poll get_morning_crate. One build at a time (409 MORNING_CRATE_BUILD_IN_PROGRESS). Free: it only reads takes that exist. Needs an Idempotency-Key.",
+        "operationId": "build_morning_crate",
+        "parameters": [
+          {
+            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BuildMorningCrateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MorningCrate"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Build a Morning Crate now",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/morning",
+          "human_only": false,
+          "owner_only": true,
+          "idempotency": "create",
+          "rate": "heavy"
+        }
+      }
+    },
+    "/api/morning-crates/settings": {
+      "get": {
+        "description": "When the crate is built each day (local time), how long it is, how many takes and anchors it holds, how long the side files are kept. Behaviour only: it holds no money.",
+        "operationId": "get_morning_crate_settings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MorningSettings"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get the Morning Crate settings",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/morning",
+          "human_only": false,
+          "owner_only": true
+        }
+      },
+      "put": {
+        "description": "Changes the fields that are sent: enabled, the local build time (HH:MM), length, side length, takes, anchors, truncated takes, retention and the wait for tonight's batch. A rule breach is 422 MORNING_SETTINGS_INVALID {field, rule}.",
+        "operationId": "update_morning_crate_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MorningSettingsPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MorningSettings"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Change the Morning Crate settings",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/morning",
+          "human_only": false,
+          "owner_only": true
+        }
+      }
+    },
+    "/api/morning-crates/{id}": {
+      "get": {
+        "description": "One crate with its sides (signed links) and chapters. Blind: until the crate is revealed every chapter is a number with the blind stars, markers and verdict so far, and no take, title, lineage, gain or playlist is given to anyone. After the reveal each chapter names its take and the playlist is listed. Never writes.",
+        "operationId": "get_morning_crate",
+        "parameters": [
+          {
+            "description": "Morning crate id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Morning crate id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MorningCrate"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a Morning Crate",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/morning/:id",
+          "human_only": false,
+          "owner_only": true
+        }
+      }
+    },
+    "/api/morning-crates/{id}/events": {
+      "post": {
+        "description": "Up to 200 raw events (marker, strong_marker, skip, complete, play, rate with blind stars) addressed to the crate's own chapters. Idempotent by event id. Before the reveal they write nothing to the library; the batch that gives every non-anchor chapter blind stars reveals the crate in the same call, and after the reveal each event becomes the Owner's comment, rating or listen event at once. Only the operator and the operator's devices: an agent is refused 403 HUMAN_ONLY.",
+        "operationId": "submit_morning_crate_events",
+        "parameters": [
+          {
+            "description": "Morning crate id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Morning crate id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitMorningEventsInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MorningEventsResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Submit headset and rating events of a Morning Crate",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "exclude:person-only",
+          "ui": "/morning/:id",
+          "human_only": false,
+          "owner_only": true
+        }
+      }
+    },
+    "/api/morning-crates/{id}/reveal": {
+      "post": {
+        "description": "Names the crate's takes: in one transaction it maps the raw events to the Owner's comments, ratings and listen events and creates the shared playlist \"Morning crate YYYY-MM-DD\", which every listener then sees. Revealing a revealed crate changes nothing. Only the operator and the operator's devices: an agent is refused 403 HUMAN_ONLY.",
+        "operationId": "reveal_morning_crate",
+        "parameters": [
+          {
+            "description": "Morning crate id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Morning crate id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MorningCrate"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Reveal a Morning Crate",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "exclude:person-only",
+          "ui": "/morning/:id",
+          "human_only": false,
+          "owner_only": true
+        }
+      }
+    },
     "/api/muses": {
       "get": {
         "description": "Muses (inspirations: a reference title and artist, or a brief) with their Song counts by state; q is a phrase-prefix search over title, artist and brief. Hidden Muses only with include_hidden.",
@@ -32058,6 +33250,137 @@
           }
         },
         "summary": "Get a Desk plan",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/desk/plans/:id",
+          "human_only": false
+        }
+      }
+    },
+    "/api/plans/{id}/auditions": {
+      "post": {
+        "description": "Renders the plan's score on the server through a General MIDI soundfont (CPU only, free, up to 90 s) and returns an MP3 preview with a signed url. The same plan and settings return the stored audition (200 instead of 201) at no cost. Options: soundfont, chords (none or block, default block), tail_s, gain. An audition is a preview, never a take; keep one as a take with create_transform kind score_render. 409 AUDITION_BUSY (retry after retry_after_s), 429 AUDITION_LIMIT, 422 AUDITION_TOO_LONG or SCORE_INVALID, 503 UNAVAILABLE naming transform, soundfont or fluidsynth. Needs an Idempotency-Key.",
+        "operationId": "create_plan_audition",
+        "parameters": [
+          {
+            "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-chosen key; a retry with the same key and body replays the first response (24 h).",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Plan id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Plan id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePlanAuditionInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanAuditionDetail"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Audition a plan",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/desk/plans/:id",
+          "human_only": false,
+          "idempotency": "create",
+          "rate": "heavy"
+        }
+      }
+    },
+    "/api/plans/{id}/auditions/{aid}": {
+      "get": {
+        "description": "One stored audition of a plan: its soundfont, synth version, chords, seconds, CPU time and a signed playback url for you.",
+        "operationId": "get_plan_audition",
+        "parameters": [
+          {
+            "description": "Plan id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Plan id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Audition id",
+            "in": "path",
+            "name": "aid",
+            "required": true,
+            "schema": {
+              "description": "Audition id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanAuditionDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a plan's audition",
         "x-mm": {
           "scope": "read",
           "cost": "free",

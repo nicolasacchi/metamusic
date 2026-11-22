@@ -34,9 +34,14 @@ func buildSetEnv(t *testing.T, acestep bool, extra func(in e2Inputs) ([]e2Extra,
 	cfg := config.Config{AuthMode: "local", PublicURL: "http://mm.example.com", RateScale: 100, DataDir: dir, SecretsDir: filepath.Join(dir, "secrets"),
 		Runner: true, JobMaxRuntime: 15 * time.Minute, JobTTL: 2 * time.Hour, ColdStartS: 180, KillSlackS: 15, PriceMarginPPM: 100000,
 		BillingLag: 6 * time.Hour, ResidualHold: 48 * time.Hour, Backend: config.BackendFake, ACEStep: acestep, ACEStepColdStartS: 300, ACEStepMaxRuntime: 15 * time.Minute}
-	// not parallel: e2ExtraBackends is process-wide, read only when ACEStep is set
+	// not parallel: e2ExtraBackends is process-wide; the injected constructor is read only when ACEStep is set, as the real one is
 	old := e2ExtraBackends
-	e2ExtraBackends = extra
+	e2ExtraBackends = []func(e2Inputs) ([]e2Extra, error){func(in e2Inputs) ([]e2Extra, error) {
+		if !in.cfg.ACEStep || extra == nil {
+			return nil, nil
+		}
+		return extra(in)
+	}}
 	t.Cleanup(func() { e2ExtraBackends = old })
 	s, err := Build(context.Background(), cfg, config.Secrets{Key: []byte("0123456789abcdef0123456789abcdef")}, st, root, Options{})
 	if err != nil {

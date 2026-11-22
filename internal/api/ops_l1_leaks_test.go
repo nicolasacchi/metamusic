@@ -115,7 +115,7 @@ func TestMuseText_OnlyInAllowlistedOps(t *testing.T) {
 	// L2 {id} operations have no object in this rig (it holds no Records, Crates or tapes); lane INT-B's ops_l2_leaks_test.go
 	// sweeps them with the L2 fixture and the canary Muse (C127.4).
 	noObject := map[string]bool{"get_duel": true, "get_record": true, "get_record_changes": true, "get_crate": true, "get_tape": true,
-		"get_transform": true, "wait_for_transform": true, "get_plan": true, "get_mandate": true} // DESK-S1: the rig holds no Desk plans (the service is nil, the op answers 503). T1: the rig holds no transforms; the 501 stubs have nothing to leak
+		"get_transform": true, "wait_for_transform": true, "get_plan": true, "get_plan_audition": true, "get_mandate": true, "get_morning_crate": true} // M6N-C4: the rig holds no Morning Crate and a crate holds no Muse text (proved by internal/morning TestMorning_BlindBeforeReveal). DESK-S1: the rig holds no Desk plans (the service is nil, the op answers 503). T1: the rig holds no transforms; the 501 stubs have nothing to leak
 	called := map[string]bool{}
 	for _, op := range api.Operations(r.API) {
 		if op.Method != "GET" || op.Meta.HumanOnly || op.Path == "/api/openapi.json" {

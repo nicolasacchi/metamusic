@@ -71,6 +71,9 @@ func TestMuseText_L2_OnlyInAllowlistedOps(t *testing.T) {
 			!strings.Contains(op.Path, "tapes") && !strings.Contains(op.Path, "curation") {
 			continue
 		}
+		if strings.HasPrefix(op.Path, "/api/morning-crates") {
+			continue // the Morning Crate (M6N-C4) is not an L2 Crate; internal/morning TestMorning_BlindBeforeReveal proves its blind rule
+		}
 		path := op.Path
 		args := map[string]any{}
 		for prefix, id := range ids {

@@ -308,6 +308,7 @@ func New(mux *http.ServeMux, d Deps) huma.API {
 	registerVoiceM5(a, d)
 	registerMandatesM6N(a, d)
 	registerBenchM6N(a, d)
+	registerMorningM6N(a, d)
 	registerNightM6N(a, d)
 	relaxResponseSchemas(a) // C308: the keys a role may not receive are optional in the response schemas
 	notFound(mux, "/api/")

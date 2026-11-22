@@ -214,6 +214,10 @@ func (r *privacyRig) getPaths() map[string][]string { // operation id -> request
 			// M3: batches and jobs hold ids, states and money, never recipe reference metadata
 		case strings.HasPrefix(p, "/api/mandates/{"):
 			// M6N-M1: a mandate holds limits, lineage-root track ids, money and states, never recipe reference metadata
+		case strings.HasPrefix(p, "/api/morning-crates/{"):
+			// M6N-C4: a Morning Crate holds chapter numbers, blind stars, markers and (after the reveal) take ids and titles of takes made by
+			// jobs, never recipe reference metadata: only job-made takes are eligible and a crate names none of their recipes. Before the
+			// reveal a chapter names no take at all (TestMorning_BlindRedaction, TestMorning_BlindBeforeReveal)
 		case strings.HasPrefix(p, "/api/muses/{") || strings.HasPrefix(p, "/api/songs/{"):
 			// L1: Muse reads hold reference text by design (D-L1-6); their confinement is the L1 canary test (TestMuseText_OnlyInAllowlistedOps)
 		case strings.HasPrefix(p, "/api/records/{") || strings.HasPrefix(p, "/api/crates/{") || strings.HasPrefix(p, "/api/tapes/{"):
@@ -227,7 +231,8 @@ func (r *privacyRig) getPaths() map[string][]string { // operation id -> request
 		case strings.HasPrefix(p, "/api/plans/{"):
 			// DESK-S1: a plan holds a score text, a seed, ids and verdicts, never recipe reference metadata. A reference or imported take
 			// has no plan (FromTake refuses it, PLAN_SOURCE_UNSUPPORTED), so this rig, which wires no Desk into the server, holds no plan
-			// to read; TestPrivacy_ReferenceMetadataConfined asserts the refusal on every imported take below.
+			// to read; TestPrivacy_ReferenceMetadataConfined asserts the refusal on every imported take below. DESK-S2: an audition hangs off a
+			// plan (/api/plans/{id}/auditions/{aid}) and holds only a soundfont name, a synth version and a signed link, so the same holds.
 		case p == "/api/duels/suggestions":
 			// M5-D1: the default scope (lineage) needs a root track; the global scope reads ids, titles and ladder numbers only
 			out[op] = append(out[op], p+"?scope=global")

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -12,7 +13,10 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/nicolasacchi/metamusic/internal/api"
+	"github.com/nicolasacchi/metamusic/internal/app"
 	"github.com/nicolasacchi/metamusic/internal/auth"
+	"github.com/nicolasacchi/metamusic/internal/desk"
+	"github.com/nicolasacchi/metamusic/internal/desk/desktest"
 	"github.com/nicolasacchi/metamusic/internal/servertest"
 )
 
@@ -60,8 +64,12 @@ type uiState struct {
 	patch string
 	// DESK-S1: the plan create_plan_from_take opened and the child plan edit_plan made
 	plan, planChild string
+	// DESK-S2: the audition create_plan_audition rendered
+	audition string
 	// M6N-M1: the live mandate the operator created (seeded; an agent never creates one)
 	mandate string
+	// M6N-C4: a ready, unrevealed Morning Crate (seeded; the rig has no media tools to build one)
+	morningCrate string
 }
 
 // uiScript holds one scripted call per operation the web UI offers an agent.
@@ -169,6 +177,13 @@ var uiScript = map[string]func(s *uiState) map[string]any{
 	"halt_night_shift": func(*uiState) map[string]any {
 		return map[string]any{"reason": "scripted: an agent may only stop the night"}
 	},
+	// M6N-C4: the Morning Crate reads and writes an agent may do (the page /morning comes in M6N-W2). submit_morning_crate_events and
+	// reveal_morning_crate are person-only (exclude:person-only), so they are not scripted.
+	"get_morning_crate_settings":    func(*uiState) map[string]any { return nil },
+	"update_morning_crate_settings": func(*uiState) map[string]any { return map[string]any{"wait_minutes": 30, "minutes": 40} },
+	"list_morning_crates":           func(*uiState) map[string]any { return map[string]any{"limit": 10} },
+	"get_morning_crate":             func(s *uiState) map[string]any { return map[string]any{"id": s.morningCrate} },
+	"build_morning_crate":           func(*uiState) map[string]any { return map[string]any{"minutes": 20} },
 	// EARS-D1: the take is seeded by seedTierBDocument (its lyrics are the recognised words); the word is invented.
 	"get_track_diction": func(s *uiState) map[string]any { return map[string]any{"id": s.track} },
 	"set_diction_marks": func(s *uiState) map[string]any {
@@ -313,6 +328,9 @@ var uiScript = map[string]func(s *uiState) map[string]any{
 		return map[string]any{"id": s.planChild, "verdict": "liked", "note": "scripted"}
 	},
 	"list_plans": func(*uiState) map[string]any { return map[string]any{"limit": 10} },
+	// DESK-S2: an audition of the opened plan (the rig's Desk renders through desktest's fake pipeline), then read back
+	"create_plan_audition": func(s *uiState) map[string]any { return map[string]any{"id": s.plan, "chords": "block"} },
+	"get_plan_audition":    func(s *uiState) map[string]any { return map[string]any{"id": s.plan, "aid": s.audition} },
 }
 
 // spendScript holds the spend operations that have no UI route of their own (the SPA confirms through
@@ -365,9 +383,11 @@ var uiOrder = []string{
 	// E2: the engine matrix
 	"list_engines",
 	// DESK-S1: open a take's score on the Desk, read it, edit it, judge the edit, list
-	"check_abc", "create_plan_from_take", "get_plan", "edit_plan", "set_plan_verdict", "list_plans",
+	"check_abc", "create_plan_from_take", "get_plan", "edit_plan", "set_plan_verdict", "list_plans", "create_plan_audition", "get_plan_audition",
 	// M6N-M1: the mandate reads, then the revoke (it ends the mandate); M6N-N3: the night shift reads, then the halt (last: it stops the shift)
 	"list_mandates", "get_mandate", "get_night_shift", "preview_night_shift", "revoke_mandate", "halt_night_shift",
+	// M6N-C4: the Morning Crate settings, the list and the seeded crate, then a build (last: it starts a background build)
+	"get_morning_crate_settings", "update_morning_crate_settings", "list_morning_crates", "get_morning_crate", "build_morning_crate",
 }
 
 // afterStep records the ids later steps need.
@@ -401,6 +421,8 @@ func (s *uiState) afterStep(op string, res any) {
 		s.plan, _ = m["id"].(string)
 	case "edit_plan":
 		s.planChild, _ = m["id"].(string)
+	case "create_plan_audition":
+		s.audition, _ = m["id"].(string)
 	case "create_duel":
 		if id, _ := m["id"].(string); id != "" {
 			s.duel = id
@@ -433,7 +455,8 @@ func (s *uiState) afterStep(op string, res any) {
 // TestAcceptance_M2a_AgentPerformsEveryUIAction: an agent with a read+write PAT
 // does, over streamable HTTP MCP, everything the web UI does.
 func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
-	r := archiveRig(t, servertest.Options{Backend: "fake", RealFeatures: true, M2b: servertest.M2bOptions{Media: true, Backfill: true}})
+	r := archiveRig(t, servertest.Options{Backend: "fake", RealFeatures: true, M2b: servertest.M2bOptions{Media: true, Backfill: true},
+		AppHooks: []app.BuildHook{deskFakeAudition(t)}})
 	var required []api.OpInfo
 	for _, op := range api.Operations(r.API) {
 		m := op.Meta
@@ -479,7 +502,8 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 	seedTierBDocument(t, r, st.track)                        // EARS-S1: get_track_tier_b answers 200 only for a take that has a listening check
 	st.reference = seedReference(t, r, "scripted-reference") // EARS-R1: recover_recipe needs a reference with a stored listening check
 	seedRecoverDocument(t, r, st.reference, knownSungLyric)
-	st.mandate = seedMandateM6N(t, r) // M6N-M1: the mandate reads and the revoke need a live mandate
+	st.mandate = seedMandateM6N(t, r)                     // M6N-M1: the mandate reads and the revoke need a live mandate
+	st.morningCrate = seedMorningCrateM6N(t, r, st.track) // M6N-C4: get_morning_crate needs a crate
 	if err := r.Store.R.QueryRow(`SELECT t.id FROM tracks t JOIN recipes rc ON rc.id = t.recipe_id WHERE rc.engine <> 'unknown' AND t.lossy = 0 ORDER BY t.id LIMIT 1`).Scan(&st.mother); err != nil {
 		t.Fatal(err)
 	}
@@ -576,7 +600,7 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 	// Spend, cancel and transform-create operations write their audit row inside their own transaction (C80), with an id
 	// drawn there, so under the rig's fixed clock they sort apart from the gate-written rows. Order is
 	// compared without them; their presence is compared as a set.
-	inTx := map[string]bool{"create_variant": true, "cancel_job": true, "cancel_batch": true, "create_transform": true, "revoke_mandate": true}
+	inTx := map[string]bool{"create_variant": true, "cancel_job": true, "cancel_batch": true, "create_transform": true, "revoke_mandate": true, "build_morning_crate": true, "update_morning_crate_settings": true}
 	split := func(ops []string) (rest, tx []string) {
 		for _, o := range ops {
 			if inTx[o] {
@@ -659,4 +683,18 @@ func m4aStubOf(res *mcp.CallToolResult) string {
 		return ""
 	}
 	return p.Details.Task
+}
+
+// deskFakeAudition swaps the rig's Desk for one whose audition pipeline is desktest's fake (no fluidsynth, soundfont or ffmpeg in
+// the acceptance rig); the real pipeline is covered by the go-media tests.
+func deskFakeAudition(t *testing.T) app.BuildHook {
+	return func(env *app.BuildEnv) error {
+		dir, err := filepath.Abs(env.Cfg.DataDir)
+		if err != nil {
+			return err
+		}
+		env.Services.Deps.Desk = desk.New(desk.Options{Store: env.Store, Data: env.Data, Signer: env.Services.Deps.Signer, Now: env.Now, NewID: env.NewID,
+			DataDir: dir, Transform: desktest.New(t, dir), Encode: desktest.Encode})
+		return nil
+	}
 }

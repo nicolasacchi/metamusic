@@ -17,6 +17,7 @@
   import VoiceRecorder from "../lib/components/VoiceRecorder.svelte";
   import SongPrPanel from "../lib/components/SongPrPanel.svelte";
   import LyricsPanel from "../lib/components/LyricsPanel.svelte";
+  import KaraokeLyrics from "../lib/components/KaraokeLyrics.svelte";
   import AddToCrate from "../lib/components/AddToCrate.svelte";
   import AddToRecord from "../lib/components/AddToRecord.svelte";
   import AddToPlaylist from "../lib/components/AddToPlaylist.svelte";
@@ -37,6 +38,7 @@
   import ProvenancePanel from "../lib/components/ProvenancePanel.svelte";
   import TransformProvenance from "../lib/components/TransformProvenance.svelte";
   import TransformPanel from "../lib/components/TransformPanel.svelte";
+  import OpenInDesk from "../lib/components/OpenInDesk.svelte"; // DESK-W1
   import TrackEngineActions from "../lib/components/TrackEngineActions.svelte"; // E2-W1b
   import TrackStems from "../lib/components/TrackStems.svelte"; // E2-W5
   import TrackLrc from "../lib/components/TrackLrc.svelte"; // E2-W5
@@ -295,9 +297,13 @@
         <section>
           <h2>Lyrics</h2>
           <LyricsPanel sections={track.sections} timed={track.timed} current={isCurrent ? player.state.current : null} onseek={seek} />
+          <!-- EARS-W2: the karaoke view; get_track_diction answers 409 without a listening check or a plan score, so it is not asked then -->
+          {#if dossier?.tier === "B" || (dossier && track.score !== null)}
+            <KaraokeLyrics trackId={id} current={isCurrent ? player.state.current : null} onseek={seek} />
+          {/if}
         </section>
       {:else}
-        <RecipeUnknownPanel title={track.title} lossy={track.lossy} masterBytes={track.audio.master_bytes} durationS={track.duration_s} />
+        <RecipeUnknownPanel title={track.title} lossy={track.lossy} masterBytes={track.audio.master_bytes} durationS={track.duration_s} trackId={id} {dossier} go={navigate ?? pushNavigate} />
       {/if}
       <aside>
         {#if showsPanel(me, "comments")}
@@ -341,6 +347,9 @@
         {/if}
         {#if track.recipe_known && !track.lossy && showsPanel(me, "transforms")}
           <TransformPanel trackId={id} hasScore={track.score !== null} />
+        {/if}
+        {#if track.score !== null && track.recipe_known && !track.lossy && me?.allowed?.includes("create_plan_from_take")}
+          <OpenInDesk trackId={id} go={(to) => (navigate ?? defaultNavigate)(to)} />
         {/if}
         <!-- E2-W1b: engine actions (Repaint, Reference, A/B for a repaint child) -->
         {#if canGenerate(me, track)}

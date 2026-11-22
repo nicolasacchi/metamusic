@@ -65,7 +65,10 @@ func TestNoPendingL2Stubs(t *testing.T) {
 	missing := "01900000-0000-7000-8000-00000000ffff"
 	probed := 0
 	for _, op := range api.Operations(r.API) {
-		if op.Meta.UI == "" || !(strings.Contains(op.Path, "records") || strings.Contains(op.Path, "crates") || strings.Contains(op.Path, "tapes") || strings.Contains(op.Path, "curation")) {
+		if op.Meta.UI == "" || strings.HasPrefix(op.Path, "/api/morning-crates") { // the Morning Crate (M6N-C4) is not an L2 Crate
+			continue
+		}
+		if !(strings.Contains(op.Path, "records") || strings.Contains(op.Path, "crates") || strings.Contains(op.Path, "tapes") || strings.Contains(op.Path, "curation")) {
 			continue
 		}
 		path := strings.ReplaceAll(op.Path, "{id}", missing)

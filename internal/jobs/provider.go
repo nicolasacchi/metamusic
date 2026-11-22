@@ -47,6 +47,8 @@ type ProviderAdmin struct {
 	sweeps map[string]func() SweepSnapshot
 	caps   map[string]func() provider.Capabilities
 	bound  BoundInputs // UseBound (seams_e2.go)
+
+	sysAudit SystemAuditFunc // UseSystemAudit (provider_bulk.go)
 }
 
 // NewProviderAdmin builds the service.
@@ -187,6 +189,9 @@ type UpdateIn struct {
 	// AfterRestore is the explicit acknowledgment of `runpod arm --after-restore`: arming a restored
 	// database without a covering billing reconciliation (needed when billing cannot be read).
 	AfterRestore bool
+	// AcceptBroadPodKey acknowledges a pod key the probe found `too_broad` when arming runpod-pod (`--accept-broad-pod-key`,
+	// C396.6). It changes nothing for any other backend.
+	AcceptBroadPodKey bool
 }
 
 // Errors of Update.
@@ -437,13 +442,18 @@ func (a *ProviderAdmin) Update(ctx context.Context, p auth.Principal, in UpdateI
 				if err := CheckArm(ctx, tx, st.Backend, in.AfterRestore); err != nil {
 					return err
 				}
+				if err := checkArmPod(ctx, tx, st.Backend, in.AcceptBroadPodKey); err != nil {
+					return err
+				}
 			}
 			armed := 0
 			if *in.Armed {
 				armed = 1
 			}
+			// a re-arm of an armed backend keeps changed_at: it is when the window opened (the bulk window maximum counts from it)
 			q := `INSERT INTO provider_state(backend, armed, changed_by, changed_at, reason) VALUES (?,?,?,?,?)
-				ON CONFLICT(backend) DO UPDATE SET armed = excluded.armed, changed_by = excluded.changed_by, changed_at = excluded.changed_at, reason = excluded.reason`
+				ON CONFLICT(backend) DO UPDATE SET armed = excluded.armed, changed_by = excluded.changed_by,
+				changed_at = CASE WHEN provider_state.armed = 1 AND excluded.armed = 1 THEN provider_state.changed_at ELSE excluded.changed_at END, reason = excluded.reason`
 			if _, err := tx.ExecContext(ctx, q, st.Backend, armed, p.Key(), now, reason); err != nil {
 				return fmt.Errorf("jobs: update provider state: %w", err)
 			}

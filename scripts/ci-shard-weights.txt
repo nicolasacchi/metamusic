@@ -31,6 +31,7 @@
 ./internal/nextactions 54
 ./internal/morning 51
 ./internal/trackctx 50
+./internal/provider/runpod/pods 45
 ./internal/synth 44
 ./internal/records 43
 ./internal/sounds 43
@@ -61,7 +62,6 @@
 ./internal/httpserver 16
 ./internal/desk 16
 ./internal/analysis/spectro 15
-./internal/provider/runpod/pods 15
 ./internal/connectors 14
 ./internal/upload 14
 ./internal/media/tagged 13

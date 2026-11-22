@@ -171,3 +171,65 @@ func TestPlaylists_ListHidden(t *testing.T) {
 		t.Errorf("get unknown: %v", err)
 	}
 }
+
+// TestPlaylists_CreateTx: CreateTx makes the playlist Create makes, inside the caller's transaction (C381.4), refuses what Create
+// refuses, and a rollback takes the playlist with it.
+func TestPlaylists_CreateTx(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	ctx := context.Background()
+	in := playlists.NewPlaylist{Name: " Morning crate 2026-11-22 ", Description: "d", TrackIDs: []string{lt.TrackCitta, lt.TrackLuna}}
+	want, err := e.svc.Create(ctx, human, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx, err := e.st.W.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := e.svc.CreateTx(ctx, tx, human, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.Get(ctx, id); err == nil {
+		t.Fatal("the playlist is visible before the commit")
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	got, err := e.svc.Get(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != want.Name || got.Revision != want.Revision || got.CreatedBy != want.CreatedBy || !slices.Equal(ids(got), ids(want)) {
+		t.Fatalf("CreateTx %+v, Create %+v", got, want)
+	}
+	for name, bad := range map[string]playlists.NewPlaylist{
+		"empty name":    {Name: " "},
+		"unknown track": {Name: "x", TrackIDs: []string{"01900000-0000-7000-8000-0000000000ff"}},
+		"too many":      {Name: "x", TrackIDs: make([]string, playlists.MaxItems+1)},
+	} {
+		tx, err := e.st.W.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, txErr := e.svc.CreateTx(ctx, tx, human, bad)
+		_ = tx.Rollback()
+		_, err = e.svc.Create(ctx, human, bad)
+		if txErr == nil || err == nil || txErr.Error() != err.Error() {
+			t.Errorf("%s: CreateTx %v, Create %v", name, txErr, err)
+		}
+	}
+	tx, err = e.st.W.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rolled, err := e.svc.CreateTx(ctx, tx, human, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = tx.Rollback()
+	if _, err := e.svc.Get(ctx, rolled); err == nil {
+		t.Fatal("a rolled back playlist exists")
+	}
+}

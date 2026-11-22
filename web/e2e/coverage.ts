@@ -9,26 +9,14 @@ type Doc = { paths: Record<string, Record<string, { operationId?: string; "x-mm"
  * entry is only ever added for a page that is still to come.
  */
 export const PENDING_UI: ReadonlySet<string> = new Set<string>([
-  // EARS-W2 (lane ears-web-diction) adds the karaoke view on /tracks/:id and the /diction page (m5b-ears C345); it removes these four.
-  "get_track_diction",
-  "set_diction_marks",
-  "get_diction_lexicon",
-  "update_lexicon_entry",
-  // DESK-W1 (lane desk-web) adds the Desk pages /desk and /desk/plans/:id and the "Open in the Desk" action on /tracks/:id
-  // (m5b-desk C363); it removes these six.
-  "list_plans",
-  "get_plan",
-  "check_abc",
-  "create_plan_from_take",
-  "edit_plan",
-  "set_plan_verdict",
+  // DESK-W2 (lane desk-web) adds the audition player and the Audition button on /desk/plans/:id (m5b-desk C363); it removes these two.
+  "create_plan_audition",
+  "get_plan_audition",
   // M6N-W1 (lane loop-web-a) adds the /mandates and /mandates/:id pages and the secure /human/mandates/new form (m6-night C388.1); it removes these four.
   "create_mandate",
   "list_mandates",
   "get_mandate",
   "revoke_mandate",
-  // EARS-W2 also adds the "Create draft from transcript" button of the reference panel on /tracks/:id (m5b-ears C343.2, C347.5); it removes this one.
-  "recover_recipe",
   // M6N-W1 (lane loop-web-a) adds the /critics page (m6n-night C388.1, spec m6n-critics.spec.ts); it removes this one.
   "get_critic_bench",
   // M6N-W1 (lane loop-web-a) adds the /night-shift page and the secure /human/night-shift form (m6n-night C388.1, spec m6n-night.spec.ts); it removes these four.
@@ -36,6 +24,15 @@ export const PENDING_UI: ReadonlySet<string> = new Set<string>([
   "preview_night_shift",
   "update_night_shift",
   "halt_night_shift",
+  // M6N-W2 (lane loop-web-b) adds the /morning and /morning/:id pages: the player's crate mode, blind rating, the reveal and the settings
+  // (m6-night C384, spec m6n-morning.spec.ts); it removes these seven.
+  "get_morning_crate_settings",
+  "update_morning_crate_settings",
+  "list_morning_crates",
+  "get_morning_crate",
+  "build_morning_crate",
+  "submit_morning_crate_events",
+  "reveal_morning_crate",
 ]);
 
 /** Operation ids whose x-mm.ui is a route (not "none:<reason>"): the SPA must exercise them, except the PENDING_UI ones. */
