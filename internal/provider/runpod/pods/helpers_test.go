@@ -2,6 +2,7 @@ package pods_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -72,7 +73,8 @@ func (t handlerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	go func() {
 		defer close(done)
 		defer func() { // the fake aborts a connection reset with http.ErrAbortHandler
-			if r := recover(); r == http.ErrAbortHandler {
+			r := recover()
+			if err, ok := r.(error); ok && errors.Is(err, http.ErrAbortHandler) {
 				aborted = true
 			} else if r != nil {
 				panic(r)
