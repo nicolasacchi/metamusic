@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/judgments"
 	"github.com/nicolasacchi/metamusic/internal/library"
@@ -529,5 +530,27 @@ func TestMorning_RevealIsOneTransaction(t *testing.T) {
 	r.exec(`DROP TRIGGER no_playlists`)
 	if _, err := r.svc.Reveal(ctx, owner, c.ID); err != nil {
 		t.Fatalf("retry: %v", err)
+	}
+}
+
+// TestMorning_RevealNotesCreatedIDs: the reveal and the submit that triggers it note the mapped comments and the playlist for
+// the gate's audit row; a refused reveal notes none.
+func TestMorning_RevealNotesCreatedIDs(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	c, _ := r.readyCrate(2)
+	a := c.Chapters[0]
+	r.submit(owner, c.ID, EventIn{ID: evID(1), Side: a.Side, Chapter: a.N, Kind: EventMarker, SideMS: a.AudioStartMS, ClientAt: dawn})
+	if _, err := r.svc.Reveal(audit.WithCollector(context.Background()), agent, c.ID); err == nil {
+		t.Fatal("an agent revealed")
+	}
+	ctx := audit.WithCollector(context.Background())
+	got, err := r.svc.Reveal(ctx, owner, c.ID)
+	if err != nil || got.PlaylistID == nil {
+		t.Fatalf("reveal %+v %v", got, err)
+	}
+	ids := audit.Created(ctx)
+	if len(ids) != 2 || ids[1] != *got.PlaylistID || r.scalar(`SELECT COUNT(*) FROM comments WHERE id = ?`, ids[0]) != "1" {
+		t.Fatalf("created ids %v", ids)
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/judgments"
 	"github.com/nicolasacchi/metamusic/internal/listening"
@@ -34,7 +35,9 @@ func (s *Service) Reveal(ctx context.Context, p auth.Principal, id string) (Crat
 	if err := s.needJudgment(); err != nil {
 		return Crate{}, err
 	}
+	var created []string // comment and playlist ids, noted for the audit row once the transaction commits
 	err := s.writeTx(ctx, func(tx *sql.Tx) error {
+		created = nil
 		c, err := loadCrate(ctx, tx, id)
 		if err != nil {
 			return err
@@ -45,17 +48,18 @@ func (s *Service) Reveal(ctx context.Context, p auth.Principal, id string) (Crat
 		if c.Revealed {
 			return nil
 		}
-		_, err = s.revealTx(ctx, tx, p, c)
+		_, err = s.revealTx(ctx, tx, p, c, &created)
 		return err
 	})
 	if err != nil {
 		return Crate{}, err
 	}
+	audit.NoteCreated(ctx, created...)
 	return s.Get(ctx, p, id)
 }
 
 // revealTx stamps the reveal and runs the mapping and the playlist in tx. It reports false when the crate was already revealed.
-func (s *Service) revealTx(ctx context.Context, tx *sql.Tx, p auth.Principal, c crateState) (bool, error) {
+func (s *Service) revealTx(ctx context.Context, tx *sql.Tx, p auth.Principal, c crateState, created *[]string) (bool, error) {
 	res, err := tx.ExecContext(ctx, `UPDATE morning_crates SET revealed_at = ?, revealed_by = ? WHERE id = ? AND state = 'ready' AND revealed_at IS NULL`,
 		store.FormatTime(s.now()), p.Key(), c.ID)
 	if err != nil {
@@ -64,7 +68,7 @@ func (s *Service) revealTx(ctx context.Context, tx *sql.Tx, p auth.Principal, c 
 	if n, _ := res.RowsAffected(); n == 0 {
 		return false, nil
 	}
-	if err := s.mapEvents(ctx, tx, p, c); err != nil {
+	if err := s.mapEvents(ctx, tx, p, c, created); err != nil {
 		return false, err
 	}
 	// the shared playlist exists from this transaction on and never before (D-M6N-OP-4): non-anchor takes in chapter order
@@ -82,6 +86,7 @@ func (s *Service) revealTx(ctx context.Context, tx *sql.Tx, p auth.Principal, c 
 	if err != nil {
 		return false, fmt.Errorf("morning: reveal playlist: %w", err)
 	}
+	*created = append(*created, pid)
 	if _, err := tx.ExecContext(ctx, `UPDATE morning_crates SET playlist_id = ? WHERE id = ?`, pid, c.ID); err != nil {
 		return false, fmt.Errorf("morning: reveal playlist: %w", err)
 	}
@@ -109,7 +114,7 @@ type ownerRating struct {
 // mapEvents maps every unmapped event of the crate, oldest first, to the Owner's judgments (C381.3). A blind rating is superseded
 // when the Owner's own rating of the take is newer than the event; an anchor's stars are never written. Each event is marked
 // mapped exactly once.
-func (s *Service) mapEvents(ctx context.Context, tx *sql.Tx, p auth.Principal, c crateState) error {
+func (s *Service) mapEvents(ctx context.Context, tx *sql.Tx, p auth.Principal, c crateState, created *[]string) error {
 	rows, err := tx.QueryContext(ctx, `SELECT id, chapter, kind, stars, side_ms, latency_ms, client_at, received_at
 		FROM morning_crate_events WHERE crate_id = ? AND mapped_at IS NULL ORDER BY received_at, id`, c.ID)
 	if err != nil {
@@ -176,6 +181,7 @@ func (s *Service) mapEvents(ctx context.Context, tx *sql.Tx, p auth.Principal, c
 				return fmt.Errorf("morning: map comment: %w", err)
 			}
 			comment = id
+			*created = append(*created, id)
 		default: // skip, complete, play
 			le, err := s.listenEvent(c, ch, e)
 			if err != nil {

@@ -9,6 +9,7 @@ import (
 	"time"
 	"uuid"
 
+	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/problem"
 	"github.com/nicolasacchi/metamusic/internal/store"
@@ -206,7 +207,9 @@ func (s *Service) SubmitEvents(ctx context.Context, p auth.Principal, crateID st
 		return EventsResult{}, problem.E(422, "VALIDATION", fmt.Sprintf("at most %d events per call", MaxEvents), map[string]any{"field": "events"})
 	}
 	res := EventsResult{Rejected: []EventRejection{}}
+	var created []string // comment and playlist ids of the mapping, noted for the audit row after the commit
 	err := s.writeTx(ctx, func(tx *sql.Tx) error {
+		created = nil
 		res = EventsResult{Rejected: []EventRejection{}}
 		c, err := loadCrate(ctx, tx, crateID)
 		if err != nil {
@@ -241,14 +244,14 @@ func (s *Service) SubmitEvents(ctx context.Context, p auth.Principal, crateID st
 		switch {
 		case res.Accepted == 0:
 		case c.Revealed:
-			return s.mapEvents(ctx, tx, p, c)
+			return s.mapEvents(ctx, tx, p, c, &created)
 		default:
 			all, err := allRated(ctx, tx, c)
 			if err != nil {
 				return err
 			}
 			if all {
-				if _, err := s.revealTx(ctx, tx, p, c); err != nil {
+				if _, err := s.revealTx(ctx, tx, p, c, &created); err != nil {
 					return err
 				}
 				res.Revealed = true
@@ -256,6 +259,9 @@ func (s *Service) SubmitEvents(ctx context.Context, p auth.Principal, crateID st
 		}
 		return nil
 	})
+	if err == nil {
+		audit.NoteCreated(ctx, created...)
+	}
 	return res, err
 }
 
