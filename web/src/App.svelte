@@ -72,6 +72,8 @@
   import Jobs from "./routes/Jobs.svelte";
   import Transforms from "./routes/Transforms.svelte";
   import TransformScore from "./routes/TransformScore.svelte";
+  import Desk from "./routes/Desk.svelte";
+  import DeskPlan from "./routes/DeskPlan.svelte";
   import Engines from "./routes/Engines.svelte";
   import Job from "./routes/Job.svelte";
   import Lineage from "./routes/Lineage.svelte";
@@ -365,6 +367,14 @@
     {:else if $router.route?.name === "transform-score"}
       {#key $router.query.track_id ?? ""}
         <TransformScore trackId={$router.query.track_id ?? ""} />
+      {/key}
+    {:else if $router.route?.name === "desk"}
+      {#key JSON.stringify($router.query)}
+        <Desk query={$router.query} />
+      {/key}
+    {:else if $router.route?.name === "plan"}
+      {#key $router.params.id}
+        <DeskPlan id={$router.params.id ?? ""} navigate={router.navigate} />
       {/key}
     {:else if $router.route?.name === "engines"}
       <Engines />

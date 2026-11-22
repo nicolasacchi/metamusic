@@ -65,6 +65,8 @@ export const APP_ROUTES: Route[] = [
   { pattern: "/suites/:id", name: "suite" }, // E2c (Library)
   { pattern: "/transforms", name: "transforms" }, // T1: the transform queue and history (More, beside Jobs)
   { pattern: "/transforms/score", name: "transform-score" }, // DESK-T4: render a score (ABC) with the soundfont
+  { pattern: "/desk", name: "desk" }, // DESK-W1: the Composer's Desk (More, Make); Owner and Editors
+  { pattern: "/desk/plans/:id", name: "plan" }, // DESK-W1: one plan as notation, with the bar editor
   { pattern: "/batches/:id", name: "batch" },
   { pattern: "/lineage/:id", name: "lineage" },
   { pattern: "/patches/:id", name: "patch" },
