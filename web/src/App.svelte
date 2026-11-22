@@ -70,6 +70,7 @@
   import Human from "./routes/Human.svelte";
   import Jobs from "./routes/Jobs.svelte";
   import Transforms from "./routes/Transforms.svelte";
+  import TransformScore from "./routes/TransformScore.svelte";
   import Engines from "./routes/Engines.svelte";
   import Job from "./routes/Job.svelte";
   import Lineage from "./routes/Lineage.svelte";
@@ -360,6 +361,8 @@
       <Jobs />
     {:else if $router.route?.name === "transforms"}
       <Transforms />
+    {:else if $router.route?.name === "transform-score"}
+      <TransformScore trackId={$router.query.track_id ?? ""} />
     {:else if $router.route?.name === "engines"}
       <Engines />
     {:else if $router.route?.name === "job"}
