@@ -298,7 +298,6 @@
           <LyricsPanel sections={track.sections} timed={track.timed} current={isCurrent ? player.state.current : null} onseek={seek} />
           <!-- EARS-W2: the karaoke view; get_track_diction answers 409 without a listening check or a plan score, so it is not asked then -->
           {#if dossier?.tier === "B" || (dossier && track.score !== null)}
-            <h2 class="sub">Diction</h2>
             <KaraokeLyrics trackId={id} current={isCurrent ? player.state.current : null} onseek={seek} />
           {/if}
         </section>
@@ -492,10 +491,6 @@
   }
   .card h2 {
     margin: 0 0 0.4rem;
-    font-size: 1rem;
-  }
-  h2.sub {
-    margin: 1rem 0 0.4rem;
     font-size: 1rem;
   }
   .style {

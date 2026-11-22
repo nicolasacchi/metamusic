@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createApi } from "../api/client";
 import type { createSession } from "../api/session";
-import { calibrationText, recoverStage, getLexicon, getTrackDiction, heardText, lexiconQuery, rateText, recoverRecipe, setDictionMarks, updateLexiconEntry } from "./dictionApi";
+import { UNREACHABLE, calibrationText, recoverStage, getLexicon, getTrackDiction, heardText, lexiconQuery, rateText, recoverRecipe, setDictionMarks, updateLexiconEntry } from "./dictionApi";
 
 function fake(handler: (req: Request) => Response) {
   const seen: Request[] = [];
@@ -116,5 +116,9 @@ describe("recoverStage", () => {
     expect(recoverStage(b, "missing")).toBe("analyze");
     expect(recoverStage({ tier: "A", flags: [{ code: "listening_check_failed" }] }, "error")).toBe("unavailable");
     expect(recoverStage(b, "skipped")).toBe("unavailable");
+  });
+  test("a running check shows progress, a failed read offers a retry", () => {
+    expect(recoverStage(b, "pending")).toBe("pending");
+    expect(recoverStage(b, UNREACHABLE)).toBe("retry");
   });
 });

@@ -44,6 +44,12 @@ describe("KaraokeLyrics", () => {
     expect(h).toContain('data-testid="karaoke-more"');
     expect(h).toContain('aria-pressed="true"');
   });
+  test("the Diction heading shows only with a loaded page", () => {
+    const withPage = clean(render(KaraokeLyrics as never, { props: { trackId: "t1", current: null, onseek: () => {}, initial: page() } } as never).body);
+    expect(withPage).toContain(">Diction</h2>");
+    const without = clean(render(KaraokeLyrics as never, { props: { trackId: "t1", current: null, onseek: () => {} } } as never).body);
+    expect(without).not.toContain(">Diction</h2>");
+  });
   test("a caller who may not mark sees no mark buttons, only the mark", () => {
     me.allowed = ["get_track_diction"];
     const h = clean(render(KaraokeLyrics as never, { props: { trackId: "t1", current: null, onseek: () => {}, initial: page() } } as never).body);

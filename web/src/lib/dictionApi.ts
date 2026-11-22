@@ -107,12 +107,15 @@ export function calibrationText(c: Calibration): string {
   return `${c.lines_marked} lines marked on ${c.tracks_marked} takes (${c.clear} clear, ${c.unclear} unclear)${where}. Target: ${target}.`;
 }
 
-export type RecoverStage = "wait" | "analyze" | "ready" | "unavailable";
+export type RecoverStage = "wait" | "analyze" | "pending" | "retry" | "ready" | "unavailable";
+
+/** The check state when asking for it failed on the network (not a stored check that errored): the panel offers a retry. */
+export const UNREACHABLE = "unreachable";
 
 /**
  * Where the Recover flow of a reference take stands. `dossier` is the Ears dossier (null while it loads), `checkState` the state of
  * get_track_tier_b when the dossier says a check is stored (null while it loads, "" when it was not asked): no check ⇒ analyze;
- * an ok check ⇒ ready; a stored check with no transcript (error, skipped) ⇒ unavailable, which is terminal for that take.
+ * an ok check ⇒ ready; a check still running ⇒ pending (progress, no button); a failed read ⇒ retry; a stored check with no transcript (error, skipped) ⇒ unavailable, which is terminal for that take.
  */
 export function recoverStage(dossier: { tier: string; flags: readonly { code: string }[] } | null, checkState: string | null): RecoverStage {
   if (!dossier) return "wait";
@@ -120,6 +123,8 @@ export function recoverStage(dossier: { tier: string; flags: readonly { code: st
   if (!stored) return "analyze";
   if (checkState === null) return "wait";
   if (checkState === "ok") return "ready";
-  if (checkState === "none" || checkState === "missing" || checkState === "pending") return "analyze";
+  if (checkState === "pending") return "pending";
+  if (checkState === UNREACHABLE) return "retry";
+  if (checkState === "none" || checkState === "missing") return "analyze";
   return "unavailable";
 }

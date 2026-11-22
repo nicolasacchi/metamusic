@@ -4,7 +4,7 @@
   // lyrics are what was heard. Creating the draft spends nothing; rendering it goes through the ordinary estimate and approval.
   import { api } from "../../api/client";
   import type { Res } from "../crateApi";
-  import { recoverRecipe, recoverStage, type RecoverResult } from "../dictionApi";
+  import { recoverRecipe, recoverStage, UNREACHABLE, type RecoverResult } from "../dictionApi";
   import { can } from "../me.svelte";
   import AnalyzeButton from "./AnalyzeButton.svelte";
 
@@ -26,7 +26,9 @@
 
   // state of the stored check, asked only when the dossier says one exists (the operation answers 409 otherwise)
   let checkState = $state<string | null>(null);
+  let reads = $state(0);
   $effect(() => {
+    void reads;
     const mine = trackId;
     const d = dossier;
     checkState = null;
@@ -43,7 +45,7 @@
         const s = r.data?.state ?? (r.error?.details as { state?: unknown } | undefined)?.state;
         checkState = typeof s === "string" ? s : "none";
       } catch {
-        if (live) checkState = "error";
+        if (live) checkState = UNREACHABLE;
       }
     })();
     return () => {
@@ -98,6 +100,11 @@
       {:else if stage === "analyze"}
         <p class="muted" data-testid="recover-needs-check">Recovering writes a draft from what the recogniser hears in the vocals, so it needs a listening check first.</p>
         <AnalyzeButton {trackId} {go} />
+      {:else if stage === "pending"}
+        <p class="muted" role="status" data-testid="recover-pending">A listening check of this take is running. Recovering is offered when it is done.</p>
+      {:else if stage === "retry"}
+        <p class="muted" role="status" data-testid="recover-retry-note">The listening check could not be read.</p>
+        <button type="button" onclick={() => (reads += 1)} data-testid="recover-retry">Try again</button>
       {:else if stage === "unavailable"}
         <p class="muted" role="status" data-testid="recover-unavailable">The listening check of this take holds no transcript, so there is nothing to recover from.</p>
       {:else}

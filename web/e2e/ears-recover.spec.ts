@@ -61,9 +61,12 @@ test("a reference take is analysed, then Create draft from transcript makes a dr
 // opens. That the server builds that draft from a transcript, for nothing, is TestAcceptance_Ears_RecoverRecipe's.
 test("Create draft from transcript opens the draft the server made, with the style the box held", async ({ page, request }) => {
   const ref = await lossless(request);
-  const e = await estimate(request, "/api/generations/estimate", { items: [{ mode: "analyze", track_ids: [ref.id] }] });
-  await pollBatch(request, (await createHuman(request, e, "e2e listening check")).id, allTerminal);
-  await expect.poll(async () => (await request.get(`/api/tracks/${ref.id}/tier-b`)).status(), { timeout: 60_000, intervals: [500, 1000] }).toBe(200);
+  // the first test may already have analysed this take (the estimator refuses a second analysis)
+  if ((await request.get(`/api/tracks/${ref.id}/tier-b`)).status() !== 200) {
+    const e = await estimate(request, "/api/generations/estimate", { items: [{ mode: "analyze", track_ids: [ref.id] }] });
+    await pollBatch(request, (await createHuman(request, e, "e2e listening check")).id, allTerminal);
+    await expect.poll(async () => (await request.get(`/api/tracks/${ref.id}/tier-b`)).status(), { timeout: 60_000, intervals: [500, 1000] }).toBe(200);
+  }
   const draft = await apiJSON<{ id: string }>(request, "POST", "/api/drafts", { request: { id: "rec-e2e-1", style: "italian vocals, soft, 90 BPM", lyrics: "[verse]\nla luna dorme piano\n[chorus]\nil mare canta ancora", cot: "melody", seed: 11 }, label: "Recovered e2e" }, true);
   let sent: { style?: string; cot?: string } = {};
   let key = "";

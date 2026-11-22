@@ -33,7 +33,9 @@
   const marked = $derived(lines.filter((l) => humanMark(l) !== "none").length);
 
   async function loadFrom(cursor: string | null, into: Page | null): Promise<boolean> {
-    const r = await getTrackDiction(api, trackId, cursor);
+    const mine = trackId;
+    const r = await getTrackDiction(api, mine, cursor);
+    if (mine !== trackId) return false; // the page now shows another take: this answer is not for it
     if (!r.ok) {
       message = r.message;
       return false;
@@ -56,17 +58,20 @@
   async function more() {
     if (!page?.next_cursor || loading) return;
     loading = true;
+    const mine = trackId;
     await loadFrom(page.next_cursor, page);
-    loading = false;
+    if (mine === trackId) loading = false;
   }
 
   /** Reload every page that is on screen (a withdrawn mark gives the recogniser's class back, which only the server knows). */
   async function reload() {
     const want = lines.length;
+    const mine = trackId;
     let cur: Page | null = null;
     let cursor: string | null = null;
     for (;;) {
-      const r = await getTrackDiction(api, trackId, cursor);
+      const r = await getTrackDiction(api, mine, cursor);
+      if (mine !== trackId) return;
       if (!r.ok) {
         message = r.message;
         return;
@@ -101,6 +106,7 @@
 </script>
 
 {#if page}
+  <h2 class="sub">Diction</h2>
   <section class="karaoke" data-testid="karaoke" aria-label="Diction" data-basis={page.basis}>
     <p class="muted note" data-testid="karaoke-note">
       {#if page.basis === "asr"}
@@ -173,6 +179,10 @@
 {/if}
 
 <style>
+  h2.sub {
+    margin: 1rem 0 0.4rem;
+    font-size: 1rem;
+  }
   .note {
     margin: 0 0 var(--sp-2);
     font-size: var(--fs-sm);
