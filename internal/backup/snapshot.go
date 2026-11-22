@@ -67,7 +67,7 @@ type ManifestLink struct {
 }
 
 // mediaRoots are the only top-level places the database may point into.
-var mediaRoots = []string{"audio/masters/", "takes/", "derived/", "voice/"}
+var mediaRoots = []string{"audio/masters/", "takes/", "derived/", "voice/", "plans/"}
 
 func validMediaPath(p string) bool {
 	if !filepath.IsLocal(p) || strings.Contains(p, `\`) || path.Clean(p) != p {
@@ -341,6 +341,9 @@ func mediaOf(ctx context.Context, db *sql.DB) ([]mediaFile, map[string]int, erro
 		// voice notes (C259): the frozen upload is an artifact, the MP3 playback rendition a rendition
 		{"artifact", `SELECT path, sha256 FROM voice_notes`},
 		{"rendition", `SELECT mp3_path, mp3_sha256 FROM voice_notes`},
+		// the files of Desk plans (C357.3): a plan's score and plan bundle are frozen inputs. Audition MP3s (derived/auditions/) are
+		// derived and rebuilt on request, like a Listener's clean renditions: no snapshot lists them
+		{"artifact", `SELECT path, sha256 FROM desk_plan_files`},
 	} {
 		rows, err := db.QueryContext(ctx, q.sql)
 		if err != nil {
