@@ -4,6 +4,7 @@ package transform_test
 // ffmpeg encodes the MP3, the real `metamusic dsp-run` child finishes the PCM. Skips like the other score media tests.
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -66,6 +67,17 @@ func TestAudition_EndToEnd(t *testing.T) {
 	again, created, err := svc.Audition(ctx, alice, "p1", desk.AuditionIn{Soundfont: "gm", Chords: "none", TailS: &tail})
 	if err != nil || created || again.ID != au.ID {
 		t.Fatalf("repeat: %+v created %v err %v", again, created, err)
+	}
+	// a lost file is rebuilt in place and must come out byte-identical (the immutable row keeps its mp3_sha256 and ETag)
+	abs := filepath.Join(r.dir, filepath.FromSlash(rel))
+	if err := os.Remove(abs); err != nil {
+		t.Fatal(err)
+	}
+	if _, created, err = svc.Audition(ctx, alice, "p1", desk.AuditionIn{Soundfont: "gm", Chords: "none", TailS: &tail}); err != nil || created {
+		t.Fatalf("rebuild: created %v err %v", created, err)
+	}
+	if nb, err := os.ReadFile(abs); err != nil || !bytes.Equal(nb, b) {
+		t.Errorf("rebuilt mp3 differs from the stored one (%d vs %d bytes, err %v)", len(nb), len(b), err)
 	}
 	// chords change the audio: another audition
 	other, created, err := svc.Audition(ctx, alice, "p1", desk.AuditionIn{Soundfont: "gm", Chords: "block", TailS: &tail})

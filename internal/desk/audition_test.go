@@ -439,3 +439,38 @@ func TestAudition_SameBytesOtherSettings(t *testing.T) {
 		t.Errorf("%d files, want 1", n)
 	}
 }
+
+// TestAudition_TwoPlansSameScore: plans with byte-identical scores share one stored audition, and each sees it under its own id
+// (create answers the caller's plan id and get resolves it under both plans, not under a plan with another score).
+func TestAudition_TwoPlansSameScore(t *testing.T) {
+	t.Parallel()
+	a := newAuditionEnv(t)
+	ctx := context.Background()
+	idA := a.planID()
+	// plan B: an edit of A that changed nothing
+	a.exec(`INSERT INTO desk_plans(id, source, parent_plan_id, edit_json, engine, request_json, seed, cot, score_path, score_sha256, score_bytes, dialect,
+		bars, meter, aligned, sections_json, expected_audio_s, title, principal_id, principal_kind, principal_name, created_at)
+		SELECT 'plan-b', 'edit', id, '{}', engine, request_json, seed, cot, score_path, score_sha256, score_bytes, dialect,
+		bars, meter, aligned, sections_json, expected_audio_s, title, principal_id, principal_kind, principal_name, created_at FROM desk_plans WHERE id = ?`, idA)
+	plB := desk.Plan{ID: "plan-b"}
+	first, created, err := a.svc.Audition(ctx, alice, idA, desk.AuditionIn{})
+	if err != nil || !created || first.PlanID != idA {
+		t.Fatalf("first: %+v created %v err %v", first, created, err)
+	}
+	second, created, err := a.svc.Audition(ctx, alice, plB.ID, desk.AuditionIn{})
+	if err != nil || created || second.ID != first.ID || second.PlanID != plB.ID {
+		t.Fatalf("second: %+v created %v err %v", second, created, err)
+	}
+	got, err := a.svc.GetAudition(ctx, alice, plB.ID, first.ID)
+	if err != nil || got.ID != first.ID || got.PlanID != plB.ID {
+		t.Fatalf("get under B: %+v %v", got, err)
+	}
+	// a plan with another score does not see it
+	a.exec(`INSERT INTO desk_plans(id, source, parent_plan_id, edit_json, engine, request_json, seed, cot, score_path, score_sha256, score_bytes, dialect,
+		bars, meter, aligned, sections_json, expected_audio_s, title, principal_id, principal_kind, principal_name, created_at)
+		SELECT 'plan-c', 'edit', id, '{}', engine, request_json, seed, cot, score_path, ?, score_bytes, dialect,
+		bars, meter, aligned, sections_json, expected_audio_s, title, principal_id, principal_kind, principal_name, created_at FROM desk_plans WHERE id = ?`,
+		strings.Repeat("a", 64), idA)
+	_, err = a.svc.GetAudition(ctx, alice, "plan-c", first.ID)
+	wantProblem(t, err, 404, "NOT_FOUND")
+}

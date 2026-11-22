@@ -159,8 +159,11 @@ func (s *Service) auditionBySpec(ctx context.Context, q queryer, spec string) (a
 	return r, true, nil
 }
 
-func (s *Service) auditionOut(p auth.Principal, r auditionRow) Audition {
+// auditionOut answers a row as seen from planID: rows are content-addressed by score and settings, so plans with byte-identical
+// scores share one, and each sees it under its own id.
+func (s *Service) auditionOut(p auth.Principal, r auditionRow, planID string) Audition {
 	a := r.Audition
+	a.PlanID = planID
 	a.URL = s.auditionURL(p, r.sha)
 	return a
 }
@@ -236,7 +239,7 @@ func (s *Service) Audition(ctx context.Context, p auth.Principal, planID string,
 	if row, ok, err := s.auditionBySpec(ctx, s.o.Store.R, hash); err != nil {
 		return Audition{}, false, err
 	} else if ok && s.fileExists(row.path) {
-		return s.auditionOut(p, row), false, nil
+		return s.auditionOut(p, row, planID), false, nil
 	}
 
 	text, err := s.readScore(pl.scorePath)
@@ -278,11 +281,11 @@ func (s *Service) Audition(ctx context.Context, p auth.Principal, planID string,
 		}
 		rctx, cancel := context.WithTimeout(ctx, AuditionTimeout)
 		defer cancel()
-		made, err := s.render(rctx, r, text, pl.dialect, chords, tail, gain, sf, sfSHA, hash, sup.Info.Version, p, planID, row, ok)
+		made, isNew, err := s.render(rctx, r, text, pl.dialect, chords, tail, gain, sf, sfSHA, hash, sup.Info.Version, p, planID, row, ok)
 		if err != nil {
 			return err
 		}
-		out, created = made, !ok
+		out, created = made, isNew
 		return nil
 	}
 	if err := r.Exclusive(ctx, AuditionWait, run); err != nil {
@@ -292,7 +295,7 @@ func (s *Service) Audition(ctx context.Context, p auth.Principal, planID string,
 		}
 		return Audition{}, false, err
 	}
-	return s.auditionOut(p, out), created, nil
+	return s.auditionOut(p, out, planID), created, nil
 }
 
 func (s *Service) limit() int {
@@ -320,19 +323,19 @@ func auditionSeconds(text []byte, dialect, chords string, tail float64) (float64
 
 // render does one pipeline run and, for a new audition, inserts its row. have/old describe an existing row whose file was lost.
 func (s *Service) render(ctx context.Context, r Renderer, text []byte, dialect, chords string, tail, gain float64, sf, sfSHA, hash, synthVersion string,
-	p auth.Principal, planID string, old auditionRow, have bool) (auditionRow, error) {
+	p auth.Principal, planID string, old auditionRow, have bool) (auditionRow, bool, error) {
 	workRel := auditionsRoot + "/work-" + s.o.NewID()
 	if err := s.o.Data.MkdirAll(auditionsRoot, 0o755); err != nil {
-		return auditionRow{}, fmt.Errorf("desk: %w", unwrapPath(err))
+		return auditionRow{}, false, fmt.Errorf("desk: %w", unwrapPath(err))
 	}
 	defer func() { _ = s.o.Data.RemoveAll(workRel) }()
 	res, err := r.RenderScore(ctx, transform.ScoreJob{Score: text, Dialect: abc.Dialect(dialect), Chords: abc.ChordMode(chords), TailS: tail, Gain: gain,
 		TargetLUFS: transform.TargetLUFSDefault, Soundfont: sf, MaxOutS: MaxAuditionS}, workRel, nil)
 	if err != nil {
-		return auditionRow{}, auditionErr(ctx, err)
+		return auditionRow{}, false, auditionErr(ctx, err)
 	}
 	if res.Seconds > MaxAuditionS {
-		return auditionRow{}, problem.E(http.StatusUnprocessableEntity, CodeAuditionTooLong, "the audition would be longer than the limit",
+		return auditionRow{}, false, problem.E(http.StatusUnprocessableEntity, CodeAuditionTooLong, "the audition would be longer than the limit",
 			map[string]any{"seconds": res.Seconds, "max": MaxAuditionS})
 	}
 	abs := filepath.Join(s.o.DataDir, filepath.FromSlash(workRel))
@@ -343,34 +346,34 @@ func (s *Service) render(ctx context.Context, r Renderer, text []byte, dialect, 
 	}
 	if err := enc(ctx, filepath.Join(abs, "out.pcm24"), mp3); err != nil {
 		if ctx.Err() != nil {
-			return auditionRow{}, ctx.Err()
+			return auditionRow{}, false, ctx.Err()
 		}
 		s.o.Log.Warn("desk: audition encode failed", "err", err)
-		return auditionRow{}, problem.E(http.StatusInternalServerError, CodeAuditionFailed, "the audition could not be encoded", nil)
+		return auditionRow{}, false, problem.E(http.StatusInternalServerError, CodeAuditionFailed, "the audition could not be encoded", nil)
 	}
 	if err := ctx.Err(); err != nil {
-		return auditionRow{}, err
+		return auditionRow{}, false, err
 	}
 	sum, size, err := hashPath(filepath.Join(abs, "audition.mp3"))
 	if err != nil {
-		return auditionRow{}, fmt.Errorf("desk: %w", unwrapPath(err))
+		return auditionRow{}, false, fmt.Errorf("desk: %w", unwrapPath(err))
 	}
 	rel := path.Join(auditionsRoot, hash[:2], hash+".mp3")
 	if have {
 		rel = old.path
 	}
 	if err := s.o.Data.MkdirAll(path.Dir(rel), 0o755); err != nil {
-		return auditionRow{}, fmt.Errorf("desk: %w", unwrapPath(err))
+		return auditionRow{}, false, fmt.Errorf("desk: %w", unwrapPath(err))
 	}
 	if err := s.o.Data.Chmod(path.Join(workRel, "audition.mp3"), 0o444); err != nil {
-		return auditionRow{}, fmt.Errorf("desk: %w", unwrapPath(err))
+		return auditionRow{}, false, fmt.Errorf("desk: %w", unwrapPath(err))
 	}
 	// the file lands before its row (a file without a row is an orphan the sweep removes; a row without a file is a verify warning)
 	if err := s.o.Data.Rename(path.Join(workRel, "audition.mp3"), rel); err != nil {
-		return auditionRow{}, fmt.Errorf("desk: %w", unwrapPath(err))
+		return auditionRow{}, false, fmt.Errorf("desk: %w", unwrapPath(err))
 	}
 	if have {
-		return old, nil // rebuilt in place; the row is immutable
+		return old, false, nil // rebuilt in place; the row is immutable
 	}
 	row := auditionRow{Audition: Audition{ID: s.o.NewID(), PlanID: planID, Soundfont: sf, SoundfontSHA12: sfSHA[:12], SynthVersion: synthVersion, Chords: chords,
 		Seconds: res.Seconds, CPUMS: res.CPU.Milliseconds(), CreatedAt: s.now()}, sha: sum, path: rel, sfsh: sfSHA}
@@ -393,12 +396,12 @@ func (s *Service) render(ctx context.Context, r Renderer, text []byte, dialect, 
 			if prev.path != rel {
 				_ = s.o.Data.Remove(rel)
 			}
-			return prev, nil
+			return prev, false, nil
 		}
-		return auditionRow{}, err
+		return auditionRow{}, false, err
 	}
 	audit.NoteCreated(ctx, row.ID)
-	return row, nil
+	return row, true, nil
 }
 
 // auditionErr maps a pipeline failure to the problem model.
@@ -450,14 +453,15 @@ func (s *Service) GetAudition(ctx context.Context, p auth.Principal, planID, aud
 	if err := s.wired(); err != nil {
 		return Audition{}, err
 	}
-	r, err := scanAudition(s.o.Store.R.QueryRowContext(ctx, `SELECT `+auditionCols+` FROM desk_auditions WHERE id = ? AND plan_id = ?`, auditionID, planID))
+	r, err := scanAudition(s.o.Store.R.QueryRowContext(ctx, `SELECT `+auditionCols+` FROM desk_auditions WHERE id = ? AND plan_id IN (
+		SELECT q.id FROM desk_plans q WHERE q.score_sha256 = (SELECT score_sha256 FROM desk_plans WHERE id = ?))`, auditionID, planID))
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		return Audition{}, notFound("audition")
 	case err != nil:
 		return Audition{}, err
 	}
-	return s.auditionOut(p, r), nil
+	return s.auditionOut(p, r, planID), nil
 }
 
 // Resolve serves audition MP3s only (C358.4, the voice-note rule): an address that is not the mp3_sha256 of a row whose file is a
