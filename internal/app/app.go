@@ -49,6 +49,7 @@ import (
 	mediaserve "github.com/nicolasacchi/metamusic/internal/media/serve"
 	"github.com/nicolasacchi/metamusic/internal/media/tagged"
 	"github.com/nicolasacchi/metamusic/internal/mediatool"
+	"github.com/nicolasacchi/metamusic/internal/morning"
 	"github.com/nicolasacchi/metamusic/internal/muses"
 	"github.com/nicolasacchi/metamusic/internal/nextactions"
 	"github.com/nicolasacchi/metamusic/internal/nightshift"
@@ -112,6 +113,8 @@ type Options struct {
 	L3 L3Options
 	// T1 (C216.3): test injection points of the transform service; nil-valued in production.
 	T1 T1Options
+	// M6N-C3: the Morning Crate's side builder (nil => ffmpeg and flac from the configuration, none when the media tools are missing).
+	MorningBuilder morning.SideBuilder
 	// Hooks run after the registered build hooks (seams.go); tests inject wiring here without touching the global list.
 	Hooks []BuildHook
 }

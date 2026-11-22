@@ -1,4 +1,4 @@
--- 0026_night_shift.sql: M6N-N2 (C377). The night shift's behaviour (one settings row, OFF until the Owner enables it in the app) and
+-- 0029_night_shift.sql: M6N-N2 (C377). The night shift's behaviour (one settings row, OFF until the Owner enables it in the app) and
 -- the record of every night (one row per local day). Additive and up-only: two new tables and their triggers, nothing existing is
 -- touched. The money lives in the mandate (0025), never here; a night is never deleted.
 

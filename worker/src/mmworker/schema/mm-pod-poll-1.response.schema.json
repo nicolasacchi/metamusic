@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "mm.pod-poll/1 response: the app's answer to a pod poll",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["action", "wait_s", "take", "cancel", "deadline_unix"],
+  "properties": {
+    "action": {"enum": ["wait", "take", "stop"]},
+    "wait_s": {"type": "integer", "minimum": 0, "maximum": 60},
+    "take": {
+      "description": "an mm.worker/1 or mm.worker/2 input document (mm-worker-1.input / mm-worker-2.input), present only with action take",
+      "oneOf": [{"type": "null"}, {"type": "object"}]
+    },
+    "cancel": {"type": "array", "items": {"type": "string", "pattern": "^[0-9a-f-]{36}$"}},
+    "deadline_unix": {"type": "integer", "minimum": 0}
+  },
+  "allOf": [
+    {"if": {"properties": {"action": {"const": "take"}}}, "then": {"properties": {"take": {"type": "object"}}}},
+    {"if": {"properties": {"action": {"enum": ["wait", "stop"]}}}, "then": {"properties": {"take": {"type": "null"}}}}
+  ]
+}

@@ -114,7 +114,7 @@ func TestNightShift_OffByDefaultChangesNothing(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "up.db")
-	if err := store.CreateBefore(ctx, path, "0026_night_shift.sql"); err != nil { // the schema one migration before the night shift
+	if err := store.CreateBefore(ctx, path, "0029_night_shift.sql"); err != nil { // the schema one migration before the night shift
 		t.Fatal(err)
 	}
 	st, err := store.Open(ctx, path) // the deploy: this applies the night-shift migration over a schema-25 database

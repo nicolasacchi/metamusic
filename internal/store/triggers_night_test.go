@@ -2,7 +2,7 @@ package store
 
 import "testing"
 
-// TestMigration_NightShift_Constraints pins 0026_night_shift.sql (C377.1): the settings row is the OFF default and cannot be
+// TestMigration_NightShift_Constraints pins 0029_night_shift.sql (C377.1): the settings row is the OFF default and cannot be
 // deleted or made invalid, a night is claimed once per local day, never deleted, its batch and mandate are set once and only the
 // documented state moves are allowed.
 func TestMigration_NightShift_Constraints(t *testing.T) {

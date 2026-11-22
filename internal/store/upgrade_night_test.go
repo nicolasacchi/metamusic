@@ -9,8 +9,8 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/store"
 )
 
-// nightShiftMigration is the position of 0026_night_shift.sql (M6N-N2, C377); renumber here and rename the file if main moved.
-const nightShiftMigration = 26
+// nightShiftMigration is the position of 0029_night_shift.sql (M6N-N2, C377); renumber here and rename the file if main moved.
+const nightShiftMigration = 29
 
 // TestMigration_NightShift: a database one step before the night-shift migration upgrades additively. The night shift arrives OFF (the
 // one settings row says enabled = 0, nothing is halted) and no night exists, so deploying it changes nothing until the Owner enables it.
