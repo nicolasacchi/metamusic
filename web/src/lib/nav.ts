@@ -58,6 +58,8 @@ const TAB_OF: Record<string, Tab> = {
   job: "more",
   transforms: "more",
   "transform-score": "more",
+  desk: "more",
+  plan: "more",
   engines: "more",
   "engine-trial": "more",
   suite: "library",
@@ -126,6 +128,7 @@ export const NAV_LINKS: NavLink[] = [
   { label: "Jobs", path: "/jobs", tab: "more", group: "Make" },
   { label: "Transforms", path: "/transforms", tab: "more", group: "Make" },
   { label: "Render score", path: "/transforms/score", tab: "more", group: "Make" },
+  { label: "Desk", path: "/desk", tab: "more", group: "Make", testid: "nav-desk" },
   { label: "Engines", path: "/engines", tab: "more", group: "Make" },
   { label: "Generate", path: "/human/generate", tab: "more", group: "Make", secure: true },
   { label: "Import", path: "/import", tab: "more", group: "Library tools" },
@@ -182,7 +185,7 @@ export function subActive(l: NavLink, routeName: string | null | undefined): boo
 /** Routes that are only reached from a page (an id, a form, query arguments), not from a tab. */
 export const CONTEXTUAL_ROUTES = new Set([
   "track", "muse", "song", "draft-new", "draft-upload", "draft", "playlist", "duel", "compare", "job", "batch", "lineage", "human-confirm",
-  "record", "crate", "human-record-publish", "callback", "patch",
+  "record", "crate", "human-record-publish", "callback", "patch", "plan",
 ]);
 
 const TITLES: Record<string, string> = {
@@ -220,6 +223,8 @@ const TITLES: Record<string, string> = {
   job: "Job",
   transforms: "Transforms",
   "transform-score": "Render score",
+  desk: "Desk",
+  plan: "Plan",
   engines: "Engines",
   "engine-trial": "Engine trial",
   suite: "Suite",
@@ -292,6 +297,8 @@ export const ROUTE_OPS: Record<string, string | null> = {
   job: "get_job",
   transforms: "list_transforms",
   "transform-score": "create_transform",
+  desk: "list_plans",
+  plan: "get_plan",
   engines: "list_engines",
   "engine-trial": "list_engines",
   suite: "get_lineage",

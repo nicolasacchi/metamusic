@@ -19,6 +19,7 @@ func init() {
 		"internal/desk.OwnerVerdict":       "PlanOwnerVerdict",
 		"internal/desk.CriticVerdict":      "PlanCriticVerdict",
 		"internal/desk.AuditionRef":        "PlanAudition",
+		"internal/desk.Audition":           "PlanAuditionDetail",
 		"internal/desk.RenderRef":          "PlanRender",
 		"internal/score/abc.Op":            "ScoreEditOp",
 		"internal/score/abc.Report":        "ScoreReport",

@@ -2,6 +2,10 @@ package pods_test
 
 import (
 	"context"
+	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -47,6 +51,46 @@ func writeKey(t testing.TB, dir, key string, mode os.FileMode) {
 type envOpts struct {
 	srv      podtest.Options
 	timeouts pods.Timeouts
+	// inproc routes the client to the fake's handler without a socket, so a test inside testing/synctest sees every
+	// per-attempt timeout on the bubble's fake clock instead of the wall clock.
+	inproc bool
+}
+
+// handlerTransport serves a request by calling the handler directly. The handler sees the caller's context, so a
+// hung answer ends exactly when the client's per-attempt timeout does.
+type handlerTransport struct{ h http.Handler }
+
+func (t handlerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	rec := httptest.NewRecorder()
+	sreq := req.Clone(req.Context())
+	sreq.RequestURI = req.URL.RequestURI()
+	sreq.RemoteAddr = "127.0.0.1:1"
+	if sreq.Body == nil {
+		sreq.Body = http.NoBody
+	}
+	done := make(chan struct{})
+	var aborted bool
+	go func() {
+		defer close(done)
+		defer func() { // the fake aborts a connection reset with http.ErrAbortHandler
+			r := recover()
+			if err, ok := r.(error); ok && errors.Is(err, http.ErrAbortHandler) {
+				aborted = true
+			} else if r != nil {
+				panic(r)
+			}
+		}()
+		t.h.ServeHTTP(rec, sreq)
+	}()
+	select {
+	case <-done:
+		if aborted {
+			return nil, io.ErrUnexpectedEOF
+		}
+		return rec.Result(), nil
+	case <-req.Context().Done():
+		return nil, req.Context().Err()
+	}
 }
 
 func newEnv(t *testing.T, mod ...func(*envOpts)) *env {
@@ -57,9 +101,13 @@ func newEnv(t *testing.T, mod ...func(*envOpts)) *env {
 	}
 	key, dir, clk := canary("pod"), t.TempDir(), clocktest.NewManual(t0)
 	writeKey(t, dir, key, 0o600)
-	eo.srv.Key, eo.srv.Clock = key, clk
+	eo.srv.Key, eo.srv.Clock, eo.srv.NoListen = key, clk, eo.inproc
 	srv := podtest.New(t, eo.srv)
-	cl := pods.NewClient(pods.Options{BaseURL: srv.URL, KeyDir: dir, Clock: clk, UserAgent: pods.UserAgentFor("test"), Timeouts: eo.timeouts})
+	po := pods.Options{BaseURL: srv.URL, KeyDir: dir, Clock: clk, UserAgent: pods.UserAgentFor("test"), Timeouts: eo.timeouts}
+	if eo.inproc {
+		po.HTTP = &http.Client{Transport: handlerTransport{srv.Config.Handler}}
+	}
+	cl := pods.NewClient(po)
 	return &env{srv: srv, dir: dir, key: key, clk: clk, cl: cl}
 }
 

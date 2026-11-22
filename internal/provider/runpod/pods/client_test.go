@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/provider"
@@ -32,17 +33,21 @@ func TestPodClient_UserAgentAndTimeouts(t *testing.T) {
 		req.Header.Get("Accept") != "application/json" {
 		t.Errorf("headers = %v", req.Header)
 	}
-	// a hung GET times out per attempt and is retried three times (four calls), then fails without a URL
-	e = newEnv(t, func(o *envOpts) { o.timeouts.Other = 40 * time.Millisecond })
-	e.srv.Fault(podtest.OpGet, podtest.Fault{Hang: true, Count: 10})
-	var err error
-	drive(t, e.clk, func() { _, err = e.cl.GetPod(bg(), "p1") })
-	if err == nil || e.srv.Calls(podtest.OpGet) != 4 {
-		t.Fatalf("err = %v, calls = %d, want 4", err, e.srv.Calls(podtest.OpGet))
-	}
-	if strings.Contains(err.Error(), e.srv.URL) || strings.Contains(err.Error(), "/v2/pods") {
-		t.Errorf("the error carries the URL: %v", err)
-	}
+	// a hung GET times out per attempt and is retried three times (four calls), then fails without a URL.
+	// Inside a synctest bubble the 40 ms per-attempt timeout runs on fake time and the fake is called in-process, so a
+	// loaded machine cannot expire an attempt before the server has seen it.
+	synctest.Test(t, func(t *testing.T) {
+		e := newEnv(t, func(o *envOpts) { o.timeouts.Other = 40 * time.Millisecond; o.inproc = true })
+		e.srv.Fault(podtest.OpGet, podtest.Fault{Hang: true, Count: 10})
+		var err error
+		drive(t, e.clk, func() { _, err = e.cl.GetPod(bg(), "p1") })
+		if err == nil || e.srv.Calls(podtest.OpGet) != 4 {
+			t.Fatalf("err = %v, calls = %d, want 4", err, e.srv.Calls(podtest.OpGet))
+		}
+		if strings.Contains(err.Error(), e.srv.URL) || strings.Contains(err.Error(), "/v2/pods") {
+			t.Errorf("the error carries the URL: %v", err)
+		}
+	})
 	// default User-Agent
 	if got := pods.NewClient(pods.Options{KeyDir: e.dir}); got == nil {
 		t.Error("nil client")
