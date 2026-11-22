@@ -43,6 +43,11 @@ func configCheck(getenv func(string) string, s streams) error {
 	if r2err != nil {
 		errs = append(errs, r2err)
 	}
+	// BULK-P1: the pod key file is read as the backend reads it (mode checked); only presence is ever printed
+	_, havePodKey, podKeyErr := config.LoadPodKey(cfg.SecretsDir)
+	if podKeyErr != nil {
+		errs = append(errs, podKeyErr)
+	}
 	if len(errs) > 0 {
 		for _, e := range errs {
 			fmt.Fprintln(s.err, e)
@@ -99,6 +104,11 @@ func configCheck(getenv func(string) string, s streams) error {
 	fmt.Fprintf(s.out, "time zone: %s\n", cfg.Zone())
 	fmt.Fprintf(s.out, "trusted proxies: %d\n", len(cfg.TrustedProxies))
 	fmt.Fprintf(s.out, "upload fallback: %s\n", map[bool]string{true: "configured", false: "not configured"}[haveR2])
+	fmt.Fprintf(s.out, "pod backend: %s\n", map[bool]string{true: "on", false: "off"}[cfg.PodBackend])
+	if cfg.PodImage != "" {
+		fmt.Fprintf(s.out, "pod image digest: %s\n", cfg.PodImage[strings.LastIndex(cfg.PodImage, ":")+1:][:12]) // the config check guarantees 64 hex
+	}
+	fmt.Fprintf(s.out, "pod key: %s\n", map[bool]string{true: "present", false: "absent"}[havePodKey])
 	printSynth(cfg, s)
 	return nil
 }

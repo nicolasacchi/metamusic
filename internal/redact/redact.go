@@ -24,9 +24,16 @@ var (
 	jobPathRE  = regexp.MustCompile(`(/v2/)[A-Za-z0-9_-]+(/(?:runsync|run|status|stream|cancel|retry|health|purge-queue)\b)`)
 	jobHostRE  = regexp.MustCompile(`(api\.runpod\.ai/v2/)[A-Za-z0-9_-]+`)
 	mgmtPathRE = regexp.MustCompile(`(/v2/endpoints/)[A-Za-z0-9_-]+`)
+
+	// Bulk (C392.5): RunPod pod ids (about ten characters, below the opaque-run rule) in the management paths and in the
+	// app's own pod poll path.
+	podPathRE = regexp.MustCompile(`(/(?:v2/pods|v2/queued-pods|worker/v1/pods)/)[A-Za-z0-9_-]+`)
 )
 
-const endpointPlaceholder = "<endpoint>"
+const (
+	endpointPlaceholder = "<endpoint>"
+	podPlaceholder      = "<pod>"
+)
 
 // String masks credentials, Authorization headers, URL query strings and long
 // opaque runs (>= 32 hex or base64url characters).
@@ -36,6 +43,7 @@ func String(s string) string {
 	s = jobPathRE.ReplaceAllString(s, "${1}"+endpointPlaceholder+"$2")
 	s = jobHostRE.ReplaceAllString(s, "${1}"+endpointPlaceholder)
 	s = mgmtPathRE.ReplaceAllString(s, "${1}"+endpointPlaceholder)
+	s = podPathRE.ReplaceAllString(s, "${1}"+podPlaceholder)
 	s = bearRE.ReplaceAllString(s, "$1 <redacted>")
 	s = jwtRE.ReplaceAllString(s, "<jwt>")
 	s = formRE.ReplaceAllString(s, "${1}${2}=<redacted>")
