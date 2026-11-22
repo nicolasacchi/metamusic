@@ -28,6 +28,7 @@
     "vite": "^8.3.4"
   },
   "dependencies": {
+    "abcjs": "6.7.3",
     "openapi-fetch": "^0.17.0",
     "uqr": "0.1.3"
   }
