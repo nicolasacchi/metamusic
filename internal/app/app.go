@@ -52,6 +52,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/morning"
 	"github.com/nicolasacchi/metamusic/internal/muses"
 	"github.com/nicolasacchi/metamusic/internal/nextactions"
+	"github.com/nicolasacchi/metamusic/internal/nightshift"
 	"github.com/nicolasacchi/metamusic/internal/notify"
 	"github.com/nicolasacchi/metamusic/internal/oidc"
 	"github.com/nicolasacchi/metamusic/internal/picks"
@@ -198,6 +199,8 @@ type Services struct {
 	Callbacks *callbacks.Service
 	Attention *attention.Service
 	Voice     *voice.Service
+	// NightShift is the M6N night runner (nil when the spend path is not built); its Daily loop is in Loops, and its operations (M6N-N3) are served from it.
+	NightShift *nightshift.Runner
 
 	// ClipsMissing and TierAMissing are non-nil when ffmpeg lacks the capabilities (C51.7); the
 	// clip-dependent operations then answer 503 and Tier A reports TOOL_MISSING.
@@ -325,7 +328,7 @@ func Build(ctx context.Context, cfg config.Config, sec config.Secrets, st *store
 		version: o.Version, now: now, newID: newID}, o.L2)
 	resolvers = append(resolvers, l2.Resolvers...)
 	wireL2Curation(st, l1.SongView, ctxb)
-	m5 := buildM5(m5Inputs{st: st, now: now, newID: newID, notifier: notifier, cfg: cfg, late: late, ctxb: ctxb})
+	m5 := buildM5(m5Inputs{st: st, lib: lib, now: now, newID: newID, notifier: notifier, cfg: cfg, late: late, ctxb: ctxb})
 	if err := late.check(); err != nil {
 		return nil, err
 	}

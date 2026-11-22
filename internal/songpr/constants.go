@@ -15,6 +15,7 @@ const (
 	MaxStyleRunes     = 1000 // longest replacement style string
 	PatchMaxRenders   = 3    // non-cancelled batches one patch may be rendered in
 	MaxSeeds          = 4    // takes of one Song PR render
+	MaxBars           = 16   // bars of the base score a patch may replace, across all voices and ops (D-DESK-13)
 )
 
 // Patch operators (the Operator Ledger names of the children).
@@ -22,12 +23,14 @@ const (
 	OperatorLyricEdit = "lyric_edit"
 	OperatorStyleEdit = "style_edit"
 	OperatorMultiEdit = "multi_edit"
+	OperatorABCEdit   = "abc_edit" // bar edits of the score alone (D-DESK-13); with lyrics or style the operator is multi_edit
 )
 
 // Op kinds.
 const (
 	OpReplaceLine = "replace_line"
 	OpSetStyle    = "set_style"
+	OpReplaceBars = "replace_bars" // voice, bar_from, bar_to (0-based, inclusive), abc: one voice per op
 )
 
 // Stable error codes (C260).

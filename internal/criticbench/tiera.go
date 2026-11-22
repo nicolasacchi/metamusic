@@ -57,13 +57,11 @@ var tierADefs = []metricDef{
 // tierA reads the latest analyses row of every track and analyzer.
 type tierA struct{}
 
-func (tierA) Critics(ctx context.Context, q Reader, ref *Reference) ([]Critic, error) {
-	want := map[string]struct{}{}
-	for _, ps := range [][]Pair{ref.RatingPairs, ref.DuelPairs} {
-		for _, p := range ps {
-			want[p.A], want[p.B] = struct{}{}, struct{}{}
-		}
-	}
+type tierAKey struct{ track, analyzer string }
+
+// readTierA returns the latest metrics_json of every (track, analyzer) among the wanted tracks (nil want: no filter on tracks is
+// applied by SQL, the filter is by map) and the analyzers that have any row at all.
+func readTierA(ctx context.Context, q Reader, want map[string]struct{}) (latest map[tierAKey]string, anyRow map[string]bool, err error) {
 	analyzers, marks := []string{}, []string{}
 	seen := map[string]bool{}
 	for _, d := range tierADefs {
@@ -81,49 +79,82 @@ func (tierA) Critics(ctx context.Context, q Reader, ref *Reference) ([]Critic, e
 	rows, err := q.QueryContext(ctx, `SELECT track_id, analyzer, metrics_json FROM analyses WHERE analyzer IN (`+strings.Join(marks, ",")+
 		`) ORDER BY created_at, version`, args...)
 	if err != nil {
-		return nil, fmt.Errorf("criticbench: read analyses: %w", err)
+		return nil, nil, fmt.Errorf("criticbench: read analyses: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
-	type key struct{ track, analyzer string }
-	latest := map[key]string{}
-	anyRow := map[string]bool{}
+	latest, anyRow = map[tierAKey]string{}, map[string]bool{}
 	for rows.Next() {
 		var tr, an, js string
 		if err := rows.Scan(&tr, &an, &js); err != nil {
-			return nil, fmt.Errorf("criticbench: scan analyses: %w", err)
+			return nil, nil, fmt.Errorf("criticbench: scan analyses: %w", err)
 		}
 		anyRow[an] = true
 		if _, ok := want[tr]; ok {
-			latest[key{tr, an}] = js
+			latest[tierAKey{tr, an}] = js
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("criticbench: read analyses: %w", err)
+		return nil, nil, fmt.Errorf("criticbench: read analyses: %w", err)
 	}
-	decoded := map[key]map[string]any{}
+	return latest, anyRow, nil
+}
+
+// tierAValues decodes one metric for the wanted tracks.
+func tierAValues(d metricDef, want map[string]struct{}, latest map[tierAKey]string, decoded map[tierAKey]map[string]any) map[string]float64 {
+	vals := map[string]float64{}
+	for tr := range want {
+		k := tierAKey{tr, d.analyzer}
+		js, ok := latest[k]
+		if !ok {
+			continue
+		}
+		m, done := decoded[k]
+		if !done {
+			if json.Unmarshal([]byte(js), &m) != nil {
+				m = nil
+			}
+			decoded[k] = m
+		}
+		if v, ok := d.get(m); ok {
+			vals[tr] = v
+		}
+	}
+	return vals
+}
+
+// MetricValues implements MetricValuer: the Tier A value of one metric for the given takes (the night planner's tie-break reads
+// the values of tonight's candidates, which need not be in the reference windows).
+func (tierA) MetricValues(ctx context.Context, q Reader, id string, tracks []string) (map[string]float64, bool, error) {
+	for _, d := range tierADefs {
+		if d.id != id {
+			continue
+		}
+		want := map[string]struct{}{}
+		for _, t := range tracks {
+			want[t] = struct{}{}
+		}
+		latest, _, err := readTierA(ctx, q, want)
+		if err != nil {
+			return nil, true, err
+		}
+		return tierAValues(d, want, latest, map[tierAKey]map[string]any{}), true, nil
+	}
+	return nil, false, nil
+}
+
+func (tierA) Critics(ctx context.Context, q Reader, ref *Reference) ([]Critic, error) {
+	want := refTracks(ref)
+	latest, anyRow, err := readTierA(ctx, q, want)
+	if err != nil {
+		return nil, err
+	}
+	decoded := map[tierAKey]map[string]any{}
 	var out []Critic
 	for _, d := range tierADefs {
 		if !anyRow[d.analyzer] {
 			continue
 		}
-		vals := map[string]float64{}
-		for tr := range want {
-			k := key{tr, d.analyzer}
-			js, ok := latest[k]
-			if !ok {
-				continue
-			}
-			m, done := decoded[k]
-			if !done {
-				if json.Unmarshal([]byte(js), &m) != nil {
-					m = nil
-				}
-				decoded[k] = m
-			}
-			if v, ok := d.get(m); ok {
-				vals[tr] = v
-			}
-		}
+		vals := tierAValues(d, want, latest, decoded)
 		if len(vals) == 0 {
 			continue // no readable value for any take in the reference windows: the critic is absent
 		}
@@ -136,4 +167,15 @@ func (tierA) Critics(ctx context.Context, q Reader, ref *Reference) ([]Critic, e
 		out = append(out, c)
 	}
 	return out, nil
+}
+
+// refTracks is every take that appears in either reference window.
+func refTracks(ref *Reference) map[string]struct{} {
+	want := map[string]struct{}{}
+	for _, ps := range [][]Pair{ref.RatingPairs, ref.DuelPairs} {
+		for _, p := range ps {
+			want[p.A], want[p.B] = struct{}{}, struct{}{}
+		}
+	}
+	return want
 }

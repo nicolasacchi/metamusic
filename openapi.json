@@ -1517,6 +1517,36 @@
         ],
         "type": "object"
       },
+      "BarChange": {
+        "additionalProperties": false,
+        "properties": {
+          "after": {
+            "type": "string"
+          },
+          "bar_from": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "bar_to": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "before": {
+            "type": "string"
+          },
+          "voice": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "voice",
+          "bar_from",
+          "bar_to",
+          "before",
+          "after"
+        ],
+        "type": "object"
+      },
       "BasisCounts": {
         "additionalProperties": false,
         "properties": {
@@ -13636,11 +13666,19 @@
       "PatchBounds": {
         "additionalProperties": false,
         "properties": {
+          "bars_changed": {
+            "format": "int64",
+            "type": "integer"
+          },
           "bpm_delta": {
             "format": "int64",
             "type": "integer"
           },
           "lines_changed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_bars": {
             "format": "int64",
             "type": "integer"
           },
@@ -13727,6 +13765,10 @@
       "PatchCompiled": {
         "additionalProperties": false,
         "properties": {
+          "abc": {
+            "description": "The whole patched score (replace_bars)",
+            "type": "string"
+          },
           "lyrics": {
             "type": "string"
           },
@@ -13739,6 +13781,15 @@
       "PatchDiff": {
         "additionalProperties": false,
         "properties": {
+          "abc": {
+            "items": {
+              "$ref": "#/components/schemas/BarChange"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "lyrics": {
             "items": {
               "$ref": "#/components/schemas/PatchLineChange"
@@ -13787,6 +13838,26 @@
       "PatchOp": {
         "additionalProperties": false,
         "properties": {
+          "abc": {
+            "description": "replace_bars: the new bars, one |-separated segment per bar, no comment and no field",
+            "maxLength": 4000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "bar_from": {
+            "description": "replace_bars: first bar, 0-based",
+            "format": "int64",
+            "maximum": 9999,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "bar_to": {
+            "description": "replace_bars: last bar, inclusive; at most 16 bars per patch",
+            "format": "int64",
+            "maximum": 9999,
+            "minimum": 0,
+            "type": "integer"
+          },
           "line_idx": {
             "description": "replace_line",
             "format": "int64",
@@ -13797,7 +13868,8 @@
           "op": {
             "enum": [
               "replace_line",
-              "set_style"
+              "set_style",
+              "replace_bars"
             ],
             "type": "string"
           },
@@ -13817,6 +13889,12 @@
           "text": {
             "description": "replace_line: one lyric line, no tags, no newline",
             "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "voice": {
+            "description": "replace_bars: the voice id of the score (one voice per op)",
+            "maxLength": 64,
             "minLength": 1,
             "type": "string"
           }
@@ -19269,7 +19347,8 @@
             "enum": [
               "lyric_edit",
               "style_edit",
-              "multi_edit"
+              "multi_edit",
+              "abc_edit"
             ],
             "type": "string"
           },
@@ -19341,7 +19420,8 @@
             "enum": [
               "lyric_edit",
               "style_edit",
-              "multi_edit"
+              "multi_edit",
+              "abc_edit"
             ],
             "type": "string"
           },
@@ -30864,7 +30944,7 @@
         }
       },
       "post": {
-        "description": "Stores a bounded patch to a take (at most 8 lyric lines in at most 4 sections, or a style change of at most 3 terms and 20 BPM) that names the fix or note comments it addresses. Free; rendering goes through estimate_generation with item mode song_pr.",
+        "description": "Stores a bounded patch to a take (at most 8 lyric lines in at most 4 sections, a style change of at most 3 terms and 20 BPM, or replace_bars: at most 16 bars of an aligned score inside the scoped sections) that names the fix or note comments it addresses. Free; rendering goes through estimate_generation with item mode song_pr.",
         "operationId": "propose_patch",
         "parameters": [
           {

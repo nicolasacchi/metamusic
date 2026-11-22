@@ -43,6 +43,7 @@
 ./internal/backup 36
 ./internal/library 34
 ./internal/servertest 33
+./internal/nightshift 30
 ./internal/songview 29
 ./internal/albums 28
 ./internal/drafts 27
@@ -58,8 +59,8 @@
 ./internal/archivetest 18
 ./internal/voice 18
 ./internal/httpserver 16
+./internal/desk 16
 ./internal/analysis/spectro 15
-./internal/nightshift 15
 ./internal/provider/runpod/pods 15
 ./internal/connectors 14
 ./internal/upload 14
