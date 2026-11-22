@@ -45,7 +45,7 @@ func (r *Runner) RunViews(ctx context.Context, limit int) ([]RunView, error) {
 		return nil, err
 	}
 	out := make([]RunView, 0, len(runs))
-	for _, run := range runs {
+	for i, run := range runs {
 		v := RunView{Run: run, State: run.State}
 		if run.BatchID != "" {
 			var bstate string
@@ -60,9 +60,14 @@ func (r *Runner) RunViews(ctx context.Context, limit int) ([]RunView, error) {
 					v.State = ViewDone
 				}
 			}
+			// the crate window ends where the next newer night was claimed (runs are newest first), so a later night's crate is never attributed here
+			upper := "9999-12-31T23:59:59Z"
+			if i > 0 {
+				upper = store.FormatTime(runs[i-1].CreatedAt)
+			}
 			var crate sql.NullString
-			if err := r.o.Store.R.QueryRowContext(ctx, `SELECT id FROM morning_crates WHERE created_at > ? AND state <> 'failed' ORDER BY created_at, id LIMIT 1`,
-				store.FormatTime(run.CreatedAt)).Scan(&crate); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			if err := r.o.Store.R.QueryRowContext(ctx, `SELECT id FROM morning_crates WHERE created_at > ? AND created_at < ? AND state <> 'failed' ORDER BY created_at, id LIMIT 1`,
+				store.FormatTime(run.CreatedAt), upper).Scan(&crate); err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return nil, err
 			}
 			v.MorningCrateID = crate.String
@@ -153,6 +158,21 @@ func (r *Runner) Preview(ctx context.Context) (PlanView, error) {
 	if err != nil {
 		return PlanView{}, err
 	}
+	out, err := r.preview(ctx, s)
+	if err != nil {
+		return PlanView{}, err
+	}
+	// halted and disabled take precedence on every exit path (the runner skips a halted or disabled night before it looks at a mandate)
+	switch {
+	case s.Halted():
+		out.WouldSkip = SkipHalted
+	case !s.Enabled:
+		out.WouldSkip = SkipDisabled
+	}
+	return out, nil
+}
+
+func (r *Runner) preview(ctx context.Context, s Settings) (PlanView, error) {
 	now := r.o.Now()
 	_, night := r.nextSlot(now, s.At)
 	out := PlanView{Night: night, Seed: strconv.FormatUint(NightSeed(night), 10), Items: []PlanItem{}, Dropped: []DroppedRoot{}, Trimmed: []DroppedRoot{}}
@@ -207,12 +227,6 @@ func (r *Runner) Preview(ctx context.Context) (PlanView, error) {
 			out.Mandate.Covered = true // the cap, not the mandate, stopped it
 			out.Mandate.Reasons = []string{}
 		}
-	}
-	switch {
-	case s.Halted():
-		out.WouldSkip = SkipHalted
-	case !s.Enabled && out.WouldSkip == "":
-		out.WouldSkip = SkipDisabled
 	}
 	return out, nil
 }

@@ -64,14 +64,37 @@ func TestPreviewNightShift_WouldSkip(t *testing.T) {
 	t.Parallel()
 	g := viewRig(t)
 	pv, err := g.r.Preview(t.Context())
-	if err != nil || pv.WouldSkip != AuthNoMandate || pv.Mandate != nil || pv.Quote != nil || pv.Items == nil {
+	if err != nil || pv.WouldSkip != SkipDisabled || pv.Mandate != nil || pv.Quote != nil || pv.Items == nil {
 		t.Fatalf("no mandate: %+v %v", pv, err)
 	}
+	if pv, err = g.r.Preview(t.Context()); err != nil || pv.WouldSkip != SkipDisabled {
+		t.Fatalf("disabled without mandate: %+v %v", pv, err)
+	}
+	g.enable()
+	if pv, err = g.r.Preview(t.Context()); err != nil || pv.WouldSkip != AuthNoMandate {
+		t.Fatalf("enabled without mandate: %+v %v", pv, err)
+	}
+	if _, err := g.r.Halt(t.Context(), alice, "stop"); err != nil {
+		t.Fatal(err)
+	}
+	if pv, err = g.r.Preview(t.Context()); err != nil || pv.WouldSkip != SkipHalted {
+		t.Fatalf("halted without mandate: %+v %v", pv, err)
+	}
+}
+
+// TestPreviewNightShift_WouldSkipWithMandate: with a live mandate the same precedence holds, and an enabled unhalted shift would run.
+func TestPreviewNightShift_WouldSkipWithMandate(t *testing.T) {
+	t.Parallel()
+	g := viewRig(t)
 	g.grant(2, 3)
-	if pv, err = g.r.Preview(t.Context()); err != nil || pv.WouldSkip != SkipDisabled || len(pv.Items) == 0 {
+	pv, err := g.r.Preview(t.Context())
+	if err != nil || pv.WouldSkip != SkipDisabled || len(pv.Items) == 0 {
 		t.Fatalf("disabled: %+v %v", pv, err)
 	}
 	g.enable()
+	if pv, err = g.r.Preview(t.Context()); err != nil || pv.WouldSkip != "" {
+		t.Fatalf("enabled: %+v %v", pv, err)
+	}
 	if _, err := g.r.Halt(t.Context(), alice, "stop"); err != nil {
 		t.Fatal(err)
 	}
@@ -147,6 +170,7 @@ func TestGetNightShift_DerivedRunStates(t *testing.T) {
 	g.grant(4, 3)
 	g.r.Run(t.Context(), g.key("2026-10-15"))
 	created := g.run("2026-10-15")
+	g.advance(2 * time.Hour)
 	g.r.Run(t.Context(), g.key("2026-10-16")) // the first batch is unfinished: skipped previous_running
 	views, err := g.r.RunViews(t.Context(), 0)
 	if err != nil || len(views) != 2 {
@@ -179,9 +203,17 @@ func TestGetNightShift_DerivedRunStates(t *testing.T) {
 		VALUES ('crate-1', 'manual', 'ready', 1, '{}', 'human:alice', ?, ?)`, store.FormatTime(lt.FixedNow.Add(time.Hour)), store.FormatTime(lt.FixedNow.Add(time.Hour))); err != nil {
 		t.Fatal(err)
 	}
+	// a crate built after the next night was claimed (two hours in) belongs to no earlier night
+	if _, err := g.st.W.Exec(`INSERT INTO morning_crates(id, trigger, state, seed, options_json, created_by, created_at, built_at)
+		VALUES ('crate-2', 'manual', 'ready', 1, '{}', 'human:alice', ?, ?)`, store.FormatTime(lt.FixedNow.Add(3*time.Hour)), store.FormatTime(lt.FixedNow.Add(3*time.Hour))); err != nil {
+		t.Fatal(err)
+	}
 	views, err = g.r.RunViews(t.Context(), 14)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if views[0].MorningCrateID != "" {
+		t.Errorf("a night without a batch owns crate %q", views[0].MorningCrateID)
 	}
 	if v := views[1]; v.State != ViewDone || v.SettledMicroUSD != 1234 || v.MorningCrateID != "crate-1" {
 		t.Fatalf("done = %+v", v)
