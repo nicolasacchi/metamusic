@@ -30,6 +30,11 @@ func wireEars(env *BuildEnv) error {
 	if svc == nil {
 		return nil
 	}
+	if env.Cfg.E2E {
+		// The e2e rig's reference takes are listened to by the fake recogniser, which hears this invented lyric, so the web Recover
+		// flow (analyze, then Create draft from transcript) runs for real in CI.
+		fake.SetAnalyzeDefaultLyrics("[verse]\nla luna dorme piano sul mare\nil vento canta una storia\n[chorus]\nil mare canta ancora\nla luna torna a casa")
+	}
 	// The Diction Lab reads the Tier B rows and writes only its marks and lexicon overrides; its operations are served from Deps.
 	lab := diction.New(diction.Options{Store: env.Store, Library: env.Services.Deps.Library, Now: env.Now})
 	env.Services.Deps.Diction = lab
