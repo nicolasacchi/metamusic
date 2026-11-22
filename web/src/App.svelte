@@ -362,7 +362,9 @@
     {:else if $router.route?.name === "transforms"}
       <Transforms />
     {:else if $router.route?.name === "transform-score"}
-      <TransformScore trackId={$router.query.track_id ?? ""} />
+      {#key $router.query.track_id ?? ""}
+        <TransformScore trackId={$router.query.track_id ?? ""} />
+      {/key}
     {:else if $router.route?.name === "engines"}
       <Engines />
     {:else if $router.route?.name === "job"}

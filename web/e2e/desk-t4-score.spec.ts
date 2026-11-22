@@ -30,20 +30,22 @@ test("the score page: Render when the synthesizer is there, a plain notice when 
     expect(r.status()).toBe(503);
     const problem = (await r.json()) as { code: string; details?: { component?: string } };
     expect(problem.code).toBe("UNAVAILABLE");
-    expect(["fluidsynth", "soundfont"]).toContain(problem.details?.component);
+    expect(caps.enabled ? ["fluidsynth", "soundfont"] : ["transform"]).toContain(problem.details?.component);
     return;
   }
 
   await expect(page.getByTestId("score-form")).toBeVisible();
   expect(await smallTargets(page)).toEqual([]);
   await expect(page.getByTestId("score-render")).toBeDisabled();
+  const before = new Set((await listTransforms(request, "&kind=score_render")).map((t) => t.id));
   await page.getByTestId("score-abc").fill(ABC);
   await expect(page.getByTestId("transform-estimate-line")).toContainText("$0.00");
   await expect(page.getByTestId("score-render")).toBeEnabled();
   await page.getByTestId("score-render").click();
   await expect(page.getByTestId("score-status")).toBeVisible();
-  await expect.poll(async () => (await listTransforms(request, "&kind=score_render")).length, { timeout: 20_000 }).toBeGreaterThan(0);
-  const row = (await listTransforms(request, "&kind=score_render"))[0]!;
+  const fresh = async () => (await listTransforms(request, "&kind=score_render")).filter((t) => !before.has(t.id));
+  await expect.poll(async () => (await fresh()).length, { timeout: 20_000 }).toBeGreaterThan(0);
+  const row = (await fresh())[0]!;
   const done = await waitFor(request, row.id);
   expect(done.state).toBe("done");
 });
