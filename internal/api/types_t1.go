@@ -156,6 +156,7 @@ type ScoreRenderParams struct {
 	BPM       *float64    `json:"bpm,omitempty" nullable:"true" minimum:"20" maximum:"300"`
 	TailS     *float64    `json:"tail_s,omitempty" nullable:"true" minimum:"0" maximum:"10"`
 	Gain      *float64    `json:"gain,omitempty" nullable:"true" minimum:"0.1" maximum:"1.5"`
+	Chords    *string     `json:"chords,omitempty" nullable:"true" enum:"none,block" doc:"block sounds the chord symbols as a close-position chord voice; none (the default) keeps the render literal to the notes"`
 }
 
 // MasterParams (C219): gentle tonal polish, levelling and a true-peak finish of the full mix.

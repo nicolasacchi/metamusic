@@ -90,6 +90,22 @@ type Config struct {
 	EarsRTFMilli           int // MM_EARS_RTF_MILLI, default 150, 10..2000 (separation + ASR seconds per 1000 s of audio)
 	EarsTranscribeRTFMilli int // MM_EARS_TRANSCRIBE_RTF_MILLI, default 40, 0..2000 (the pitch-contour stage)
 	AnalyzeFetchS          int // MM_ANALYZE_FETCH_S, default 20, 5..300 (fetch seconds of an analyze job)
+
+	// Bulk (C390.2): the pod backend and the upload fallback's switch-over time. See config_bulk.go.
+	PodBackend     bool          // MM_POD_BACKEND, default off
+	PodImage       string        // MM_POD_IMAGE: <ref>@sha256:<64 hex>, required with the backend
+	PodGPUTypes    []string      // MM_POD_GPU_TYPES: ordered catalog type ids, 1..4, required with the backend
+	PodMinTakes    int           // MM_POD_MIN_TAKES, default 30, 10..100
+	PodMaxTakes    int           // MM_POD_MAX_TAKES, default 100, 30..100
+	PodBootS       int           // MM_POD_BOOT_S, default 1200, 300..3600
+	PodIdleS       int           // MM_POD_IDLE_S, default 120, 30..600
+	PodSlackS      int           // MM_POD_SLACK_S, default 300, 60..1800
+	PodMaxRuntime  time.Duration // MM_POD_MAX_RUNTIME, default 6h, 1h..12h
+	PodDeadman     time.Duration // MM_POD_DEADMAN, default 10m, 2m..30m
+	PodOrphanAfter time.Duration // MM_POD_ORPHAN_AFTER, default 180s, 60s..900s
+	PodWindowMax   time.Duration // MM_POD_WINDOW_MAX, default 8h, 1h..24h
+	PodDiskGB      int           // MM_POD_DISK_GB, default 40, 20..200
+	FallbackAfterS int           // MM_FALLBACK_AFTER_S, default 120, 60..600
 }
 
 var backupAtRE = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
@@ -154,7 +170,7 @@ func loadAll(getenv func(string) string) (Config, []error) {
 	} else if uerr = checkUsersAuth(&c); uerr != nil {
 		errs = append(errs, uerr)
 	}
-	for _, stage := range []func(*Config, func(string) string) error{loadM2a, loadM2b, loadM3, loadM4a, loadStepUp, loadM5, loadT1, loadE2, loadG1, loadEars} {
+	for _, stage := range []func(*Config, func(string) string) error{loadM2a, loadM2b, loadM3, loadM4a, loadStepUp, loadM5, loadT1, loadE2, loadG1, loadEars, loadBulk} {
 		if err := stage(&c, getenv); err != nil {
 			errs = append(errs, err)
 		}
