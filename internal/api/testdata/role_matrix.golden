@@ -44,6 +44,7 @@ get_budget	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_callback	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_clip	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 get_crate	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
+get_critic_bench	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
 get_curation_settings	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_device_probe	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
 get_diction_lexicon	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC

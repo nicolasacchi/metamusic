@@ -436,6 +436,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/critic-bench": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Measure how well each critic agrees with the Owner
+         * @description Every critic (Tier A measurements such as true peak, the stars and duel verdicts of each agent, later the listening-check scalars and the diction classifier) against the Owner's own judgement: pairs of takes in the same lineage with different Owner stars, and the Owner's blind duel verdicts. Per critic and reference: pairs, effective sample size, agreement rate and its Wilson 95 % interval, and a state: trusted (n_eff at least 30 and lower bound above 0.55), contrary (n_eff at least 30 and upper bound below 0.45), insufficient (n_eff under 30) or unknown. A direction is a hypothesis, not a finding. Nothing is discarded or acted on automatically. Pass critic for one critic and its disagreements. Reads only.
+         */
+        get: operations["get_critic_bench"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/curation/settings": {
         parameters: {
             query?: never;
@@ -3415,6 +3435,14 @@ export interface components {
             /** @enum {string} */
             via: "api" | "human_create";
         };
+        Bench: {
+            critics: components["schemas"]["Critic"][];
+            /** Format: date-time */
+            generated_at: string;
+            note: string;
+            rule: components["schemas"]["Rule"];
+            window: components["schemas"]["Window"];
+        };
         BinauralParams: {
             /** Format: int64 */
             elevation_deg?: number | null;
@@ -4310,6 +4338,37 @@ export interface components {
             scopes: string[];
             /** @description The new token; null on an idempotent replay */
             token: string | null;
+        };
+        Critic: {
+            /**
+             * Format: int64
+             * @description +1 when a larger value is hypothesised to be better, -1 when smaller; null for a critic that names winners
+             */
+            direction: number | null;
+            /** @description Stable id, e.g. tier_a.true_peak or agent.stars:agent:<token> */
+            id: string;
+            /** @enum {string} */
+            kind: "metric" | "pairwise" | "labels";
+            label: string;
+            /**
+             * Format: double
+             * @description The smallest difference of values that counts as a call; null for a critic that names winners
+             */
+            min_delta: number | null;
+            /** @description Where the values come from, and that a direction is a hypothesis */
+            provenance: string;
+            scores: components["schemas"]["Scores"];
+            /** @description A duel critic's share of verdicts that named slot A; else null */
+            slot_bias: components["schemas"]["SlotBiasOf"];
+            /**
+             * @description The ratings state, or the duels state when ratings is insufficient (lines for a label critic)
+             * @enum {string}
+             */
+            state: "insufficient" | "unknown" | "trusted" | "contrary";
+            /** @description Label critics: agreement with the Owner's marks at each CER threshold; else null */
+            thresholds: components["schemas"]["Threshold"][] | null;
+            /** @enum {string} */
+            tier: "A" | "B" | "agent" | "diction";
         };
         CurationSettings: {
             /** @description Tape files carry the inspiring Muse's name */
@@ -7485,6 +7544,60 @@ export interface components {
             /** @description Why, 1..500 characters */
             reason: string;
         };
+        Rule: {
+            /** Format: double */
+            contrary_upper: number;
+            /** Format: int64 */
+            min_n: number;
+            /** Format: double */
+            trusted_lower: number;
+        };
+        Score: {
+            /**
+             * Format: int64
+             * @description Pairs the critic called the way the operator did
+             */
+            agree: number;
+            /**
+             * Format: double
+             * @description Pairs on which the critic has a value, over the pairs of the window
+             */
+            coverage: number;
+            /** @description Newest 10 pair keys (a|b) or duel ids the critic called the other way; only when one critic is requested */
+            disagreements?: string[] | null;
+            /**
+             * Format: double
+             * @description Wilson 95 % upper bound at n_eff
+             */
+            hi: number;
+            /**
+             * Format: double
+             * @description Wilson 95 % lower bound at n_eff
+             */
+            lo: number;
+            /**
+             * Format: int64
+             * @description Effective sample size: the smaller of the pairs the critic called and the distinct takes in them
+             */
+            n_eff: number;
+            /**
+             * Format: int64
+             * @description Pairs of the reference on which the critic has a value
+             */
+            pairs: number;
+            /**
+             * Format: int64
+             * @description Pairs on which the critic called a winner
+             */
+            predicted: number;
+            /**
+             * Format: double
+             * @description agree / predicted
+             */
+            rate: number;
+            /** @enum {string} */
+            state: "insufficient" | "unknown" | "trusted" | "contrary";
+        };
         ScoreRenderParams: {
             /** Format: double */
             bpm?: number | null;
@@ -7506,6 +7619,11 @@ export interface components {
         ScoreSource: {
             abc?: string | null;
             from_track_id?: string | null;
+        };
+        Scores: {
+            duels: components["schemas"]["Score"];
+            lines: components["schemas"]["Score"];
+            ratings: components["schemas"]["Score"];
         };
         SectionOut: {
             /** Format: double */
@@ -7719,6 +7837,24 @@ export interface components {
             window?: components["schemas"]["DuelSlotWindow"];
             /** Format: double */
             window_lufs: number | null;
+        };
+        SlotBiasOf: {
+            /** @description At least 20 verdicts and 0.5 is outside the interval */
+            biased: boolean;
+            /** Format: double */
+            hi: number;
+            /** Format: double */
+            lo: number;
+            /**
+             * Format: int64
+             * @description Verdicts that named a slot
+             */
+            n: number;
+            /**
+             * Format: double
+             * @description Share that named slot A
+             */
+            share: number;
         };
         SlotOp: {
             /** @description sequence: pin this Song first */
@@ -8594,6 +8730,17 @@ export interface components {
             /** Format: int64 */
             count: number;
             term: string;
+        };
+        Threshold: {
+            /** Format: int64 */
+            agree: number;
+            ci95: number[] | null;
+            /** Format: double */
+            mixed: number;
+            /** Format: int64 */
+            n: number;
+            /** Format: double */
+            rate: number;
         };
         Thresholds: {
             /** Format: double */
@@ -9653,6 +9800,16 @@ export interface components {
              */
             width?: number | null;
         };
+        Window: {
+            /** Format: int64 */
+            duel_pairs: number;
+            /** Format: int64 */
+            lines: number;
+            /** Format: int64 */
+            rating_pairs: number;
+            /** @description The oldest pair in either window; null when there are none */
+            since: string | null;
+        };
         WorkerStatusView: {
             caps: string[];
             changed_at: string | null;
@@ -10525,6 +10682,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ItemsResult"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_critic_bench: {
+        parameters: {
+            query?: {
+                /** @description One critic id (see the ids in the answer): only that critic is returned, with the newest ten pairs it called the other way */
+                critic?: string;
+                /** @description false drops the critics that say nothing yet (state unknown or insufficient) */
+                include_unknown?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bench"];
                 };
             };
             /** @description Error */
