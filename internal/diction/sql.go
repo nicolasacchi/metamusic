@@ -125,19 +125,22 @@ func (s *Service) cacheKey(ctx context.Context) (string, error) {
 	err := s.o.Store.R.QueryRowContext(ctx, `SELECT
 		(SELECT count(*) || '/' || coalesce(max(created_at), '') FROM analyses WHERE analyzer = 'tier_b_diction') || ' ' ||
 		(SELECT count(*) || '/' || coalesce(max(updated_at), '') FROM diction_marks) || ' ' ||
-		(SELECT count(*) || '/' || coalesce(max(updated_at), '') FROM lexicon_overrides)`).Scan(&key)
+		(SELECT count(*) || '/' || coalesce(max(updated_at), '') FROM lexicon_overrides) || ' ' ||
+		(SELECT count(*) FROM tracks WHERE status = 'discarded')`).Scan(&key)
 	if err != nil {
 		return "", fmt.Errorf("diction: cache key: %w", err)
 	}
 	return key, nil
 }
 
-// allDiction reads the current diction row of every track, ordered by track id.
+// allDiction reads the current diction row of every kept track, ordered by track id. Discarded takes are left out: the lexicon is one
+// aggregate shared by every viewer, and a discarded take does not exist for an Editor or a Listener (C308.2).
 func (s *Service) allDiction(ctx context.Context) ([]TrackDiction, error) {
 	rows, err := s.o.Store.R.QueryContext(ctx, `SELECT a.track_id, a.created_at, a.metrics_json,
 		(SELECT json_extract(r.metrics_json, '$.language') FROM analyses r WHERE r.track_id = a.track_id AND r.analyzer = 'tier_b_raw'
 		   ORDER BY r.created_at DESC, r.version DESC LIMIT 1)
 		FROM analyses a WHERE a.analyzer = 'tier_b_diction' AND a.version LIKE ?
+		  AND NOT EXISTS (SELECT 1 FROM tracks t WHERE t.id = a.track_id AND t.status = 'discarded')
 		ORDER BY a.track_id, a.created_at DESC, a.version DESC`, dictionVersionLike)
 	if err != nil {
 		return nil, fmt.Errorf("diction: rows: %w", err)

@@ -892,7 +892,7 @@ Refusals: 409 `ANALYSIS_UNAVAILABLE` (no `ok` check yet; the hint says what to d
 
 The Diction Lab reads the stored checks; it never spends. The karaoke view on a Track page (a take with a stored `ok` check, or a plan score)
 lets the Owner mark each line `clear` or `unclear` (a second press withdraws the mark); `/diction` lists the words the recogniser mangled
-per language with their rates, and the Owner can ignore a word or add a note. Marked lines are the calibration set of the Critic Bench
+per language with their rates, and the Owner (or an agent with write scope) can ignore a word or add a note; an Editor or Listener cannot. An agent's marks are stored as `critic` and do not count toward the calibration set. Discarded takes are not in the lexicon. Marked lines are the calibration set of the Critic Bench
 (target: 60 lines across 6 takes before the thresholds are tuned; a numbers-only change to `DefaultThresholds`). A risky word of the lexicon
 appears as a warning in the draft lint and the estimate, never as an error.
 

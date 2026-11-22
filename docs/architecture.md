@@ -445,7 +445,7 @@ Everything below the worker boundary (parsing, storage, flags, Recover, the Dict
 - **Diction Lab.** `internal/diction` (no jobs, spend, provider or API imports) builds per-line views of a take from the stored rows and the
   lyric (`get_track_diction`, with a basis: `asr` timed by the recogniser, or `proportional` from the plan), a per-language lexicon of words
   the recogniser mangled (`get_diction_lexicon`, `update_lexicon_entry`) and human or critic marks (`set_diction_marks`; `diction_marks` is
-  append-only, a mark is withdrawn by writing `none`). Marks and lexicon overrides are Owner writes (an agent with write scope marks as `critic`; the Editor cannot). The lexicon feeds the draft lint (a
+  append-only, a mark is withdrawn by writing `none`). `set_diction_marks` and `update_lexicon_entry` are `OwnerOnly` ops: the Owner, the Owner's devices and role-less principals (agents) with write scope may call them, an Editor or Listener gets 403 `OWNER_ONLY`. A person's marks are `human` and feed the lexicon and calibration; an agent's are `critic` and affect neither. Discarded takes are left out of the lexicon, which is shared by every viewer. The lexicon feeds the draft lint (a
   warning, never an error, naming words heard wrongly in earlier takes) and the estimate's planner warnings, and `diction.HumanLabelledLines` is
   the interface the Critic Bench reads. The SPA has the karaoke view on the Track page and `/diction`. With the Subsonic option on, a take
   with word timings answers `getLyricsBySongId` as synced lyrics (at least 75 % of lines timed); every other take answers as in M4a.
