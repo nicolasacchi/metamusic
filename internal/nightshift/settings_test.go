@@ -150,7 +150,7 @@ func TestNightShift_OffByDefaultChangesNothing(t *testing.T) {
 	step := func(by time.Duration) {
 		waitTimer(t, clk)
 		clk.Advance(by)
-		time.Sleep(50 * time.Millisecond) // let a run, if any, start
+		waitTimer(t, clk) // the loop re-arms its timer only after it handled the tick: a run, if any, has been started by then
 	}
 	step(time.Hour) // 01:50, past the slot
 	step(24 * time.Hour)

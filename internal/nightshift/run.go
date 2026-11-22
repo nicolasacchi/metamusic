@@ -50,6 +50,7 @@ const (
 	SkipNothingPlanned     = "nothing_planned"
 	SkipOverCeiling        = "over_ceiling"
 	SkipEstimateStale      = "estimate_stale"
+	SkipMissed             = "missed" // a redo that would start long after the night's slot
 )
 
 // trimmable are the cover reasons a smaller night can cure (C375.4); every other reason skips the night.
@@ -162,6 +163,9 @@ func (r *Runner) Resume(ctx context.Context) {
 	}
 }
 
+// resumeGrace is how long after its claim a crashed night may still be redone: the scheduler's own catch-up window.
+const resumeGrace = 2 * time.Hour
+
 func (r *Runner) resumeOne(ctx context.Context, run Run) {
 	if run.EstimateID != "" {
 		var batch, mandate sql.NullString
@@ -173,8 +177,18 @@ func (r *Runner) resumeOne(ctx context.Context, run Run) {
 				return
 			}
 			r.audit(ctx, OpResume, map[string]any{"night": run.Night, "adopted_batch": batch.String}, false)
+			if st, err := readSettings(ctx, r.o.Store.R); err == nil && st.Halted() { // a halt arrived while the run was unadopted
+				if err := r.cancelRuns(ctx); err != nil {
+					slog.Error("night shift: halt cancel after adopt failed", "night", run.Night, "err", err)
+				}
+			}
 			return
 		}
+	}
+	if r.o.Now().Sub(run.CreatedAt) > resumeGrace { // the night's slot is long gone: nothing was spent, do not start it now
+		r.audit(ctx, OpResume, map[string]any{"night": run.Night, "missed": true}, false)
+		r.settle(ctx, run.ID, run.Night, StateSkipped, SkipMissed, false)
+		return
 	}
 	r.audit(ctx, OpResume, map[string]any{"night": run.Night, "redo": true}, false)
 	r.execute(ctx, run.ID, run.Night)
@@ -335,8 +349,10 @@ func (r *Runner) attempt(ctx context.Context, id, night string) (out outcome, st
 	// a halt that arrived while the night was priced still stops it before anything is written
 	if s2, err := readSettings(ctx, q); err != nil {
 		return fail(err)
-	} else if s2.Halted() || !s2.Enabled {
+	} else if s2.Halted() {
 		return skip(SkipHalted)
+	} else if !s2.Enabled {
+		return skip(SkipDisabled)
 	}
 
 	// one estimate, one create (C375.5)

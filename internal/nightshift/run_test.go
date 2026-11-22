@@ -845,3 +845,68 @@ func TestNightShift_AuditOpsRegistered(t *testing.T) {
 		}
 	}
 }
+
+// TestNightShift_DisabledWhilePriced: a shift switched off while the night is priced is recorded as `disabled`, not `halted`.
+func TestNightShift_DisabledWhilePriced(t *testing.T) {
+	t.Parallel()
+	var g *rig
+	s := &stub{
+		preview: func(in generation.EstimateIn) (generation.Estimate, error) {
+			if _, err := g.st.W.ExecContext(t.Context(), `UPDATE night_shift_settings SET enabled = 0 WHERE id = 1`); err != nil {
+				t.Error(err)
+			}
+			return covered(in), nil
+		},
+	}
+	g = newRig(t)
+	g.enable()
+	g.grant(4, 3)
+	g.r.o.Generation = s
+	g.r.Run(t.Context(), g.key(g.night))
+	if run := g.run(g.night); run.State != StateSkipped || run.Reason != SkipDisabled {
+		t.Fatalf("run = %+v", run)
+	}
+}
+
+// TestNightShift_ResumeMissedNight: a crashed night older than the catch-up window is settled `missed`, not started in the daytime.
+func TestNightShift_ResumeMissedNight(t *testing.T) {
+	t.Parallel()
+	g := newRig(t)
+	g.enable()
+	g.grant(4, 3)
+	id, won, err := g.r.claim(t.Context(), g.night)
+	if err != nil || !won {
+		t.Fatal(err)
+	}
+	_ = id
+	g.advance(3 * time.Hour)
+	g.r.Resume(t.Context())
+	if run := g.run(g.night); run.State != StateSkipped || run.Reason != SkipMissed || nightBatches(g) != 0 {
+		t.Fatalf("run = %+v, %d batches", run, nightBatches(g))
+	}
+}
+
+// TestNightShift_ResumeAdoptedBatchHonoursHalt: a halt that arrives while a created batch is still unadopted cancels it at adoption.
+func TestNightShift_ResumeAdoptedBatchHonoursHalt(t *testing.T) {
+	t.Parallel()
+	g := newRig(t)
+	g.enable()
+	g.grant(4, 3)
+	g.r.o.AfterCreate = func() { panic("simulated crash") }
+	func() {
+		defer func() { _ = recover() }()
+		g.r.Run(t.Context(), g.key(g.night))
+	}()
+	g.r.o.AfterCreate = nil
+	if _, err := g.r.haltNoLock(t.Context(), alice, "stop"); err != nil {
+		t.Fatal(err)
+	}
+	if run := g.run(g.night); run.State != StatePlanned {
+		t.Fatalf("the unadopted run was touched: %+v", run)
+	}
+	g.advance(11 * time.Minute)
+	g.r.Resume(t.Context())
+	if run := g.run(g.night); run.State != StateHalted || len(g.auditRows("nightshift:halt_cancel")) != 1 {
+		t.Fatalf("run = %+v", run)
+	}
+}

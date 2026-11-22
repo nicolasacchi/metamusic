@@ -54,25 +54,33 @@ func (r *Runner) haltNoLock(ctx context.Context, p auth.Principal, reason string
 	if err != nil {
 		return Settings{}, err
 	}
+	return out, r.cancelRuns(ctx)
+}
+
+// cancelRuns cancels the batch of every created, unfinished night and marks it halted. A failure of one cancel does not stop the others.
+func (r *Runner) cancelRuns(ctx context.Context) error {
 	running, err := r.unfinished(ctx, r.o.Store.R, "")
 	if err != nil {
-		return out, err
+		return err
 	}
+	var errs []error
 	for _, run := range running {
 		if run.State != StateCreated { // already halted: its cancel was sent
 			continue
 		}
 		if r.o.Cancel == nil {
-			return out, errors.New("nightshift: no way to cancel the running batch")
+			return errors.New("nightshift: no way to cancel the running batch")
 		}
 		if err := r.o.Cancel(ctx, auth.System("nightshift"), run.BatchID, HaltCancelReason); err != nil {
-			return out, fmt.Errorf("nightshift: cancel batch: %w", err)
+			errs = append(errs, fmt.Errorf("nightshift: cancel batch: %w", err))
+			continue
 		}
 		if _, err := r.o.Store.W.ExecContext(ctx, `UPDATE night_shift_runs SET state = 'halted', reason = 'halted', updated_at = ? WHERE id = ? AND state = 'created'`,
 			store.FormatTime(r.o.Now()), run.ID); err != nil {
-			return out, err
+			errs = append(errs, err)
+			continue
 		}
 		r.audit(ctx, OpHaltCancel, map[string]any{"night": run.Night, "batch_id": run.BatchID}, false)
 	}
-	return out, nil
+	return errors.Join(errs...)
 }
