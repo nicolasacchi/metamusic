@@ -6,9 +6,17 @@ import { CONTEXTUAL_ROUTES, NAV_LINKS, linkRoute, linkVisible, routeAllowed, rou
 import { PENDING_UI } from "../../e2e/coverage";
 
 const owner = () => true;
-// The Editor of the role matrix reads and edits plans; the Listener reaches none (D-DESK-14).
-const editor = (op: string) => ["list_plans", "get_plan", "check_abc", "create_plan_from_take", "edit_plan", "search_tracks", "get_track"].includes(op);
-const listener = (op: string) => ["search_tracks", "get_track", "get_song"].includes(op);
+// Editor and Listener predicates come from the role matrix golden itself (columns 5 and 7), so a changed matrix changes this test.
+function column(col: number): (op: string) => boolean {
+  const rows = readFileSync(resolve(import.meta.dirname, "../../../internal/api/testdata/role_matrix.golden"), "utf8")
+    .split("\n")
+    .filter((l) => l && !l.startsWith("#"))
+    .map((l) => l.split("\t"));
+  const allowed = new Set(rows.filter((r) => r[col] === "Y").map((r) => r[0]));
+  return (op) => allowed.has(op);
+}
+const editor = column(4);
+const listener = column(5);
 
 describe("the Desk routes", () => {
   test("/desk and /desk/plans/:id resolve, specific before parametric", () => {
@@ -45,6 +53,16 @@ describe("who sees the Desk", () => {
     expect(linkVisible(link, listener)).toBe(false);
     expect(routeAllowed("desk", listener)).toBe(false);
     expect(routeAllowed("plan", listener)).toBe(false);
+  });
+});
+
+describe("the role matrix golden for the Desk", () => {
+  test("an Editor reads and edits plans but cannot rate them; a Listener has none", () => {
+    for (const op of ["list_plans", "get_plan", "check_abc", "create_plan_from_take", "edit_plan"]) {
+      expect(editor(op), op).toBe(true);
+      expect(listener(op), op).toBe(false);
+    }
+    expect(editor("set_plan_verdict")).toBe(false);
   });
 });
 
