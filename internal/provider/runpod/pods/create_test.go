@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/provider"
@@ -566,45 +567,49 @@ func TestPodClient_NeverReplaysCreateOrDelete(t *testing.T) {
 	for name, f := range faults {
 		t.Run("create "+name, func(t *testing.T) {
 			t.Parallel()
-			e := newEnv(t, func(o *envOpts) { o.timeouts.Create = 150 * time.Millisecond })
-			e.srv.Fault(podtest.OpCreate, f)
-			_, err := e.cl.CreatePod(bg(), body())
-			if err == nil {
-				t.Fatal("no error")
-			}
-			if name == "429" {
-				var r *pods.ErrRateLimited
-				if !errors.As(err, &r) {
-					t.Errorf("err = %v", err)
+			synctest.Test(t, func(t *testing.T) {
+				e := newEnv(t, func(o *envOpts) { o.timeouts.Create = 150 * time.Millisecond; o.inproc = true })
+				e.srv.Fault(podtest.OpCreate, f)
+				_, err := e.cl.CreatePod(bg(), body())
+				if err == nil {
+					t.Fatal("no error")
 				}
-			} else {
-				var a *pods.ErrAmbiguous
-				if !errors.As(err, &a) {
-					t.Errorf("err = %v, want ErrAmbiguous", err)
+				if name == "429" {
+					var r *pods.ErrRateLimited
+					if !errors.As(err, &r) {
+						t.Errorf("err = %v", err)
+					}
+				} else {
+					var a *pods.ErrAmbiguous
+					if !errors.As(err, &a) {
+						t.Errorf("err = %v, want ErrAmbiguous", err)
+					}
 				}
-			}
-			if got := e.srv.Calls(podtest.OpCreate); got != 1 {
-				t.Errorf("create calls = %d, want 1", got)
-			}
+				if got := e.srv.Calls(podtest.OpCreate); got != 1 {
+					t.Errorf("create calls = %d, want 1", got)
+				}
+			})
 		})
 		t.Run("delete "+name, func(t *testing.T) {
 			t.Parallel()
-			e := newEnv(t, func(o *envOpts) { o.timeouts.Other = 150 * time.Millisecond })
-			e.srv.AddPod(podtest.Pod{ID: "p1", Name: podName})
-			e.srv.Fault(podtest.OpDelete, f)
-			err := e.cl.DeletePod(bg(), "p1")
-			if err == nil {
-				t.Fatal("no error")
-			}
-			if got := e.srv.Calls(podtest.OpDelete); got != 1 {
-				t.Errorf("delete calls = %d, want 1", got)
-			}
-			if name != "429" {
-				var a *pods.ErrAmbiguous
-				if !errors.As(err, &a) {
-					t.Errorf("err = %v, want ErrAmbiguous", err)
+			synctest.Test(t, func(t *testing.T) {
+				e := newEnv(t, func(o *envOpts) { o.timeouts.Other = 150 * time.Millisecond; o.inproc = true })
+				e.srv.AddPod(podtest.Pod{ID: "p1", Name: podName})
+				e.srv.Fault(podtest.OpDelete, f)
+				err := e.cl.DeletePod(bg(), "p1")
+				if err == nil {
+					t.Fatal("no error")
 				}
-			}
+				if got := e.srv.Calls(podtest.OpDelete); got != 1 {
+					t.Errorf("delete calls = %d, want 1", got)
+				}
+				if name != "429" {
+					var a *pods.ErrAmbiguous
+					if !errors.As(err, &a) {
+						t.Errorf("err = %v, want ErrAmbiguous", err)
+					}
+				}
+			})
 		})
 	}
 	// an applied create whose reply is lost: the pod exists, the client reports ambiguity, nothing is replayed
