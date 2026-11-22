@@ -15,10 +15,10 @@ from . import stages
 V2 = "v2"
 STAGE_CAPS = ("ears", "analyze", "plan")
 TRANSPORT_CAPS = ("fallback", "agent")
-# Transport caps whose code is in every image of this tree: the fallback upload channel (upload.py, C399.7). `agent`
-# is not here until MODE=agent exists. The worker offers it on every /2 document; it only uses it when the document
-# carries a fallback target.
-BUILT_IN_TRANSPORT = ("fallback",)
+# Transport caps whose code is in every image of this tree: the fallback upload channel (upload.py, C399.7) and the pod
+# agent loop (agent.py, C397: `python -m mmworker` with MODE=agent). The worker offers `fallback` on every /2 document; it
+# only uses it when the document carries a fallback target. `agent` is a statement about the image, not about a document.
+BUILT_IN_TRANSPORT = ("agent", "fallback")
 VOCABULARY = frozenset({V2, "attach", *STAGE_CAPS, *TRANSPORT_CAPS})
 
 

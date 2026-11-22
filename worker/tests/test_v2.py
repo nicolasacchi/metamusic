@@ -307,7 +307,7 @@ def test_v2_render_plain_same_artifacts_as_v1(sink: Sink) -> None:
     OUT2.validate(out2)
     assert puts1 == puts2 and puts2[-1] == "mm-result.json"
     assert set(out1["artifacts"]) == set(out2["artifacts"])
-    assert out2["kind"] == "render" and out2["contract"] == CONTRACT_V2 and out2["caps"] == ["fallback", "v2"]
+    assert out2["kind"] == "render" and out2["contract"] == CONTRACT_V2 and out2["caps"] == ["agent", "fallback", "v2"]
     assert "ears" not in out2 and "plans" not in out2 and out1["contract"] == "mm.worker/1"
     assert "kind" not in out1 and "caps" not in out1
     assert json.loads(sink.puts("/mm-result.json")[0].body) == out1
@@ -344,7 +344,7 @@ def test_v2_render_with_ears(sink: Sink) -> None:
     stages.register("ears", ok_ears)
     out = run2(sink, raw2(sink.base, ears={**EARS, "keep_vocals": True}))
     OUT2.validate(out)
-    assert out["ears"] == {"status": "ok", "seconds": 1.5} and out["caps"] == ["ears", "fallback", "v2"]
+    assert out["ears"] == {"status": "ok", "seconds": 1.5} and out["caps"] == ["agent", "ears", "fallback", "v2"]
     assert {"analysis.json", "stem-vocals.flac", "audio.flac"} <= set(out["artifacts"])
     puts = [r.path.lstrip("/") for r in sink.puts()]
     assert puts.index("audio.flac") < puts.index("stem-vocals.flac") < puts.index("analysis.json") < puts.index(
@@ -461,7 +461,7 @@ def test_v2_analyze_fetches_before_stage(sink: Sink, monkeypatch: pytest.MonkeyP
     OUT2.validate(out)
     assert order == ["fetch", "stage"] and pipe.calls == []
     assert out["kind"] == "analyze" and out["truncated"] is None and out["audio_seconds"] == pytest.approx(1.0)
-    assert out["ears"] == {"status": "ok", "seconds": 2.0} and out["caps"] == ["analyze", "fallback", "v2"]
+    assert out["ears"] == {"status": "ok", "seconds": 2.0} and out["caps"] == ["agent", "analyze", "fallback", "v2"]
     assert set(out["artifacts"]) == {"analysis.json"}
     assert [r.path.lstrip("/") for r in sink.puts()] == ["analysis.json", "mm-result.json"]
 
@@ -599,7 +599,7 @@ def test_v2_plan_kind(sink: Sink) -> None:
     assert out["plans"] == [{"index": 0, "seed": 1, "status": "ok", "bundle": "plan-00.tar",
                              "truncated": {"abc": False, "semantic": True}},
                             {"index": 1, "seed": 2, "status": "error", "code": "OOM"}]
-    assert set(out["artifacts"]) == {"plan-00.tar"} and out["caps"] == ["fallback", "plan", "v2"]
+    assert set(out["artifacts"]) == {"plan-00.tar"} and out["caps"] == ["agent", "fallback", "plan", "v2"]
     assert [r.path.lstrip("/") for r in sink.puts()] == ["plan-00.tar", "mm-result.json"]
 
 
@@ -753,7 +753,7 @@ def test_selftest_prints_caps_and_runs_v2(capsys: pytest.CaptureFixture[str], mo
     monkeypatch.delenv("ENGINE", raising=False)
     assert selftest.main() == 0
     got = capsys.readouterr()
-    assert got.out.splitlines() == ["caps: fallback v2"]
+    assert got.out.splitlines() == ["caps: agent fallback v2"]
     monkeypatch.setattr(selftest, "_run_v2", lambda base, sink: False)
     assert selftest.main() == 1
     assert "caps:" not in capsys.readouterr().out
