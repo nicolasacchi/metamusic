@@ -31,6 +31,11 @@ export const PENDING_UI: ReadonlySet<string> = new Set<string>([
   "recover_recipe",
   // M6N-W1 (lane loop-web-a) adds the /critics page (m6n-night C388.1, spec m6n-critics.spec.ts); it removes this one.
   "get_critic_bench",
+  // M6N-W1 (lane loop-web-a) adds the /night-shift page and the secure /human/night-shift form (m6n-night C388.1, spec m6n-night.spec.ts); it removes these four.
+  "get_night_shift",
+  "preview_night_shift",
+  "update_night_shift",
+  "halt_night_shift",
 ]);
 
 /** Operation ids whose x-mm.ui is a route (not "none:<reason>"): the SPA must exercise them, except the PENDING_UI ones. */

@@ -1276,6 +1276,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/night-shift": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the night shift
+         * @description The night shift's settings and halt state, the mandate it would spend under (or why it has none), when it next runs, and the last 14 nights with their takes, estimate ceiling and settled spend. A stored created night shows as running while its batch works and done after. Reads only. Owner side only.
+         */
+        get: operations["get_night_shift"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/night-shift/halt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Halt the night shift
+         * @description Stops the night shift: records the halt, cancels the batch of a night still running, and skips every later night until the Owner enables the shift again in the app. It only reduces spend, so an agent with the write scope and the Owner's paired phone may. Idempotent: a second halt keeps the first.
+         */
+        post: operations["halt_night_shift"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/night-shift/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview tonight's plan and price
+         * @description Plans the coming night with the real planner (one take per lineage, exploit and explore, the mandate's scope) and prices it, trimming takes the mandate cannot cover. It claims nothing, creates no estimate or batch and spends nothing; a halted or disabled shift still shows its plan, with would_skip naming why a run now would do nothing. Owner side only.
+         */
+        get: operations["preview_night_shift"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/offline-set": {
         parameters: {
             query?: never;
@@ -2870,6 +2930,26 @@ export interface paths {
          * @description Human only, Owner only. A mandate lets the night shift spend without a click: a budget (micro-USD, counted against settled plus reserved spend), an expiry up to 31 days away, and a scope (modes, adopted engines, minimum parent stars, lineage roots, takes per lineage and per batch, the largest batch ceiling, batches per day, listening checks). It never raises a spend cap: the global caps are checked first. One scheduled or live mandate per holder (409 MANDATE_ACTIVE); a scope that breaks a rule is 422 MANDATE_SCOPE_INVALID {field, rule}. Needs an Idempotency-Key.
          */
         post: operations["create_mandate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/human/api/night-shift": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change the night shift
+         * @description Human only, Owner only. Sets when it runs, how many takes, the explore share, the star floor and the listening checks, and switches it on or off. Enabling needs a live mandate (409 MANDATE_REQUIRED) and clears a halt. It holds no money: the mandate alone bounds spend, and the global caps stay the ceiling. Absent fields keep their value.
+         */
+        put: operations["update_night_shift"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5563,6 +5643,10 @@ export interface components {
         Guide: {
             kind: string;
         };
+        HaltNightShiftInBody: {
+            /** @description Why, 1..500 characters */
+            reason: string;
+        };
         HeardCount: {
             /** Format: int64 */
             n: number;
@@ -6704,6 +6788,158 @@ export interface components {
              * @description How many duels are waiting for you
              */
             open_total: number;
+        };
+        NightAuthority: {
+            /** @description The live mandate, else a scheduled one; null when there is none */
+            mandate: {
+                /** Format: int64 */
+                budget_micro_usd: number;
+                budget_usd: string;
+                /** Format: date-time */
+                created_at: string;
+                created_by: components["schemas"]["PrincipalRef"];
+                /** @enum {string} */
+                effective_state: "scheduled" | "live" | "ended" | "revoked";
+                /** @enum {string} */
+                holder: "night_shift";
+                id: string;
+                /** @description Set once the mandate is revoked */
+                revoked: {
+                    /** Format: date-time */
+                    at: string;
+                    by: components["schemas"]["PrincipalRef"];
+                    reason: string;
+                } | null;
+                scope: components["schemas"]["MandateScope"];
+                title: string;
+                usage: components["schemas"]["MandateUsage"];
+                /** Format: date-time */
+                valid_from: string;
+                /** Format: date-time */
+                valid_until: string;
+            } | null;
+            /**
+             * @description Why the night would spend nothing; null when a mandate is live
+             * @enum {string|null}
+             */
+            reason: "no_mandate" | "mandate_scheduled" | null;
+        };
+        NightDropped: {
+            reason: string;
+            root_track_id: string;
+        };
+        NightPlan: {
+            dropped: components["schemas"]["NightDropped"][];
+            items: components["schemas"]["NightPlanItem"][];
+            /** @description Null without a live mandate */
+            mandate: {
+                covered: boolean;
+                id: string;
+                reasons: string[];
+            } | null;
+            /** @description The local date of the next night */
+            night: string;
+            /** @description Null when nothing was priced */
+            quote: {
+                /** Format: int64 */
+                ceiling_micro_usd: number;
+                ceiling_usd: string;
+                /** Format: int64 */
+                expected_micro_usd: number;
+                expected_usd: string;
+                /** Format: int64 */
+                max_micro_usd: number;
+                max_usd: string;
+                /** Format: int64 */
+                takes: number;
+                /** @description Whether the batch carries listening checks; always false until M6N-N4 */
+                tier_b: boolean;
+            } | null;
+            /** @description Decimal; the same seed and library give the same plan */
+            seed: string;
+            /** @description Takes cut so the mandate covers the night */
+            trimmed: components["schemas"]["NightDropped"][];
+            /** @description The reason a night run now would spend nothing; null when it would create a batch */
+            would_skip: string | null;
+        };
+        NightPlanItem: {
+            /** @enum {string} */
+            kind: "exploit" | "explore";
+            mode: string;
+            parent_track_id: string | null;
+            /** @description The style a style edit would apply */
+            patch: string | null;
+            reason: string;
+            root_track_id: string;
+        };
+        NightRun: {
+            batch_id: string | null;
+            /**
+             * Format: int64
+             * @description The batch's estimate ceiling
+             */
+            ceiling_micro_usd: number;
+            ceiling_usd: string;
+            /** @description The first Morning Crate built after the night started */
+            morning_crate_id: string | null;
+            /** @description The local date of the night */
+            night: string;
+            /** @description Why a night spent nothing or ended early (skip reasons: disabled, halted, previous_running, no_mandate, mandate_scheduled, caps, over_ceiling, ...) */
+            reason: string | null;
+            /** Format: int64 */
+            settled_micro_usd: number;
+            settled_usd: string;
+            /**
+             * @description running and done split the stored created by whether its batch has finished
+             * @enum {string}
+             */
+            state: "planned" | "running" | "done" | "skipped" | "halted" | "failed";
+            /** Format: int64 */
+            takes: number;
+        };
+        NightSettings: {
+            /** @description Local time HH:MM (the server's configured zone) */
+            at: string;
+            /** @description Off until the Owner enables it in the app */
+            enabled: boolean;
+            /**
+             * Format: int64
+             * @description Share of takes that explore, parts per million, 0..500000
+             */
+            explore_ppm: number;
+            /** @description Set while a halt stands; enabling the shift again in the app clears it */
+            halted: {
+                /** Format: date-time */
+                at: string;
+                by: components["schemas"]["PrincipalRef"];
+                reason: string;
+            } | null;
+            /** @enum {string} */
+            listening_checks: "on" | "off";
+            /**
+             * Format: int64
+             * @description Takes per night before the mandate trims it, 1..12
+             */
+            max_takes: number;
+            /**
+             * Format: int64
+             * @description The best take's Owner stars a lineage needs, 1..5
+             */
+            min_stars: number;
+            /** Format: date-time */
+            updated_at: string;
+            updated_by: components["schemas"]["PrincipalRef"];
+        };
+        NightShift: {
+            authority: components["schemas"]["NightAuthority"];
+            /**
+             * Format: date-time
+             * @description Null while the shift is disabled or halted
+             */
+            next_run_at: string | null;
+            /** @description The last 14 nights, newest first */
+            runs: components["schemas"]["NightRun"][];
+            settings: components["schemas"]["NightSettings"];
         };
         OIDCClientInfo: {
             client_id: string;
@@ -10025,6 +10261,29 @@ export interface components {
             revision: number;
             title?: string;
         };
+        UpdateNightShiftInBody: {
+            /** @description HH:MM local */
+            at?: string;
+            /** @description true needs a live mandate and clears a halt */
+            enabled?: boolean;
+            /**
+             * Format: int64
+             * @description 0..500000
+             */
+            explore_ppm?: number;
+            /** @enum {string} */
+            listening_checks?: "on" | "off";
+            /**
+             * Format: int64
+             * @description 1..12
+             */
+            max_takes?: number;
+            /**
+             * Format: int64
+             * @description 1..5
+             */
+            min_stars?: number;
+        };
         UpdatePlaylistInBody: {
             /** @description Appended in order; duplicates allowed */
             add_track_ids?: string[] | null;
@@ -12696,6 +12955,97 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NextActionsPage"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_night_shift: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NightShift"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    halt_night_shift: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HaltNightShiftInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NightSettings"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    preview_night_shift: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NightPlan"];
                 };
             };
             /** @description Error */
@@ -15834,6 +16184,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Mandate"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_night_shift: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateNightShiftInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NightSettings"];
                 };
             };
             /** @description Error */

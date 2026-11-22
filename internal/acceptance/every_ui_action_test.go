@@ -162,6 +162,13 @@ var uiScript = map[string]func(s *uiState) map[string]any{
 	"revoke_mandate": func(s *uiState) map[string]any {
 		return map[string]any{"id": s.mandate, "reason": "scripted: an agent may only reduce spend"}
 	},
+	// M6N-N3: update_night_shift is human-only (the Owner in the app). Preview reads the seeded library under the seeded mandate and spends nothing;
+	// halting only stops the night, so an agent with the write scope may.
+	"get_night_shift":     func(*uiState) map[string]any { return nil },
+	"preview_night_shift": func(*uiState) map[string]any { return nil },
+	"halt_night_shift": func(*uiState) map[string]any {
+		return map[string]any{"reason": "scripted: an agent may only stop the night"}
+	},
 	// EARS-D1: the take is seeded by seedTierBDocument (its lyrics are the recognised words); the word is invented.
 	"get_track_diction": func(s *uiState) map[string]any { return map[string]any{"id": s.track} },
 	"set_diction_marks": func(s *uiState) map[string]any {
@@ -359,8 +366,8 @@ var uiOrder = []string{
 	"list_engines",
 	// DESK-S1: open a take's score on the Desk, read it, edit it, judge the edit, list
 	"check_abc", "create_plan_from_take", "get_plan", "edit_plan", "set_plan_verdict", "list_plans",
-	// M6N-M1: the mandate reads, then the revoke (last: it ends the mandate)
-	"list_mandates", "get_mandate", "revoke_mandate",
+	// M6N-M1: the mandate reads, then the revoke (it ends the mandate); M6N-N3: the night shift reads, then the halt (last: it stops the shift)
+	"list_mandates", "get_mandate", "get_night_shift", "preview_night_shift", "revoke_mandate", "halt_night_shift",
 }
 
 // afterStep records the ids later steps need.
