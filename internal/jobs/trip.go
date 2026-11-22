@@ -30,6 +30,19 @@ const (
 	tripActionManualConsole = "asked the operator to set workers.max to 0"
 )
 
+// Pod trip reasons (D-BULK-9). The pod lifecycle loop (internal/provider/runpod/pods) opens them through the pod backend's
+// Reconciler.Trip; the action is the M3 one: cancel live attempts, purge the hand-out queue, delete every live mm-* pod.
+// TestPodTripReasons_MatchThePodsPackage pins these strings to the ones the pods package emits.
+const (
+	TripPodOverrun       = "pod_overrun"
+	TripPodDeadman       = "pod_deadman"
+	TripPodUnknown       = "pod_unknown"
+	TripPodPrice         = "pod_price"
+	TripPodAccess        = "pod_access"
+	TripPodExcess        = "pod_excess"
+	TripPodCreateInvalid = "pod_create_invalid"
+)
+
 // TripActionOps maps the audit ops the reconciler writes while acting on a trip to the names
 // get_provider_status lists (actions_json is frozen once the trip row exists, so the audit log is the
 // record of what was done).

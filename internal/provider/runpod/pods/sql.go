@@ -55,6 +55,7 @@ type Row struct {
 	PollExp                                              int64
 	CreateSentAt, RunningSeenAt, FirstPollAt             *time.Time
 	LastPollAt, GoneSeenAt, TerminatedAt                 *time.Time
+	TerminateSentAt                                      *time.Time
 	LifetimeS                                            *int
 	Settled                                              bool
 }
@@ -97,18 +98,18 @@ func MarkOverheadReserved(ctx context.Context, db DB, podID string, at time.Time
 
 const podCols = `id,name,kind,batch_id,gpu_type,state,image_digest,n,gpu_try,restarts,provider_ref,last_reported,error_code,
 	price_pph_micro_usd,overhead_reserved_micro_usd,overhead_reserved_at,deadline_at,poll_exp,create_sent_at,running_seen_at,
-	first_poll_at,last_poll_at,gone_seen_at,terminated_at,lifetime_s,settled`
+	first_poll_at,last_poll_at,gone_seen_at,terminated_at,lifetime_s,settled,terminate_sent_at`
 
 type scanner interface{ Scan(dest ...any) error }
 
 func scanPod(s scanner) (Row, error) {
 	var p Row
-	var ref, rep, code, ovAt, deadline, create, running, first, last, gone, term sql.NullString
+	var ref, rep, code, ovAt, deadline, create, running, first, last, gone, term, termSent sql.NullString
 	var life sql.NullInt64
 	var price, ov int64
 	var settled int
 	err := s.Scan(&p.ID, &p.Name, &p.Kind, &p.BatchID, &p.GPUType, &p.State, &p.ImageDigest, &p.N, &p.GPUTry, &p.Restarts, &ref, &rep, &code,
-		&price, &ov, &ovAt, &deadline, &p.PollExp, &create, &running, &first, &last, &gone, &term, &life, &settled)
+		&price, &ov, &ovAt, &deadline, &p.PollExp, &create, &running, &first, &last, &gone, &term, &life, &settled, &termSent)
 	if err != nil {
 		return Row{}, err
 	}
@@ -122,7 +123,7 @@ func scanPod(s scanner) (Row, error) {
 	for _, f := range []struct {
 		src sql.NullString
 		dst **time.Time
-	}{{ovAt, &p.OverheadReservedAt}, {create, &p.CreateSentAt}, {running, &p.RunningSeenAt}, {first, &p.FirstPollAt}, {last, &p.LastPollAt}, {gone, &p.GoneSeenAt}, {term, &p.TerminatedAt}} {
+	}{{ovAt, &p.OverheadReservedAt}, {create, &p.CreateSentAt}, {running, &p.RunningSeenAt}, {first, &p.FirstPollAt}, {last, &p.LastPollAt}, {gone, &p.GoneSeenAt}, {term, &p.TerminatedAt}, {termSent, &p.TerminateSentAt}} {
 		if !f.src.Valid {
 			continue
 		}
