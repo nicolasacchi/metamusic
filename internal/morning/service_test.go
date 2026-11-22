@@ -616,7 +616,7 @@ func TestMorning_BlindRedaction(t *testing.T) {
 			}
 		}
 		for _, banned := range []string{"root_track_id", `"title"`, "lineage", "seed", "cover"} {
-			if strings.Contains(js, banned) && banned != "root_track_id" && banned != `"title"` {
+			if strings.Contains(js, banned) {
 				t.Fatalf("a blind crate mentions %s", banned)
 			}
 		}
@@ -673,6 +673,16 @@ func TestMorning_BlindRedaction(t *testing.T) {
 			t.Fatalf("the list names a take: %s", b)
 		}
 	}
+	for _, banned := range []string{"root_track_id", `"title"`, "lineage", "cover"} {
+		if strings.Contains(string(b), banned) {
+			t.Fatalf("the blind list mentions %s: %s", banned, b)
+		}
+	}
+	// the refusal of an unknown take must not echo anything about the takes either
+	_, perr := r.svc.Build(ctx, owner, BuildIn{IncludeTrackIDs: []string{"nope"}})
+	if pb, _ := json.Marshal(perr); perr == nil || strings.Contains(string(pb), "Elephant") {
+		t.Fatalf("unknown-take problem %v", perr)
+	}
 	// people who are not the Owner never see a crate, revealed or not
 	for _, p := range []string{"editor", "listener"} {
 		pr := editor
@@ -710,37 +720,79 @@ func TestMorning_BlindRedaction(t *testing.T) {
 	}
 }
 
-// TestMorning_SideLinksOutliveASide: a link lasts at least 6 h and never more than the 14 h the verifier accepts, for every viewer.
+// TestMorning_SideLinksOutliveASide: a person's link lasts at least 6 h and still verifies 5 h on, then expires; an agent keeps the
+// 15-minute policy of D-U1-13.
 func TestMorning_SideLinksOutliveASide(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	r.take("a", time.Hour)
 	c, _ := r.svc.Build(context.Background(), owner, BuildIn{})
 	r.built(c)
-	for name, pr := range map[string]struct {
-		get func() (Crate, error)
-	}{
-		"owner": {func() (Crate, error) { return r.svc.Get(context.Background(), owner, c.ID) }},
-		"agent": {func() (Crate, error) { return r.svc.Get(context.Background(), agent, c.ID) }},
-	} {
-		got, err := pr.get()
-		if err != nil || len(got.Sides) == 0 {
-			t.Fatalf("%s: %v %+v", name, err, got)
-		}
-		s := got.Sides[0]
-		left := s.ExpiresAt.Sub(dawn)
-		if left < 6*time.Hour || left > 14*time.Hour {
-			t.Errorf("%s: link lives %v", name, left)
-		}
-		// the signer accepts it now and 5 h later, not 7 h later than its expiry
-		sg := serve.NewSigner([]byte("k"), r.clk.Now)
-		_ = sg
-		u := *s.URL
-		exp := u[strings.Index(u, "exp=")+4 : strings.Index(u, "&sig=")]
-		sig := u[strings.Index(u, "&sig=")+5:]
-		if err := sg.Verify(s.SHA256, "flac", exp, sig); err != nil {
-			t.Errorf("%s: verify: %v", name, err)
-		}
+	sg := serve.NewSigner([]byte("k"), r.clk.Now) // the rig's signer: same key, same clock
+	parts := func(u string) (string, string) {
+		return u[strings.Index(u, "exp=")+4 : strings.Index(u, "&sig=")], u[strings.Index(u, "&sig=")+5:]
+	}
+	got, err := r.svc.Get(context.Background(), owner, c.ID)
+	if err != nil || len(got.Sides) == 0 {
+		t.Fatalf("owner: %v %+v", err, got)
+	}
+	s := got.Sides[0]
+	if left := s.ExpiresAt.Sub(dawn); left < 6*time.Hour || left > 14*time.Hour {
+		t.Fatalf("owner link lives %v", left)
+	}
+	exp, sig := parts(*s.URL)
+	r.clk.Advance(5 * time.Hour)
+	if err := sg.Verify(s.SHA256, "flac", exp, sig); err != nil {
+		t.Errorf("owner link at 5 h: %v", err)
+	}
+	r.clk.Advance(s.ExpiresAt.Sub(r.clk.Now()) + time.Second)
+	if err := sg.Verify(s.SHA256, "flac", exp, sig); err == nil {
+		t.Error("owner link verifies after its expiry")
+	}
+	r.clk.Set(dawn)
+	ag, err := r.svc.Get(context.Background(), agent, c.ID)
+	if err != nil || len(ag.Sides) == 0 {
+		t.Fatalf("agent: %v", err)
+	}
+	if left := ag.Sides[0].ExpiresAt.Sub(dawn); left > 16*time.Minute {
+		t.Errorf("agent link lives %v, policy is 15 minutes", left)
+	}
+}
+
+// TestMorning_SlowBuildSurvivesRecovery: a build this process still runs is not failed as stale by a later Build or Recover.
+func TestMorning_SlowBuildSurvivesRecovery(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	r.take("a", time.Hour)
+	r.build.gate = make(chan struct{})
+	r.build.started = make(chan struct{}, 1)
+	c, err := r.svc.Build(context.Background(), owner, BuildIn{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-r.build.started
+	r.clk.Advance(StaleBuild + time.Minute)
+	if _, err := r.svc.Build(context.Background(), owner, BuildIn{}); code(err) != "MORNING_CRATE_BUILD_IN_PROGRESS" {
+		t.Fatalf("second build err = %v", err)
+	}
+	if err := r.svc.Recover(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	close(r.build.gate)
+	if got := r.built(c); got.State != StateReady {
+		t.Fatalf("slow build ended %s %s", got.State, *got.ErrorCode)
+	}
+}
+
+// TestMorning_ScheduledSkipsWhileBuilding: a fresh building row (another process or a manual build) stops a scheduled build.
+func TestMorning_ScheduledSkipsWhileBuilding(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	r.take("a", time.Hour)
+	r.exec(`INSERT INTO morning_crates(id, trigger, state, seed, options_json, created_by, created_at) VALUES('busy','manual','building',1,'{}','human:alice',?)`, ts(dawn))
+	r.svc.RunScheduled(context.Background(), schedule.Key{Day: "2026-11-21"})
+	if n := r.scalar(`SELECT COUNT(*) FROM morning_crates WHERE schedule_key IS NOT NULL`); n != "0" {
+		t.Fatalf("a scheduled crate started beside a building one: %s", n)
 	}
 }
 

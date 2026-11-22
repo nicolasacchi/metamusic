@@ -24,6 +24,9 @@ func (s *Service) Sweep(ctx context.Context) (int, error) {
 	if s.o.Store == nil {
 		return 0, nil
 	}
+	// a build that reuses a file by sha must not see it vanish between its check and its row: sweep and builds take turns
+	s.buildMu.Lock()
+	defer s.buildMu.Unlock()
 	set, err := s.Settings(ctx)
 	if err != nil {
 		return 0, err

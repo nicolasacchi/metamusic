@@ -204,7 +204,9 @@ func (s *Service) sides(ctx context.Context, p auth.Principal, id string) ([]Sid
 	defer rows.Close()
 	out := []SideView{}
 	ttl, bucket := serve.TTLFor(p)
-	ttl = max(ttl, minLinkTTL)
+	if p.IsPerson() && p.CanSeePrivate() {
+		ttl = max(ttl, minLinkTTL) // agents keep the 15-minute policy of D-U1-13
+	}
 	for rows.Next() {
 		var (
 			v       SideView

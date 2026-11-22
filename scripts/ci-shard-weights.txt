@@ -29,6 +29,7 @@
 ./internal/analysis/ffmpeg 61
 ./internal/importer 56
 ./internal/nextactions 54
+./internal/morning 51
 ./internal/trackctx 50
 ./internal/synth 44
 ./internal/records 43
@@ -57,7 +58,6 @@
 ./internal/archivetest 18
 ./internal/voice 18
 ./internal/httpserver 16
-./internal/morning 16
 ./internal/analysis/spectro 15
 ./internal/connectors 14
 ./internal/upload 14

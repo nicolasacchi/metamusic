@@ -81,6 +81,9 @@ type Service struct {
 	o       ServiceOptions
 	buildMu sync.Mutex // one build at a time, in this process
 	wg      sync.WaitGroup
+	mu      sync.Mutex // guards closed and active; wg.Add happens under it so it never races Close's Wait
+	closed  bool
+	active  string // the id of the build this process is running, which recoverStale must not fail
 	bg      context.Context
 	cancel  context.CancelFunc
 }
@@ -102,8 +105,31 @@ func New(o ServiceOptions) *Service {
 
 // Close interrupts running builds (their rows become failed INTERRUPTED) and waits for them.
 func (s *Service) Close() {
+	s.mu.Lock()
+	s.closed = true
+	s.mu.Unlock()
 	s.cancel()
 	s.wg.Wait()
+}
+
+// begin registers a background build; false once Close has started.
+func (s *Service) begin(id string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return false
+	}
+	s.wg.Add(1)
+	s.active = id
+	return true
+}
+
+// end undoes begin.
+func (s *Service) end() {
+	s.mu.Lock()
+	s.active = ""
+	s.mu.Unlock()
+	s.wg.Done()
 }
 
 // Wait blocks until every background build has finished (tests).
@@ -207,12 +233,17 @@ func (s *Service) Build(ctx context.Context, p auth.Principal, in BuildIn) (Crat
 		return Crate{}, inProgress()
 	}
 	started := false
+	id := s.o.NewID()
+	if !s.begin(id) {
+		s.buildMu.Unlock()
+		return Crate{}, problem.E(503, "SHUTTING_DOWN", "the service is shutting down", nil)
+	}
 	defer func() {
 		if !started {
+			s.end()
 			s.buildMu.Unlock()
 		}
 	}()
-	id := s.o.NewID()
 	spec.Seed = seedOf(id)
 	err = s.writeTx(ctx, func(tx *sql.Tx) error {
 		var n int
@@ -236,9 +267,8 @@ func (s *Service) Build(ctx context.Context, p auth.Principal, in BuildIn) (Crat
 		return Crate{}, err
 	}
 	started = true
-	s.wg.Add(1)
 	go func() {
-		defer s.wg.Done()
+		defer s.end()
 		defer s.buildMu.Unlock()
 		s.run(s.bg, id, spec)
 	}()
@@ -310,8 +340,19 @@ func (s *Service) RunScheduled(ctx context.Context, k schedule.Key) {
 		slog.Error("morning: recover", "err", redact.Error(err))
 	}
 	id := s.o.NewID()
+	if !s.begin(id) {
+		return
+	}
+	defer s.end()
 	spec := buildSpec{Opts: set.Options(), NightBatch: night, Seed: seedOf(id)}
 	err = s.writeTx(ctx, func(tx *sql.Tx) error {
+		var n int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM morning_crates WHERE state = 'building'`).Scan(&n); err != nil {
+			return err
+		}
+		if n > 0 {
+			return inProgress()
+		}
 		return s.insertCrate(ctx, tx, id, key, TriggerScheduled, auth.System("morning").Key(), spec)
 	})
 	if err != nil {
@@ -320,8 +361,6 @@ func (s *Service) RunScheduled(ctx context.Context, k schedule.Key) {
 		}
 		return
 	}
-	s.wg.Add(1)
-	defer s.wg.Done()
 	s.run(ctx, id, spec)
 }
 
@@ -391,11 +430,17 @@ func (s *Service) recoverStale(ctx context.Context) error {
 		return fmt.Errorf("morning: recover: %w", err)
 	}
 	var stale []string
+	s.mu.Lock()
+	active := s.active
+	s.mu.Unlock()
 	for rows.Next() {
 		var id, at string
 		if err := rows.Scan(&id, &at); err != nil {
 			_ = rows.Close()
 			return err
+		}
+		if id == active {
+			continue
 		}
 		if t, err := store.ParseInstant(at); err == nil && s.now().Sub(t) > StaleBuild {
 			stale = append(stale, id)
