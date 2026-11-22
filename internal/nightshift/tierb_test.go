@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/nicolasacchi/metamusic/internal/generation"
+	lt "github.com/nicolasacchi/metamusic/internal/library/librarytest"
+	"github.com/nicolasacchi/metamusic/internal/lineage"
 	"github.com/nicolasacchi/metamusic/internal/mandates"
 	"github.com/nicolasacchi/metamusic/internal/money"
 	"github.com/nicolasacchi/metamusic/internal/provider"
@@ -160,11 +162,14 @@ func TestNightShift_TierBTrimsToCeiling(t *testing.T) {
 		g := newRig(t).withEars()
 		g.enable()
 		g.setListening(listening)
-		m := g.grant(2, 2)
+		m := g.grantCeiling(ceilingOfTwo(g))
 		g.r.Run(t.Context(), g.key(g.night))
 		run := g.run(g.night)
 		if run.State != StateCreated {
 			t.Fatalf("%s: run = %+v", listening, run)
+		}
+		if want := listening == ListeningOn; strings.Contains(run.PlanJSON, `"tier_b":true`) != want {
+			t.Fatalf("%s: tier_b not applied as set: %s", listening, run.PlanJSON)
 		}
 		return g.count(`SELECT n_takes FROM batches WHERE id = ?`, run.BatchID), money.MicroUSD(g.count(`SELECT ceiling_micro_usd FROM batches WHERE id = ?`, run.BatchID)), m.Scope.MaxBatchCeilingMicroUSD
 	}
@@ -173,15 +178,29 @@ func TestNightShift_TierBTrimsToCeiling(t *testing.T) {
 	if cOff > maxOff || cOn > maxOn {
 		t.Errorf("ceilings %d (off) and %d (on) exceed the mandate's %d and %d", cOff, cOn, maxOff, maxOn)
 	}
-	if nOn > nOff || nOn < 1 {
+	if nOn >= nOff || nOn < 1 {
 		t.Errorf("takes with checks %d, without %d", nOn, nOff)
 	}
+}
+
+// ceilingOfTwo is the plain estimate ceiling of two night takes: a per-night ceiling that fits two plain takes but not two takes with
+// listening checks, so the trim must drop one when checks are on.
+func ceilingOfTwo(g *rig) money.MicroUSD {
+	g.t.Helper()
+	parent := lt.TrackLuna
+	off := false
+	pv, err := g.gen.Preview(g.t.Context(), Principal(), generation.EstimateIn{Items: []generation.Item{{Mode: lineage.ModeNewSeed, ParentTrackID: &parent, NSeeds: 2}}, Via: spend.ViaAPI, TierB: &off})
+	if err != nil {
+		g.t.Fatal(err)
+	}
+	return pv.Cost.Ceiling
 }
 
 // goldenQuote is the golden quote parameters of spend.QuoteTakes (quote_test.go) with the Ears calibration of C339.2.
 var goldenQuote = spend.QuoteParams{PricePPH: 690000, RTFMilli: 680, ColdStartS: 180, IdleS: 20, WorkersMax: 2, MaxRuntimeS: 900, KillSlackS: 15}
 
-// TestNightCeiling_GoldenTable recomputes the table of C374 through spend.QuoteTakes and the Ears term: for each per-night ceiling,
+// TestNightCeiling_GoldenTable pins the quote arithmetic only (the Runner's own take count is pinned by TestNightShift_TierBTrimsToCeiling).
+// It recomputes the table of C374 through spend.QuoteTakes and the Ears term: for each per-night ceiling,
 // the most 216 s takes whose estimate ceiling fits it, plain and with listening checks. A quote change fails here.
 func TestNightCeiling_GoldenTable(t *testing.T) {
 	t.Parallel()
