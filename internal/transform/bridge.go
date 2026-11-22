@@ -133,30 +133,42 @@ type staged struct {
 	rel, abs  string
 	inSeconds float64
 	rate      int
+	// score_render only (T1b): what the pipeline learned that transform.json records
+	synthVersion string
+	voices       json.RawMessage
 }
 
 // attempt runs steps 1-9 of C210.6 for a claimed row. It returns nil when the Take was committed, else the failure.
 func (s *Service) attempt(ctx context.Context, row tRow, acct *cpuAcct) *runFailure {
-	if row.Kind == KindScoreRender {
-		return fail(ErrTransformFailed, "score_render needs the score toolchain, which is not part of this build")
-	}
 	st, f := s.stage(ctx, row, workName(row.ID), true, acct)
 	if f != nil {
 		return f
 	}
-	if f := s.fault(FaultAfterDecode); f != nil {
-		return f
-	}
-	s.setProgress(ctx, row.ID, 0, "rendering")
-	if f := s.render(ctx, row, st, acct, func(permille int, phase string) { s.setProgress(ctx, row.ID, permille, phase) }); f != nil {
-		return f
-	}
-	if f := s.fault(FaultAfterChild); f != nil {
-		return f
-	}
-	rep, f := s.readReport(st)
-	if f != nil {
-		return f
+	progress := func(permille int, phase string) { s.setProgress(ctx, row.ID, permille, phase) }
+	var rep childReport
+	if row.Kind == KindScoreRender {
+		// T1b: the parent synthesises the score (parse, SMF, fluidsynth, exact decode), then the child finishes it
+		s.setProgress(ctx, row.ID, 0, "rendering")
+		if _, rep, f = s.scoreStaged(ctx, st, acct, row.MaxCPUMS, row.MemMBEst, progress, func() *runFailure { return s.fault(FaultAfterDecode) }); f != nil {
+			return f
+		}
+		if f := s.fault(FaultAfterChild); f != nil {
+			return f
+		}
+	} else {
+		if f := s.fault(FaultAfterDecode); f != nil {
+			return f
+		}
+		s.setProgress(ctx, row.ID, 0, "rendering")
+		if f := s.render(ctx, row, st, acct, progress); f != nil {
+			return f
+		}
+		if f := s.fault(FaultAfterChild); f != nil {
+			return f
+		}
+		if rep, f = s.readReport(st); f != nil {
+			return f
+		}
 	}
 	if ctx.Err() != nil {
 		return fail(ErrInterrupted, "interrupted")
@@ -214,6 +226,12 @@ func (s *Service) stage(ctx context.Context, row tRow, scratch string, live bool
 	}()
 
 	st.rate = st.spec.SampleRate
+	if row.Kind == KindScoreRender {
+		// T1b has no audio input: the score is synthesised into the work dir by scoreStaged (the score_source role is a
+		// provenance annotation only)
+		ok = true
+		return st, nil
+	}
 	var docs []jobInput
 	n := 0
 	for i := range st.inputs {
@@ -558,7 +576,8 @@ func (s *Service) transformDoc(ctx context.Context, row tRow, st *staged, rep ch
 		}
 	}
 	if sy := st.spec.Synth; sy != nil {
-		d.Synth = &synthDoc{Name: sy.Name, Version: sy.Engine, SoundfontSHA: sy.SoundfontSHA}
+		d.Synth = &synthDoc{Name: "fluidsynth", Version: st.synthVersion, SoundfontSHA: sy.SoundfontSHA}
+		d.Voices = st.voices
 	}
 	n := 0
 	for _, in := range st.inputs {
@@ -634,7 +653,11 @@ func (s *Service) ingestAndCommit(ctx context.Context, row tRow, st *staged, rep
 	}
 	opened = append(opened, src)
 	var arts []ingest.ArtifactSrc
-	for _, name := range []string{"request.json", "transform.json"} {
+	names := []string{"request.json", "transform.json"}
+	if row.Kind == KindScoreRender {
+		names = append(names, scoreArtifacts...)
+	}
+	for _, name := range names {
 		a, err := s.fileArtifact(path.Join(st.rel, name), name, &opened)
 		if err != nil {
 			return fail(ErrTransformFailed, "an artifact could not be read")

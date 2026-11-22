@@ -20,6 +20,7 @@ func TestLedger_Reasons(t *testing.T) {
 	t.Parallel()
 	want := []ReasonInfo{
 		{"reserve", "take", "execution", "positive"}, {"reserve", "attempt_overhead", "overhead", "positive"},
+		{"reserve", "pod_overhead", "overhead", "positive"},
 		{"reserve", "topup_ambiguous", "execution", "positive"}, {"reserve", "topup_requeue", "execution", "positive"},
 		{"reserve", "topup_price", "execution", "positive"},
 		{"settle", "execution", "execution", "nonnegative"}, {"settle", "execution_unknown", "execution", "nonnegative"},

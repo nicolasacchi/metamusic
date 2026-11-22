@@ -605,7 +605,7 @@ export interface paths {
         };
         /**
          * List backlog drafts
-         * @description Recipe drafts (not yet rendered recipes), by default the backlog, ordered by group then request id. Filter by text, collection, group or origin (import_backlog, varianti_import, editor, agent, jsonl_upload). Each row carries its lint counts.
+         * @description Recipe drafts (not yet rendered recipes), by default the backlog, ordered by group then request id. Filter by text, collection, group or origin (import_backlog, varianti_import, editor, agent, jsonl_upload, recovered). Each row carries its lint counts.
          */
         get: operations["list_drafts"];
         put?: never;
@@ -1082,6 +1082,66 @@ export interface paths {
          * @description Records player events (start, segment, seek, complete, skip) and client playback diagnostics (autoplay_blocked, stall_end, advance, error) with client-generated ids; re-sending an id is harmless.
          */
         post: operations["log_listen_events"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mandates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List spending mandates
+         * @description Mandates newest first with their usage. Filter by the stored state or by effective_state (scheduled, live, ended, revoked; repeat the parameter). Owner side only.
+         */
+        get: operations["list_mandates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mandates/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a spending mandate
+         * @description One mandate with its scope and usage: settled, reserved, used, committed (what a running batch still holds), remaining and excess, the takes per lineage. Owner side only.
+         */
+        get: operations["get_mandate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mandates/{id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke a spending mandate
+         * @description Ends a scheduled or live mandate and records a cancel intent on every unfinished job of its batches, in one transaction. It only reduces spend, so an agent and the Owner's paired phone may do it. A revoked or ended mandate is 409 INVALID_TRANSITION.
+         */
+        post: operations["revoke_mandate"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2372,6 +2432,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tracks/{id}/recover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Recover a draft from an imported reference
+         * @description Turns the stored listening check of an imported reference (a track whose recipe is unknown) into a NEW draft: the lyric is rebuilt from what the recogniser heard, so it is a starting point to edit, not the singer's text; read the transcript confidence. The style is yours, or a placeholder from the measured tempo and key. Free: nothing is rendered and the reference never changes; render the draft with an ordinary estimate. Each call makes a new draft. 409 ANALYSIS_UNAVAILABLE until an analyze of the reference has completed (estimate an analyze item); 422 RECIPE_KNOWN for a track whose recipe is known; 422 TRANSCRIPT_EMPTY when nothing sung was heard.
+         */
+        post: operations["recover_recipe"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tracks/{id}/spectrogram": {
         parameters: {
             query?: never;
@@ -2750,6 +2830,26 @@ export interface paths {
          * @description Spends money: needs the confirmation_token of a fresh estimate. The operator's confirmation counts as the approval: the batch starts at once.
          */
         post: operations["create_generation_human"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/human/api/mandates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a spending mandate
+         * @description Human only, Owner only. A mandate lets the night shift spend without a click: a budget (micro-USD, counted against settled plus reserved spend), an expiry up to 31 days away, and a scope (modes, adopted engines, minimum parent stars, lineage roots, takes per lineage and per batch, the largest batch ceiling, batches per day, listening checks). It never raises a spend cap: the global caps are checked first. One scheduled or live mandate per holder (409 MANDATE_ACTIVE); a scope that breaks a rule is 422 MANDATE_SCOPE_INVALID {field, rule}. Needs an Idempotency-Key.
+         */
+        post: operations["create_mandate"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4227,6 +4327,31 @@ export interface components {
             section?: components["schemas"]["DuelSectionSelector"];
             /** Format: double */
             to_s?: number;
+        };
+        CreateMandateInBody: {
+            /**
+             * Format: int64
+             * @description 1..100 000 000 micro-USD, counted against settled plus reserved spend
+             */
+            budget_micro_usd: number;
+            /**
+             * @description Who may spend under the mandate; the night shift is the only holder
+             * @enum {string}
+             */
+            holder: "night_shift";
+            scope: components["schemas"]["MandateScope"];
+            /** @description 1..120 characters */
+            title: string;
+            /**
+             * Format: date-time
+             * @description Default now; at most five minutes in the past
+             */
+            valid_from?: string;
+            /**
+             * Format: date-time
+             * @description After valid_from and at most 31 days later
+             */
+            valid_until: string;
         };
         CreateMuseInBody: {
             /** @description Reference Muses only */
@@ -6052,6 +6177,105 @@ export interface components {
             /** @description Signed, relative URL; valid until expires_at */
             url: string;
         };
+        Mandate: {
+            /** Format: int64 */
+            budget_micro_usd: number;
+            budget_usd: string;
+            /** Format: date-time */
+            created_at: string;
+            created_by: components["schemas"]["PrincipalRef"];
+            /** @enum {string} */
+            effective_state: "scheduled" | "live" | "ended" | "revoked";
+            /** @enum {string} */
+            holder: "night_shift";
+            id: string;
+            /** @description Set once the mandate is revoked */
+            revoked: {
+                /** Format: date-time */
+                at: string;
+                by: components["schemas"]["PrincipalRef"];
+                reason: string;
+            } | null;
+            scope: components["schemas"]["MandateScope"];
+            title: string;
+            usage: components["schemas"]["MandateUsage"];
+            /** Format: date-time */
+            valid_from: string;
+            /** Format: date-time */
+            valid_until: string;
+        };
+        MandatePage: {
+            items: components["schemas"]["Mandate"][];
+            next_cursor?: string;
+        };
+        MandateRoot: {
+            root_track_id: string;
+            /** Format: int64 */
+            takes: number;
+        };
+        MandateScope: {
+            /** @description Adopted engines only */
+            engines: string[];
+            /**
+             * Format: int64
+             * @description Largest estimate ceiling of one batch, at most the global batch cap and the budget
+             */
+            max_batch_ceiling_micro_usd: number;
+            /**
+             * Format: int64
+             * @description Batches per local day, 1..4
+             */
+            max_batches_per_day: number;
+            /**
+             * Format: int64
+             * @description Takes per batch, 1..12
+             */
+            max_takes_per_batch: number;
+            /**
+             * Format: int64
+             * @description Takes per lineage over the mandate's life, 1..50
+             */
+            max_takes_per_lineage: number;
+            /**
+             * Format: int64
+             * @description The parent's Owner stars, 1..5; an unrated parent never qualifies
+             */
+            min_stars: number;
+            /** @description Planner modes the night may use: new_seed, style_edit */
+            modes: string[];
+            /** @description Lineage roots the night may work on (1..200); null means every lineage */
+            root_track_ids?: string[] | null;
+            /** @description Whether the batch may carry listening checks */
+            tier_b: boolean;
+        };
+        MandateUsage: {
+            /** Format: int64 */
+            batches: number;
+            by_root: components["schemas"]["MandateRoot"][];
+            /** Format: int64 */
+            committed_micro_usd: number;
+            committed_usd: string;
+            /** Format: int64 */
+            excess_micro_usd: number;
+            excess_usd: string;
+            /**
+             * Format: int64
+             * @description Budget minus committed, never below zero
+             */
+            remaining_micro_usd: number;
+            remaining_usd: string;
+            /** Format: int64 */
+            reserved_micro_usd: number;
+            reserved_usd: string;
+            /** Format: int64 */
+            settled_micro_usd: number;
+            settled_usd: string;
+            /** Format: int64 */
+            takes: number;
+            /** Format: int64 */
+            used_micro_usd: number;
+            used_usd: string;
+        };
         MapEntry: {
             /** @enum {string} */
             facet: "genre_family" | "era" | "vocal" | "mood" | "language";
@@ -7495,6 +7719,70 @@ export interface components {
             /** Format: int64 */
             total: number;
         };
+        RecoverEvidence: {
+            /** Format: double */
+            duration_s: number;
+            /**
+             * Format: double
+             * @description 0..1 energy proxy
+             */
+            energy: number | null;
+            /** @description Estimated key, null when none was set */
+            key: string | null;
+            /**
+             * Format: double
+             * @description Integrated loudness
+             */
+            lufs_i: number | null;
+            /**
+             * Format: double
+             * @description Estimated tempo, null when none was found
+             */
+            tempo_bpm: number | null;
+        };
+        RecoverRecipeInBody: {
+            /**
+             * @default melody
+             * @enum {string}
+             */
+            cot: "melody" | "full" | "off";
+            rationale?: string;
+            /** @description Style text of the new draft; omitted: a placeholder from the measured tempo and key */
+            style?: string;
+            /** @description Label of the draft; cut to 40 characters */
+            title?: string;
+        };
+        RecoverResult: {
+            draft: components["schemas"]["DraftDetail"];
+            evidence: components["schemas"]["RecoverEvidence"];
+            /**
+             * @description placeholder: the style was built from the measurements
+             * @enum {string}
+             */
+            style_source: "caller" | "placeholder";
+            transcript: components["schemas"]["RecoverTranscript"];
+        };
+        RecoverTranscript: {
+            /**
+             * Format: double
+             * @description Duration-weighted mean word probability, 0..1; low means the recogniser was unsure
+             */
+            confidence: number;
+            /** @description Language the recogniser heard */
+            language: string;
+            /** Format: int64 */
+            lines: number;
+            /** @description The sections of the recovered lyric, in order */
+            sections: components["schemas"]["RecoveredSection"][];
+            /** Format: int64 */
+            words: number;
+        };
+        RecoveredSection: {
+            /** @description intro, verse, chorus, bridge or outro */
+            kind: string;
+            /** Format: int64 */
+            lines: number;
+        };
         RefIn: {
             /** Format: double */
             from_s?: number;
@@ -7512,6 +7800,10 @@ export interface components {
             /** Format: int64 */
             undecided: number;
         };
+        RevokeMandateInBody: {
+            /** @description Why, 1..500 characters */
+            reason: string;
+        };
         ScoreEditOp: {
             abc?: string;
             /** Format: int64 */
@@ -7528,6 +7820,11 @@ export interface components {
         ScoreRenderParams: {
             /** Format: double */
             bpm?: number | null;
+            /**
+             * @description block sounds the chord symbols as a close-position chord voice; none (the default) keeps the render literal to the notes
+             * @enum {string|null}
+             */
+            chords?: "none" | "block" | null;
             /** @enum {string|null} */
             dialect?: "standard" | "yue2" | null;
             /** Format: double */
@@ -11843,6 +12140,110 @@ export interface operations {
             };
         };
     };
+    list_mandates: {
+        parameters: {
+            query?: {
+                /** @description The stored state */
+                state?: "approved" | "revoked";
+                effective_state?: ("scheduled" | "live" | "ended" | "revoked")[];
+                holder?: "night_shift";
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MandatePage"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_mandate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mandate id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mandate"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    revoke_mandate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mandate id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevokeMandateInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mandate"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     whoami: {
         parameters: {
             query?: never;
@@ -14461,6 +14862,45 @@ export interface operations {
             };
         };
     };
+    recover_recipe: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen key; a retry with the same key and body replays the first response (24 h). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                /** @description Track id of the imported reference */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecoverRecipeInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecoverResult"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     get_track_spectrogram: {
         parameters: {
             query?: {
@@ -15137,6 +15577,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Batch"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_mandate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen key; a retry with the same key and body replays the first response (24 h). */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateMandateInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mandate"];
                 };
             };
             /** @description Error */

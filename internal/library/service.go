@@ -102,7 +102,7 @@ func oneOf(v string, set ...string) bool {
 // Go-validated enumerations (the schema deliberately has no CHECK for these).
 var (
 	enumRawKind  = []string{"jsonl_line", "json_array_item", "json_file"}
-	enumOrigin   = []string{"import_backlog", "varianti_import", "editor", "agent", "jsonl_upload"}
+	enumOrigin   = []string{"import_backlog", "varianti_import", "editor", "agent", "jsonl_upload", "recovered"}
 	enumRendKind = []string{"mp3_320", "peaks"}
 	enumQuality  = []string{"lossless", "high", "auto"}
 )

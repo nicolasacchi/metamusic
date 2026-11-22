@@ -502,7 +502,7 @@ var TransformKinds = []string{"morph", "shepard", "glacier", "polytempo", "ensem
 
 // enumOperator lists the Operator Ledger operators (C71.5); only inferred_sibling is written by import. The nine transform
 // kinds follow the original operators; multi_edit is M5's Song PR operator (C253.4).
-var enumOperator = append(append([]string{"inferred_sibling", "reroll_seed", "same_seed_edit", "lyric_edit", "style_edit", "from_draft", "compose_new", "multi_edit"}, E2Operators...), TransformKinds...)
+var enumOperator = append(append([]string{"inferred_sibling", "reroll_seed", "same_seed_edit", "lyric_edit", "style_edit", "from_draft", "compose_new", "multi_edit", OperatorRecover}, E2Operators...), TransformKinds...)
 
 // E2Operators are the Operator Ledger operators of ACE-Step modes (C149.1): engine_port (port), extend, repaint,
 // reference_render (reference), complete_tracks (complete) and extract_stems (stems; E2b records it against the parent take
@@ -510,7 +510,12 @@ var enumOperator = append(append([]string{"inferred_sibling", "reroll_seed", "sa
 var E2Operators = []string{"engine_port", "extend", "repaint", "reference_render", "complete_tracks", "extract_stems", "cover_restyle"}
 
 // rootlessOperators may record an edge without a parent (a draft with no mother, a composed song, a score render).
-var rootlessOperators = []string{"from_draft", "compose_new", "score_render"}
+var rootlessOperators = []string{"from_draft", "compose_new", "score_render", OperatorRecover}
+
+// OperatorRecover is the Operator Ledger operator of a take rendered from a recovered draft (M5b C343.4; lineage.OpRecover is the
+// same word). The take is a new root with no parent: its mutation row names the imported reference the draft was recovered from
+// (params.recovered_from) as its parent, and a reference is never a track's parent (tracks_reference_lineage).
+const OperatorRecover = "recover"
 
 // validateTransformTake enforces the Go side of the transform-take shape (C211.1; the triggers of the T1 migration
 // enforce the same shape for any other writer).
@@ -571,6 +576,9 @@ func validateJobTake(t NewTake) error {
 		if m.Operator != "inferred_sibling" && t.ParentTrackID == "" && !oneOf(m.Operator, rootlessOperators...) {
 			return invalid("mutation", "operator %q needs a parent", m.Operator)
 		}
+		if m.Operator == OperatorRecover && t.ParentTrackID != "" {
+			return invalid("mutation", "a recovered take is a new root and has no parent")
+		}
 	}
 	return nil
 }
@@ -625,14 +633,39 @@ func (s *Service) insertMutation(ctx context.Context, tx *sql.Tx, t NewTake, now
 	if jobID == "" {
 		jobID = t.JobID
 	}
+	parent := t.ParentTrackID
+	if m.Operator == OperatorRecover {
+		if parent, err = s.recoveredFrom(ctx, tx, params); err != nil {
+			return err
+		}
+	}
 	if m.RecipePatchJSON != "" && !json.Valid([]byte(m.RecipePatchJSON)) {
 		return invalid("mutation", "recipe_patch_json is not JSON")
 	}
 	if err := execTx(ctx, tx, `INSERT INTO mutations(id, parent_track_id, child_track_id, operator, inferred, params_json, rationale, principal_id, created_at, job_id, recipe_patch_json)
-		VALUES (?,?,?,?,0,?,?,?,?,?,?)`, s.newID(), nullStr(t.ParentTrackID), t.ID, m.Operator, pj, nullStr(m.Rationale), t.PrincipalID, now, jobID, nullStr(m.RecipePatchJSON)); err != nil {
+		VALUES (?,?,?,?,0,?,?,?,?,?,?)`, s.newID(), nullStr(parent), t.ID, m.Operator, pj, nullStr(m.Rationale), t.PrincipalID, now, jobID, nullStr(m.RecipePatchJSON)); err != nil {
 		return fmt.Errorf("library: insert mutation: %w", err)
 	}
 	return nil
+}
+
+// recoveredFrom returns the reference track a recover take names in its mutation params (C343.5), checked in the transaction of
+// the insert: it must exist and be a reference track.
+func (s *Service) recoveredFrom(ctx context.Context, tx *sql.Tx, params map[string]any) (string, error) {
+	id, _ := params["recovered_from"].(string)
+	if id == "" {
+		return "", invalid("mutation", "a recover mutation names its reference in params.recovered_from")
+	}
+	var rule string
+	switch err := tx.QueryRowContext(ctx, `SELECT import_rule FROM tracks WHERE id = ?`, id).Scan(&rule); {
+	case errors.Is(err, sql.ErrNoRows):
+		return "", invalid("mutation", "recovered_from is not a track")
+	case err != nil:
+		return "", fmt.Errorf("library: recovered reference: %w", err)
+	case rule != RuleReference:
+		return "", invalid("mutation", "recovered_from is not a reference track")
+	}
+	return id, nil
 }
 
 // zeroMD5 is the audio_md5 of a take whose master has no STREAMINFO (lossy).

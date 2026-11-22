@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-// deskMigration is the position of 0024_desk.sql (M5b DESK-S1, C357.1); renumber it with the file when main moves.
-const deskMigration = 24
+// deskMigration is the position of 0026_desk.sql (M5b DESK-S1, C357.1); renumber it with the file when main moves.
+const deskMigration = 26
 
 const deskSHA = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 

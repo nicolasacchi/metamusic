@@ -42,20 +42,8 @@ func TestUpload_ViaPrimaryOnReceipt(t *testing.T) {
 func TestUploadPaths_FromSchema22(t *testing.T) {
 	t.Parallel()
 	p := filepath.Join(t.TempDir(), "s.db")
-	pre, err := store.Open(t.Context(), p)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// 0023 only adds: removing what it created and the stamp leaves a database exactly as 0022 did
-	for _, q := range []string{
-		`DROP TRIGGER uploads_via_on_insert`, `DROP TRIGGER uploads_via_set_once`, `DROP TRIGGER uploads_via_when_received`,
-		`DROP TABLE fallback_objects`, `DROP TABLE upload_drills`, `ALTER TABLE uploads DROP COLUMN via`, `PRAGMA user_version = 22`,
-	} {
-		if _, err := pre.W.ExecContext(t.Context(), q); err != nil {
-			t.Fatalf("%s: %v", q, err)
-		}
-	}
-	if err := pre.Close(); err != nil {
+	// a database exactly as 0022 left it: migrated only up to the migration before 0023 (never latest-then-DROP, which breaks on every later migration)
+	if err := store.CreateBefore(t.Context(), p, "0023_upload_fallback.sql"); err != nil {
 		t.Fatal(err)
 	}
 	r := newRigAtPath(t, p) // store.Open migrates 0022 to the latest

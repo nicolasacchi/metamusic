@@ -181,10 +181,12 @@ func (s *Service) build(ctx context.Context, q queryer, p auth.Principal, req Re
 	}
 	ks, ok := LookupKind(req.Kind)
 	if !ok {
-		if req.Kind == KindScoreRender {
-			return nil, unavailable("soundfont")
-		}
 		return nil, unavailable("transform")
+	}
+	if req.Kind == KindScoreRender { // T1b: 503 {component: soundfont|fluidsynth} before anything about the request is read (C355.2)
+		if err := s.scoreAvailable(); err != nil {
+			return nil, err
+		}
 	}
 	if t := req.TargetLUFS; t != nil && (*t < -30 || *t > -12 || math.IsNaN(*t)) {
 		return nil, invalidErr(&RuleError{Field: "target_lufs", Rule: RuleRange})
@@ -203,7 +205,8 @@ func (s *Service) build(ctx context.Context, q queryer, p auth.Principal, req Re
 		return nil, asProblem(err)
 	}
 
-	// 3. inputs exist and qualify
+	// 3. inputs exist and qualify (a score render has none: its from_track_id take is a provenance annotation, C355.4)
+	var sc *scoreResolved
 	refs := inputIDs(validated)
 	if len(refs) > MaxInputs {
 		return nil, invalidErr(&RuleError{Field: "inputs", Rule: RuleRange})
@@ -230,9 +233,19 @@ func (s *Service) build(ctx context.Context, q queryer, p auth.Principal, req Re
 		}
 	}
 
-	// 4. alignment
+	// 4. alignment (a score render resolves its soundfont, dialect and length instead, from request and rows only)
 	res := resolution{}
-	if len(infos) > 0 {
+	if req.Kind == KindScoreRender {
+		r, err := s.resolveScore(ctx, q, validated)
+		if err != nil {
+			return nil, asProblem(err)
+		}
+		sc = &r
+		res = resolution{Params: r.Params, OutS: r.OutS, Warnings: r.Warnings}
+		if r.Source != nil {
+			res.Inputs = []inputInfo{*r.Source}
+		}
+	} else if len(infos) > 0 {
 		if res, err = s.resolve(ctx, q, req.Kind, validated, infos); err != nil {
 			return nil, asProblem(err)
 		}
@@ -258,6 +271,9 @@ func (s *Service) build(ctx context.Context, q queryer, p auth.Principal, req Re
 		case len(infos) > 0:
 			spec.Seed = DefaultSeed(infos[0].Ref.TrackID)
 		}
+	}
+	if sc != nil {
+		spec.Synth, spec.Score = sc.Synth, sc.Score
 	}
 	spec.TargetLUFS = targetLUFS(req, m, res.Inputs)
 	if pl.Canon, err = Canonicalize(spec); err != nil {
@@ -286,6 +302,10 @@ func (s *Service) build(ctx context.Context, q queryer, p auth.Principal, req Re
 		pl.InFrames += fr
 	}
 	pl.OutFrames = int64(math.Ceil(res.OutS * float64(rate)))
+	if sc != nil {
+		pl.InFrames = pl.OutFrames // the synthesised audio is decoded into the child like an input of the output's length
+		inMS = framesMS(pl.OutFrames, rate)
+	}
 	pl.CPU = planCPU(DefaultCosts, ks, UnitsIn{InFrames: pl.InFrames, OutFrames: pl.OutFrames, Channels: 2, Rate: rate, Resolved: res.Params}, inMS, s.o.Config.TransformMaxCPUS)
 
 	// warnings: from resolution, then the kind's own (rows only, no audio)
@@ -481,6 +501,9 @@ func (s *Service) Estimate(ctx context.Context, p auth.Principal, req Request) (
 		Queue:    QueueEstimate{Running: run, Queued: queued, PositionIfCreated: run + queued + 1},
 		Existing: ex,
 		Tools:    ToolsEstimate{FFmpeg: ts.FFmpeg, FLAC: ts.FLAC, Fluidsynth: ts.Fluidsynth},
+	}
+	if pl.Spec.Kind == KindScoreRender {
+		e.Tools.Soundfont = paramString(paramsMap(pl.Res.Params), "soundfont")
 	}
 	for _, in := range pl.Res.Inputs {
 		ei := EstimateInput{Role: in.Ref.Role, TrackID: in.Ref.TrackID, Title: in.Title, DurationS: in.DurationS, BeatsPerBar: in.Align.BeatsPerBar}

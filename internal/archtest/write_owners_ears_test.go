@@ -6,11 +6,12 @@ import (
 	"testing"
 )
 
-// writeOwnersEars is the owner table of the M5b Diction Lab (C349.5): the two tables of human judgement are written only by
-// internal/diction. (draft_recoveries joins when the Recover lane lands its owner, internal/drafts.)
+// writeOwnersEars is the owner table of the M5b Ears tables (C349.5): the two tables of human judgement are written only by
+// internal/diction, and the link of a recovered draft to its reference only by internal/drafts (the same transaction as the draft).
 var writeOwnersEars = map[string][]string{
 	"diction_marks":     {"internal/diction"},
 	"lexicon_overrides": {"internal/diction"},
+	"draft_recoveries":  {"internal/drafts"},
 }
 
 // dictionRules: the lab reads Tier B rows and serves them; it never reaches the job, spend or provider layers (a listening check
@@ -62,8 +63,10 @@ func TestWriteOwners_Ears(t *testing.T) {
 	if off := earsOffenders(all); len(off) > 0 {
 		t.Errorf("C349.5 violated: %v", off)
 	}
-	if _, ok := all["internal/diction/marks.go"]; !ok {
-		t.Error("internal/diction/marks.go is not scanned; the owner table is stale")
+	for _, f := range []string{"internal/diction/marks.go", "internal/drafts/recovered.go"} {
+		if _, ok := all[f]; !ok {
+			t.Errorf("%s is not scanned; the owner table is stale", f)
+		}
 	}
 	// the checker bites
 	off := earsOffenders(map[string]string{
@@ -72,9 +75,12 @@ func TestWriteOwners_Ears(t *testing.T) {
 		"internal/diction/ok.go":             "var q = `INSERT INTO diction_marks(track_id) VALUES (?)` + `UPDATE lexicon_overrides SET note = NULL`",
 		"internal/diction/diction_test/x.go": "var q = `INSERT INTO diction_marks(track_id) VALUES (?)`",
 		"internal/ears/c.go":                 "// INSERT INTO diction_marks is documented here\nvar q = `SELECT * FROM diction_marks`",
+		"internal/api/d.go":                  "var q = `INSERT INTO draft_recoveries(draft_id) VALUES (?)`",
+		"internal/drafts/ok.go":              "var q = `INSERT INTO draft_recoveries(draft_id) VALUES (?)`",
+		"internal/ears/e.go":                 "var q = `SELECT track_id FROM draft_recoveries`",
 	})
-	if len(off) != 2 {
-		t.Errorf("planted offenders = %v, want exactly internal/api/a.go and internal/ears/b.go", off)
+	if len(off) != 3 {
+		t.Errorf("planted offenders = %v, want exactly internal/api/a.go, internal/ears/b.go and internal/api/d.go", off)
 	}
 }
 

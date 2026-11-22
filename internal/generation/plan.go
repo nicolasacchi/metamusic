@@ -230,9 +230,11 @@ func loadTrack(ctx context.Context, q lineage.Querier, id string) (trackInfo, bo
 
 type draftInfo struct {
 	ID, Status, RequestJSON, SourceRecipeID, RequestID, Label string
-	Revision                                                  int
-	ParentTrackID                                             *string
-	InFlight                                                  bool
+	// RecoveredFrom is the reference track a recovered draft was made from (draft_recoveries, C343); empty for every other draft.
+	RecoveredFrom string
+	Revision      int
+	ParentTrackID *string
+	InFlight      bool
 }
 
 func loadDraft(ctx context.Context, q lineage.Querier, id string) (draftInfo, bool, error) {
@@ -240,8 +242,9 @@ func loadDraft(ctx context.Context, q lineage.Querier, id string) (draftInfo, bo
 	var src, par, label sql.NullString
 	var live int
 	err := q.QueryRowContext(ctx, `SELECT d.status, d.revision, d.request_json, d.source_recipe_id, d.parent_track_id, d.label, d.request_id,
-		EXISTS(SELECT 1 FROM jobs j WHERE j.draft_id = d.id AND j.state NOT IN `+terminalJobStates+`) FROM recipe_drafts d WHERE d.id = ?`, id). //nolint:gosec // G202: constant state list
-		Scan(&d.Status, &d.Revision, &d.RequestJSON, &src, &par, &label, &d.RequestID, &live)
+		EXISTS(SELECT 1 FROM jobs j WHERE j.draft_id = d.id AND j.state NOT IN `+terminalJobStates+`),
+		COALESCE((SELECT r.track_id FROM draft_recoveries r WHERE r.draft_id = d.id), '') FROM recipe_drafts d WHERE d.id = ?`, id). //nolint:gosec // G202: constant state list
+		Scan(&d.Status, &d.Revision, &d.RequestJSON, &src, &par, &label, &d.RequestID, &live, &d.RecoveredFrom)
 	if errors.Is(err, sql.ErrNoRows) {
 		return d, false, nil
 	}
@@ -562,6 +565,9 @@ func (p *planner) expandDraft(i int, it Item, d draftInfo) error {
 	}
 	spec, _ := lineage.Spec(lineage.ModeFromDraft)
 	b := base{item: i, it: it, mode: lineage.ModeFromDraft, spec: spec, rec: rec, draft: &d, label: d.Label}
+	if err := recoveredDraftRule(i, it, d); err != nil {
+		return err
+	}
 	mother := d.ParentTrackID
 	if it.ParentTrackID != nil && *it.ParentTrackID != "" {
 		mother = it.ParentTrackID

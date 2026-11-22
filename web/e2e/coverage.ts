@@ -9,7 +9,6 @@ type Doc = { paths: Record<string, Record<string, { operationId?: string; "x-mm"
  * entry is only ever added for a page that is still to come.
  */
 export const PENDING_UI: ReadonlySet<string> = new Set<string>([
-  "get_track_tier_b", // EARS-W1 adds the Tier B panel on /tracks/:id (m5b-ears C338.5)
   // EARS-W2 (lane ears-web-diction) adds the karaoke view on /tracks/:id and the /diction page (m5b-ears C345); it removes these four.
   "get_track_diction",
   "set_diction_marks",
@@ -23,6 +22,13 @@ export const PENDING_UI: ReadonlySet<string> = new Set<string>([
   "create_plan_from_take",
   "edit_plan",
   "set_plan_verdict",
+  // M6N-W1 (lane loop-web-a) adds the /mandates and /mandates/:id pages and the secure /human/mandates/new form (m6-night C388.1); it removes these four.
+  "create_mandate",
+  "list_mandates",
+  "get_mandate",
+  "revoke_mandate",
+  // EARS-W2 also adds the "Create draft from transcript" button of the reference panel on /tracks/:id (m5b-ears C343.2, C347.5); it removes this one.
+  "recover_recipe",
 ]);
 
 /** Operation ids whose x-mm.ui is a route (not "none:<reason>"): the SPA must exercise them, except the PENDING_UI ones. */

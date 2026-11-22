@@ -41,6 +41,8 @@ func mcpWithToken(t *testing.T, r *servertest.Rig, tok string) *mcp.ClientSessio
 // uiState carries ids between the steps of the scripted agent session.
 type uiState struct {
 	track, timed, draft, playlist, comment, export, run, duel string
+	// EARS-R1: an imported reference whose listening check is stored (seeded by seedReference and seedRecoverDocument)
+	reference string
 	// M3: a mother with a known recipe, the token of the last estimate, the batch and the job it created
 	mother, token, batch, job string
 	// M4a: a connector grant (inserted through connectors.Store.Ensure)
@@ -58,6 +60,8 @@ type uiState struct {
 	patch string
 	// DESK-S1: the plan create_plan_from_take opened and the child plan edit_plan made
 	plan, planChild string
+	// M6N-M1: the live mandate the operator created (seeded; an agent never creates one)
+	mandate string
 }
 
 // uiScript holds one scripted call per operation the web UI offers an agent.
@@ -152,6 +156,12 @@ var uiScript = map[string]func(s *uiState) map[string]any{
 	"get_ladder":         func(*uiState) map[string]any { return nil },
 	"get_track_analysis": func(s *uiState) map[string]any { return map[string]any{"id": s.track} },
 	"get_track_tier_b":   func(s *uiState) map[string]any { return map[string]any{"id": s.track} }, // EARS-S1: seeded by seedTierBDocument
+	// M6N-M1: create_mandate is human-only (the Owner in the app), so only the reads and the revoke are scripted
+	"list_mandates": func(*uiState) map[string]any { return map[string]any{"effective_state": []string{"live"}} },
+	"get_mandate":   func(s *uiState) map[string]any { return map[string]any{"id": s.mandate} },
+	"revoke_mandate": func(s *uiState) map[string]any {
+		return map[string]any{"id": s.mandate, "reason": "scripted: an agent may only reduce spend"}
+	},
 	// EARS-D1: the take is seeded by seedTierBDocument (its lyrics are the recognised words); the word is invented.
 	"get_track_diction": func(s *uiState) map[string]any { return map[string]any{"id": s.track} },
 	"set_diction_marks": func(s *uiState) map[string]any {
@@ -160,6 +170,10 @@ var uiScript = map[string]func(s *uiState) map[string]any{
 	"get_diction_lexicon": func(*uiState) map[string]any { return map[string]any{"limit": 10} },
 	"update_lexicon_entry": func(*uiState) map[string]any {
 		return map[string]any{"lang": "it", "word": "sorrinvento", "status": "ignored", "note": "scripted"}
+	},
+	// EARS-R1: Recover of the seeded reference (its stored listening check hears an invented lyric); free, makes a new draft
+	"recover_recipe": func(s *uiState) map[string]any {
+		return map[string]any{"id": s.reference, "style": "italian vocals, 100 BPM", "rationale": "scripted"}
 	},
 	"get_track_spectrogram": func(s *uiState) map[string]any {
 		return map[string]any{"id": s.track, "inline": false}
@@ -321,7 +335,7 @@ var uiOrder = []string{
 	"list_export_sources", "export_jsonl", "list_import_runs", "get_import_run",
 	"list_device_profiles", "put_device_profile", "get_device_probe", "list_tokens", "list_backups", "create_backup",
 	"create_duel", "next_duel", "get_duel", "list_duels", "submit_duel", "get_ladder",
-	"get_track_analysis", "get_track_tier_b", "get_track_diction", "set_diction_marks", "get_diction_lexicon", "update_lexicon_entry", "get_track_spectrogram", "compare_tracks",
+	"get_track_analysis", "get_track_tier_b", "get_track_diction", "set_diction_marks", "get_diction_lexicon", "update_lexicon_entry", "recover_recipe", "get_track_spectrogram", "compare_tracks",
 	// M3: estimate first, then create with the returned token, then read and cancel what it made
 	"estimate_variant", "create_variant", "estimate_generation", "list_batches", "get_batch", "list_jobs", "get_job", "wait_for_job",
 	"cancel_job", "cancel_batch", "get_budget", "get_spend", "list_ledger", "get_provider_status", "get_lineage",
@@ -341,6 +355,8 @@ var uiOrder = []string{
 	"list_engines",
 	// DESK-S1: open a take's score on the Desk, read it, edit it, judge the edit, list
 	"check_abc", "create_plan_from_take", "get_plan", "edit_plan", "set_plan_verdict", "list_plans",
+	// M6N-M1: the mandate reads, then the revoke (last: it ends the mandate)
+	"list_mandates", "get_mandate", "revoke_mandate",
 }
 
 // afterStep records the ids later steps need.
@@ -449,7 +465,10 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 	st.grant = g.ID
 	h := r.Human(t)
 	st.track, st.timed = track(t, h, false), track(t, h, true)
-	seedTierBDocument(t, r, st.track) // EARS-S1: get_track_tier_b answers 200 only for a take that has a listening check
+	seedTierBDocument(t, r, st.track)                        // EARS-S1: get_track_tier_b answers 200 only for a take that has a listening check
+	st.reference = seedReference(t, r, "scripted-reference") // EARS-R1: recover_recipe needs a reference with a stored listening check
+	seedRecoverDocument(t, r, st.reference, knownSungLyric)
+	st.mandate = seedMandateM6N(t, r) // M6N-M1: the mandate reads and the revoke need a live mandate
 	if err := r.Store.R.QueryRow(`SELECT t.id FROM tracks t JOIN recipes rc ON rc.id = t.recipe_id WHERE rc.engine <> 'unknown' AND t.lossy = 0 ORDER BY t.id LIMIT 1`).Scan(&st.mother); err != nil {
 		t.Fatal(err)
 	}
@@ -546,7 +565,7 @@ func TestAcceptance_M2a_AgentPerformsEveryUIAction(t *testing.T) {
 	// Spend, cancel and transform-create operations write their audit row inside their own transaction (C80), with an id
 	// drawn there, so under the rig's fixed clock they sort apart from the gate-written rows. Order is
 	// compared without them; their presence is compared as a set.
-	inTx := map[string]bool{"create_variant": true, "cancel_job": true, "cancel_batch": true, "create_transform": true}
+	inTx := map[string]bool{"create_variant": true, "cancel_job": true, "cancel_batch": true, "create_transform": true, "revoke_mandate": true}
 	split := func(ops []string) (rest, tx []string) {
 		for _, o := range ops {
 			if inTx[o] {

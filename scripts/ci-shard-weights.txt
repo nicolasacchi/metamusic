@@ -47,6 +47,7 @@
 ./internal/drafts 27
 ./internal/sessions 26
 ./internal/provider/runpod 24
+./internal/mandates 24
 ./internal/board 22
 ./internal/diction 22
 ./internal/ears/tierb 22
@@ -56,6 +57,7 @@
 ./internal/archivetest 18
 ./internal/voice 18
 ./internal/httpserver 16
+./internal/morning 16
 ./internal/analysis/spectro 15
 ./internal/connectors 14
 ./internal/upload 14

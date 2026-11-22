@@ -1,4 +1,4 @@
--- 0024_desk.sql: M5b DESK-S1 (C357.1). The Composer's Desk keeps immutable candidate scores (plans), the files that belong to a plan,
+-- 0026_desk.sql: M5b DESK-S1 (C357.1). The Composer's Desk keeps immutable candidate scores (plans), the files that belong to a plan,
 -- one verdict per rater and the content-addressed audition previews. A plan is never a Take. Additive and up-only; nothing here is
 -- ever physically deleted, and a plan, its files and an audition never change after the insert (a verdict does).
 CREATE TABLE desk_plans (

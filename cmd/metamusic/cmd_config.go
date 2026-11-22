@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"os/exec"
 	"strings"
 
 	"github.com/nicolasacchi/metamusic/internal/config"
+	"github.com/nicolasacchi/metamusic/internal/score/synth"
 )
 
 // cmdConfig dispatches `metamusic config <sub>`.
@@ -39,6 +42,11 @@ func configCheck(getenv func(string) string, s streams) error {
 	_, haveR2, r2err := config.LoadUploadFallback(cfg.SecretsDir)
 	if r2err != nil {
 		errs = append(errs, r2err)
+	}
+	// BULK-P1: the pod key file is read as the backend reads it (mode checked); only presence is ever printed
+	_, havePodKey, podKeyErr := config.LoadPodKey(cfg.SecretsDir)
+	if podKeyErr != nil {
+		errs = append(errs, podKeyErr)
 	}
 	if len(errs) > 0 {
 		for _, e := range errs {
@@ -96,7 +104,39 @@ func configCheck(getenv func(string) string, s streams) error {
 	fmt.Fprintf(s.out, "time zone: %s\n", cfg.Zone())
 	fmt.Fprintf(s.out, "trusted proxies: %d\n", len(cfg.TrustedProxies))
 	fmt.Fprintf(s.out, "upload fallback: %s\n", map[bool]string{true: "configured", false: "not configured"}[haveR2])
+	fmt.Fprintf(s.out, "pod backend: %s\n", map[bool]string{true: "on", false: "off"}[cfg.PodBackend])
+	if cfg.PodImage != "" {
+		fmt.Fprintf(s.out, "pod image digest: %s\n", cfg.PodImage[strings.LastIndex(cfg.PodImage, ":")+1:][:12]) // the config check guarantees 64 hex
+	}
+	fmt.Fprintf(s.out, "pod key: %s\n", map[bool]string{true: "present", false: "absent"}[havePodKey])
+	printSynth(cfg, s)
 	return nil
+}
+
+// printSynth prints the T1b score-render inputs: one line per usable soundfont (name, sha256 prefix, bytes; never a path) and
+// the fluidsynth version or "absent". It reads each soundfont once, like serve does at startup.
+func printSynth(cfg config.Config, s streams) {
+	fonts := make([]synth.Font, 0, len(cfg.Soundfonts))
+	for _, sf := range cfg.Soundfonts {
+		fonts = append(fonts, synth.Font(sf))
+	}
+	set := synth.NewSet(fonts, nil)
+	for _, sf := range cfg.Soundfonts {
+		if _, sha, size, ok := set.Lookup(sf.Name); ok {
+			fmt.Fprintf(s.out, "soundfonts: %s %s %d\n", sf.Name, sha[:12], size)
+		} else {
+			fmt.Fprintf(s.out, "soundfonts: %s unavailable\n", sf.Name)
+		}
+	}
+	bin := cfg.FluidsynthPath
+	if bin == "" {
+		bin, _ = exec.LookPath("fluidsynth")
+	}
+	if f, err := synth.NewFluidsynth(context.Background(), bin); err == nil {
+		fmt.Fprintf(s.out, "fluidsynth: %s\n", f.Info().Version)
+	} else {
+		fmt.Fprintln(s.out, "fluidsynth: absent")
+	}
 }
 
 func enabled(b bool) string {
