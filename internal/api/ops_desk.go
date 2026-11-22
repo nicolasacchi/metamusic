@@ -161,6 +161,8 @@ func registerDesk(a huma.API, d Deps) {
 			maskPlan(p, &pl)
 			return &planOut{Body: pl}, nil
 		})
+
+	registerDeskAudition(a, d)
 }
 
 func createdStatus(made bool) int {
