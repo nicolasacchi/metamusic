@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Download pinned dev/CI tools into ./bin, verifying sha256:
 #   golangci-lint, gitleaks, ffmpeg (LGPL static, linux/amd64 only); flac/metaflac only on explicit request
-#   (opt-in source build for hosts without a flac package; never part of the default set, never in CI).
+#   (opt-in source build for hosts without a flac package; never part of the default set, never in CI);
+#   soundfont (FluidR3_GM, ~148 MB) only on explicit request, never in CI.
 # Idempotent: skips a tool whose installed version already matches.
-# Usage: tools.sh [--print-urls] [tool ...]   (tools: golangci-lint gitleaks ffmpeg flac; default: all but flac)
+# Usage: tools.sh [--print-urls] [tool ...]   (tools: golangci-lint gitleaks ffmpeg flac soundfont; default: all but flac and soundfont)
 set -euo pipefail
 
 if [ "${BASH_VERSINFO[0]}" -lt 4 ]; then
@@ -22,6 +23,10 @@ FFMPEG_BUILD=n9.0.2-36-g6882969ce9
 FFMPEG_ARCHIVE="ffmpeg-${FFMPEG_BUILD}-linux64-lgpl-9.0.tar.xz"
 # flac: xiph keeps old releases; opt-in (`tools.sh flac`) and only when flac/metaflac are missing; CI uses apt.
 FLAC_VERSION=1.5.0
+# soundfont (C356): FluidR3_GM (MIT) from Debian fluid-soundfont-gm 3.1-5.3. The package is pinned by sha256 (read from the signed
+# stable Packages index) and the extracted .sf2 has its own pin (recorded from a real download). The Dockerfile pins the same two.
+SOUNDFONT_DEB=fluid-soundfont-gm_3.1-5.3_all.deb
+SOUNDFONT_MEMBER=usr/share/sounds/sf2/FluidR3_GM.sf2
 
 declare -A SHA=(
   [golangci-lint-darwin-amd64]=a5667c1c3536be1740133213e1e822bfb8f0d98ea12903174d6d5f635e4ed68d
@@ -34,6 +39,8 @@ declare -A SHA=(
   [gitleaks-linux-arm64]=e4a487ee7ccd7d3a7f7ec08657610aa3606637dab924210b3aee62570fb4b080
   [ffmpeg-linux-amd64]=e8fc4c4ad4dd432bd3c09f07d223a5656a1025ef95667151fbb4a7ed41a0e76e
   [flac-src]=f2c1c76592a82ffff8413ba3c4a1299b6c7ab06c734dee03fd88630485c2b920
+  [soundfont-deb]=6f531493ac4e4d9772fd96b2488ea1790af81c196135fbdd25997da0781fc60e
+  [soundfont-sf2]=74594e8f4250680adf590507a306655a299935343583256f3b722c48a1bc1cb0
 )
 
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -108,8 +115,12 @@ urls_ffmpeg() {
   echo "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-27-18-38/${FFMPEG_ARCHIVE}"
 }
 urls_flac() { echo "https://ftp.osuosl.org/pub/xiph/releases/flac/flac-${FLAC_VERSION}.tar.xz"; }
+urls_soundfont() {
+  echo "https://snapshot.debian.org/archive/debian/20210909T084147Z/pool/main/f/fluid-soundfont/${SOUNDFONT_DEB}"
+  echo "https://deb.debian.org/debian/pool/main/f/fluid-soundfont/${SOUNDFONT_DEB}"
+}
 
-all_tools="golangci-lint gitleaks ffmpeg flac"
+all_tools="golangci-lint gitleaks ffmpeg flac soundfont"
 default_tools="golangci-lint gitleaks ffmpeg"
 
 if [ "${1:-}" = "--print-urls" ]; then
@@ -174,6 +185,27 @@ if wanted flac; then
     )
     install -m 0755 "$tmp/flac.x/flac-$FLAC_VERSION/src/flac/flac" "$bin/flac"
     install -m 0755 "$tmp/flac.x/flac-$FLAC_VERSION/src/metaflac/metaflac" "$bin/metaflac"
+  fi
+fi
+if wanted soundfont; then
+  sf="$bin/soundfonts/FluidR3_GM.sf2"
+  if [ -f "$sf" ] && [ "$(sha256 "$sf")" = "${SHA[soundfont-sf2]}" ] && [ -f "$bin/soundfonts/FluidR3_GM-LICENSE.txt" ]; then
+    echo "tools.sh: soundfont FluidR3_GM present"
+  else
+    command -v ar >/dev/null 2>&1 || { echo "tools.sh: ar (binutils) is required to unpack the soundfont package" >&2; exit 1; }
+    command -v xz >/dev/null 2>&1 || { echo "tools.sh: xz is required to unpack the soundfont package" >&2; exit 1; }
+    echo "tools.sh: downloading soundfont FluidR3_GM (~115 MB)"
+    mapfile -t u < <(urls_soundfont)
+    download_verified soundfont-deb "$tmp/soundfont.deb" "${u[@]}"
+    mkdir -p "$tmp/soundfont.x"
+    (cd "$tmp/soundfont.x" && ar x "$tmp/soundfont.deb" data.tar.xz && tar -xJf data.tar.xz "./$SOUNDFONT_MEMBER")
+    got=$(sha256 "$tmp/soundfont.x/$SOUNDFONT_MEMBER")
+    [ "$got" = "${SHA[soundfont-sf2]}" ] || { echo "tools.sh: sha256 mismatch for soundfont-sf2: want ${SHA[soundfont-sf2]} got $got" >&2; exit 1; }
+    mkdir -p "$bin/soundfonts"
+    rm -f "$sf"
+    install -m 0444 "$tmp/soundfont.x/$SOUNDFONT_MEMBER" "$sf"
+    install -m 0444 "$root/third_party/soundfonts/FluidR3_GM-LICENSE.txt" "$bin/soundfonts/FluidR3_GM-LICENSE.txt"
+    rm -rf "$tmp/soundfont.x" "$tmp/soundfont.deb"
   fi
 fi
 echo "tools.sh: done"

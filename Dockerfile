@@ -37,8 +37,19 @@ RUN [ "$(go env GOARCH)" != amd64 ] \
  || { echo "release binary is not built with GOAMD64=v1" >&2; go version -m /out/metamusic >&2; exit 1; }
 # END T1-I1 the shipped binary records GOAMD64=v1
 
+# C356: the soundfont is the Debian fluid-soundfont-gm package (FluidR3_GM, MIT), fetched by sha256 (ADD --checksum) from the
+# permanent snapshot; the extracted file has its own pin. Both pins equal scripts/tools.sh (TestDockerfile_SoundfontPinned).
+FROM alpine:3.24 AS soundfont
+RUN apk add --no-cache binutils xz
+ADD --checksum=sha256:6f531493ac4e4d9772fd96b2488ea1790af81c196135fbdd25997da0781fc60e \
+    https://snapshot.debian.org/archive/debian/20210909T084147Z/pool/main/f/fluid-soundfont/fluid-soundfont-gm_3.1-5.3_all.deb /sf/sf.deb
+COPY third_party/soundfonts/FluidR3_GM-LICENSE.txt /out/FluidR3_GM-LICENSE.txt
+RUN cd /sf && ar x sf.deb data.tar.xz && tar -xJf data.tar.xz ./usr/share/sounds/sf2/FluidR3_GM.sf2 \
+ && echo "74594e8f4250680adf590507a306655a299935343583256f3b722c48a1bc1cb0  usr/share/sounds/sf2/FluidR3_GM.sf2" | sha256sum -c - \
+ && install -m 0444 usr/share/sounds/sf2/FluidR3_GM.sf2 /out/FluidR3_GM.sf2
+
 FROM alpine:3.24
-RUN apk add --no-cache ffmpeg flac ca-certificates tzdata \
+RUN apk add --no-cache ffmpeg flac fluidsynth ca-certificates tzdata \
  && adduser -D -u 1000 -h /state metamusic \
  && mkdir -p /state/data /state/backup && chown -R 1000:1000 /state
 # Fail the build if the media tools lack what the import/serve pipeline, the clip service and Tier A
@@ -49,7 +60,11 @@ RUN ffmpeg -hide_banner -filters | grep -q ' ebur128 ' \
       ffmpeg -hide_banner -filters | grep -q " $f " || { echo "ffmpeg lacks filter $f" >&2; exit 1; }; done \
  && for e in flac png; do \
       ffmpeg -hide_banner -encoders | grep -q " $e " || { echo "ffmpeg lacks encoder $e" >&2; exit 1; }; done \
- && metaflac --version
+ && metaflac --version \
+ && fluidsynth --version
+# Soundfont layer before the binary so it caches across releases. The image sets no MM_SOUNDFONTS: the operator adds
+# gm=/opt/mm/soundfonts/FluidR3_GM.sf2 to the environment.
+COPY --from=soundfont /out/ /opt/mm/soundfonts/
 COPY --from=build /out/metamusic /usr/local/bin/metamusic
 # One parent volume holds data/ and backup/ so snapshots can hardlink masters (same filesystem).
 # MM_PUBLIC_URL must be set at run time to the externally visible URL (it feeds the MCP
