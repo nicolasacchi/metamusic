@@ -21,5 +21,8 @@ func wireMandates(env *BuildEnv) error {
 	}
 	svc := mandates.New(o)
 	sv.Deps.Mandates = svc
+	if sv.Generation != nil { // the spend path: a live mandate may stand in for a batch's approval (M6N-M2); without it an estimate naming a mandate is 503
+		sv.Generation.UseMandates(svc)
+	}
 	return nil
 }
