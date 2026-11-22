@@ -142,6 +142,7 @@ type DroppedRoot struct{ RootTrackID, Reason string }
 type PlanQuote struct {
 	Takes                                          int
 	ExpectedMicroUSD, MaxMicroUSD, CeilingMicroUSD money.MicroUSD
+	TierB                                          bool // some planned take has a listening check (C376.3)
 }
 
 // PlanMandate is the live mandate's verdict on the previewed night.
@@ -199,7 +200,7 @@ func (r *Runner) preview(ctx context.Context, s Settings) (PlanView, error) {
 		out.WouldSkip = SkipNothingPlanned
 		return out, nil
 	}
-	items, why, err := r.trim(ctx, m, planned, &doc)
+	items, why, err := r.trim(ctx, m, planned, TierBOption(s.ListeningChecks, m.Scope), &doc)
 	if err != nil {
 		return PlanView{}, err
 	}
@@ -217,7 +218,7 @@ func (r *Runner) preview(ctx context.Context, s Settings) (PlanView, error) {
 		out.Trimmed = append(out.Trimmed, DroppedRoot{RootTrackID: d.RootID, Reason: d.Reason})
 	}
 	if q := doc.Quote; q != nil {
-		out.Quote = &PlanQuote{Takes: q.Takes, ExpectedMicroUSD: money.MicroUSD(q.ExpectedMicroUSD), MaxMicroUSD: money.MicroUSD(q.MaxMicroUSD), CeilingMicroUSD: money.MicroUSD(q.CeilingMicroUSD)}
+		out.Quote = &PlanQuote{Takes: q.Takes, ExpectedMicroUSD: money.MicroUSD(q.ExpectedMicroUSD), MaxMicroUSD: money.MicroUSD(q.MaxMicroUSD), CeilingMicroUSD: money.MicroUSD(q.CeilingMicroUSD), TierB: q.TierB}
 	}
 	out.Mandate = &PlanMandate{ID: m.ID, Covered: why == "", Reasons: []string{}}
 	if why != "" {
