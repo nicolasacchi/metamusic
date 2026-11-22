@@ -1,7 +1,6 @@
 // matrix: chrome-only because it is a server-side data flow (analyze, recover, draft); the panel is the shared Track card
 import { expect, test, type APIRequestContext } from "./fixtures";
 import { apiJSON } from "./helpers";
-import { allTerminal, createHuman, estimate, pollBatch } from "./m3Api";
 
 // Recover a recipe from a reference take (M5b W2): Analyze through the ordinary estimate, then "Create draft from transcript" makes
 // a draft (no spend, no job) whose lyrics are what the recogniser heard. The draft's render goes through the ordinary estimate.
@@ -46,46 +45,14 @@ test("a reference take is analysed, then Create draft from transcript makes a dr
   const spendBefore = await totals(request);
   const jobsBefore = (await apiJSON<{ items: unknown[] }>(request, "GET", "/api/jobs?limit=100")).items.length;
   await page.getByTestId("recover-style").fill("italian vocals, soft, 90 BPM");
-  await page.getByTestId("recover-button").click();
 
-  // the e2e fake worker hears no sung line in a reference take (the lyric heard is scripted only in the Go acceptance tests), so the
-  // server refuses plainly and the page says so; the success path (draft created, no spend) is the next test (it makes the same analysis through the API)
-  await expect(page.getByTestId("recover-error")).toContainText("the recogniser heard no sung line");
-  await expect(page).toHaveURL(new RegExp(`/tracks/${ref.id}$`));
+  // the e2e fake recogniser hears an invented Italian lyric in the reference, so recover_recipe really answers (served to the SPA):
+  // the draft opens, and nothing was spent or enqueued
+  await page.getByTestId("recover-button").click();
+  await expect(page).toHaveURL(/\/backlog\/[^/]+$/);
   expect((await apiJSON<{ items: unknown[] }>(request, "GET", "/api/jobs?limit=100")).items.length).toBe(jobsBefore);
   expect(await totals(request)).toEqual(spendBefore);
   expect(errors).toEqual([]);
-});
-
-// The answer of recover_recipe is stubbed with a real draft (made through create_draft) so the page's success path runs: the draft
-// opens. That the server builds that draft from a transcript, for nothing, is TestAcceptance_Ears_RecoverRecipe's.
-test("Create draft from transcript opens the draft the server made, with the style the box held", async ({ page, request }) => {
-  const ref = await lossless(request);
-  // the first test may already have analysed this take (the estimator refuses a second analysis)
-  if ((await request.get(`/api/tracks/${ref.id}/tier-b`)).status() !== 200) {
-    const e = await estimate(request, "/api/generations/estimate", { items: [{ mode: "analyze", track_ids: [ref.id] }] });
-    await pollBatch(request, (await createHuman(request, e, "e2e listening check")).id, allTerminal);
-    await expect.poll(async () => (await request.get(`/api/tracks/${ref.id}/tier-b`)).status(), { timeout: 60_000, intervals: [500, 1000] }).toBe(200);
-  }
-  const draft = await apiJSON<{ id: string }>(request, "POST", "/api/drafts", { request: { id: "rec-e2e-1", style: "italian vocals, soft, 90 BPM", lyrics: "[verse]\nla luna dorme piano\n[chorus]\nil mare canta ancora", cot: "melody", seed: 11 }, label: "Recovered e2e" }, true);
-  let sent: { style?: string; cot?: string } = {};
-  let key = "";
-  await page.route(`**/api/tracks/${ref.id}/recover`, async (route) => {
-    sent = route.request().postDataJSON() as typeof sent;
-    key = route.request().headers()["idempotency-key"] ?? "";
-    const d = await apiJSON<unknown>(request, "GET", `/api/drafts/${encodeURIComponent(draft.id)}`);
-    await route.fulfill({
-      status: 201,
-      contentType: "application/json",
-      body: JSON.stringify({ draft: d, transcript: { language: "it", words: 8, lines: 2, sections: [{ kind: "verse", lines: 1 }, { kind: "chorus", lines: 1 }], confidence: 0.9 }, evidence: { tempo_bpm: 90, key: null, lufs_i: null, energy: null, duration_s: 10 }, style_source: "caller" }),
-    });
-  });
-  await page.goto(`/tracks/${ref.id}`);
-  await page.getByTestId("recover-style").fill("italian vocals, soft, 90 BPM");
-  await page.getByTestId("recover-button").click();
-  await expect(page).toHaveURL(new RegExp(`/backlog/${draft.id}$`));
-  expect(sent.style).toBe("italian vocals, soft, 90 BPM");
-  expect(key.length).toBeGreaterThan(0);
 });
 
 test("a take that is not a reference has no Recover panel", async ({ page, request }) => {
