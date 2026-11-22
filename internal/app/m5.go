@@ -59,6 +59,9 @@ type m5Late struct {
 	hook    lateTakeHook
 	patches latePatchSource
 	backlog lateBacklogGate
+	// plans is the Desk plan reader of render_plan estimates (DESK-M1, desk.go); a nil target answers errors.ErrUnsupported, which
+	// generation reports as 503 UNAVAILABLE {component: desk}.
+	plans latePlanSource
 	// kinds are the ingesters of the job kinds other than generate (G1 C323.6). The map is created on first use and shared with the
 	// ingest bridge by reference, so a track's build hook may add to it after buildM3 ran.
 	kinds map[string]jobs.KindIngester

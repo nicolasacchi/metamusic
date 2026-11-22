@@ -65,3 +65,13 @@ type setPlanVerdictIn struct {
 		Note    *string `json:"note,omitempty" minLength:"1" maxLength:"2000"`
 	}
 }
+
+// DeskItemIn is the Desk part of an estimate item (C360.2). render_plan reads plan_ids; n_seeds, seeds and cot belong to the plan_seeds
+// mode (DESK-M2) and a render_plan item that sets them is refused (INVALID_ITEM, rule field_forbidden). The number of seeds of a
+// render_plan item is the item's own n_seeds or seeds (at most 4 per plan).
+type DeskItemIn struct {
+	PlanIDs []string `json:"plan_ids,omitempty" nullable:"false" minItems:"1" maxItems:"10" uniqueItems:"true" doc:"render_plan: the plans whose score is rendered (1..10). Each plan renders its own seed plus n_seeds-1 new ones; the base take of a plan is the mother of its takes"`
+	NSeeds  int      `json:"n_seeds,omitempty" minimum:"1" maximum:"16" doc:"plan_seeds only"`
+	Seeds   []int64  `json:"seeds,omitempty" nullable:"false" minItems:"1" maxItems:"16" doc:"plan_seeds only"`
+	Cot     string   `json:"cot,omitempty" enum:"full,melody" doc:"plan_seeds only"`
+}

@@ -44,6 +44,12 @@ describe("route gating (C313.3)", () => {
     for (const n of ["human-spend", "human", "human-tokens", "settings-audit", "receipts", "jobs", "board", "judge", "duels", "human-generate"]) expect(routeAllowed(n, listener), n).toBe(false);
     expect(TABS.filter((t) => tabVisible(t, listener)).map((t) => t.id)).toEqual(["new", "library", "queue", "more"]);
   });
+  test("the Diction Lab is gated on the lexicon read: an Editor has it, a Listener does not", () => {
+    expect(ROUTE_OPS.diction).toBe("get_diction_lexicon");
+    expect(routeAllowed("diction", listener)).toBe(false);
+    expect(routeAllowed("diction", (op) => op === "get_diction_lexicon")).toBe(true);
+    expect(NAV_LINKS.filter((l) => linkVisible(l, listener)).map((l) => l.label)).not.toContain("Diction Lab");
+  });
   test("an Editor adds drafts and Generate, still no Spend, Caps, Provider, Approve or Publish", () => {
     const shown = NAV_LINKS.filter((l) => linkVisible(l, editor)).map((l) => l.label);
     expect(shown).toContain("Generate");

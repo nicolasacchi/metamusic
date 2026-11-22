@@ -119,6 +119,13 @@ describe("M3 routes (C84)", () => {
   });
 });
 
+describe("EARS-W2 route", () => {
+  test("/diction is an SPA route, not a server path", () => {
+    expect(matchRoute(APP_ROUTES, "/diction")?.route.name).toBe("diction");
+    expect(isServerPath("/diction")).toBe(false);
+  });
+});
+
 describe("M4a routes (C115)", () => {
   test("/offline is an SPA route; connectors and subsonic are /human pages", () => {
     const name = (p: string) => matchRoute(APP_ROUTES, p)?.route.name;

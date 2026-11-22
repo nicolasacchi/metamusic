@@ -17,6 +17,7 @@
   import VoiceRecorder from "../lib/components/VoiceRecorder.svelte";
   import SongPrPanel from "../lib/components/SongPrPanel.svelte";
   import LyricsPanel from "../lib/components/LyricsPanel.svelte";
+  import KaraokeLyrics from "../lib/components/KaraokeLyrics.svelte";
   import AddToCrate from "../lib/components/AddToCrate.svelte";
   import AddToRecord from "../lib/components/AddToRecord.svelte";
   import AddToPlaylist from "../lib/components/AddToPlaylist.svelte";
@@ -296,9 +297,13 @@
         <section>
           <h2>Lyrics</h2>
           <LyricsPanel sections={track.sections} timed={track.timed} current={isCurrent ? player.state.current : null} onseek={seek} />
+          <!-- EARS-W2: the karaoke view; get_track_diction answers 409 without a listening check or a plan score, so it is not asked then -->
+          {#if dossier?.tier === "B" || (dossier && track.score !== null)}
+            <KaraokeLyrics trackId={id} current={isCurrent ? player.state.current : null} onseek={seek} />
+          {/if}
         </section>
       {:else}
-        <RecipeUnknownPanel title={track.title} lossy={track.lossy} masterBytes={track.audio.master_bytes} durationS={track.duration_s} />
+        <RecipeUnknownPanel title={track.title} lossy={track.lossy} masterBytes={track.audio.master_bytes} durationS={track.duration_s} trackId={id} {dossier} go={navigate ?? pushNavigate} />
       {/if}
       <aside>
         {#if showsPanel(me, "comments")}

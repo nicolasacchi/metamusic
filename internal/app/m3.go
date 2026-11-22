@@ -270,6 +270,7 @@ func buildM3(ctx context.Context, cfg config.Config, sec config.Secrets, st *sto
 		ACEStepCanaryCaps: cfg.ACEStepCanaryCaps, ACEStepCanaryBase: slices.Contains(cfg.ACEStepTasks, "base"),
 		Songwriting: songwriting.New(st),                       // the minimum-render control (X4) reads songwriting.min_duration_s
 		PatchSource: &late.patches, BacklogGate: &late.backlog, // M5 seams (C253.4, C255.5)
+		PlanSource:  &late.plans, // the Desk plan reader (C360.4, desk.go)
 		IngestReady: ingestReady, // no paid batch while a finished take could not be stored
 	})
 	m.Jobs = jobs.New(jobs.Options{Store: st, Clock: clk, Hub: m.Hub, Gate: m.Gate, Spend: m.Spend, Wake: wake.call})
