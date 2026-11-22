@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/nicolasacchi/metamusic/internal/provider"
 )
@@ -61,6 +62,9 @@ func (r *Reconciler) Options() ReconcilerOptions { return r.o }
 type MeterRouter struct {
 	by  map[string]*Reconciler
 	def *Reconciler
+
+	mu     sync.RWMutex
+	custom map[string]PodMeter // Use
 }
 
 // NewMeterRouter routes by Reconciler backend name; rs[0] answers batches whose backend has no reconciler.
@@ -75,11 +79,34 @@ func NewMeterRouter(rs []*Reconciler) *MeterRouter {
 	return m
 }
 
+// PodMeter is the overhead meter of a backend that has no worker lifetimes of its own (the pod backend, C393.5): the app adapts
+// pods.Meter to it.
+type PodMeter interface {
+	OverheadSeconds(ctx context.Context, x Querier, batchID string) (seconds int64, ready bool, err error)
+}
+
+// Use routes the batches of backend to m instead of a reconciler (C393.5): a pod batch's overhead is the pods' lifetimes minus
+// the executions handed to them, not a worker meter. It must be called before the router serves a batch.
+func (m *MeterRouter) Use(backend string, meter PodMeter) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.custom == nil {
+		m.custom = map[string]PodMeter{}
+	}
+	m.custom[backend] = meter
+}
+
 // OverheadSeconds implements BatchMeter.
 func (m *MeterRouter) OverheadSeconds(ctx context.Context, x Querier, batchID string) (int64, bool, error) {
 	var backend string
 	if err := x.QueryRowContext(ctx, `SELECT backend FROM batches WHERE id = ?`, batchID).Scan(&backend); err != nil {
 		return 0, false, fmt.Errorf("jobs: meter route: %w", err)
+	}
+	m.mu.RLock()
+	custom := m.custom[backend]
+	m.mu.RUnlock()
+	if custom != nil {
+		return custom.OverheadSeconds(ctx, x, batchID)
 	}
 	r := m.by[backend]
 	if r == nil {

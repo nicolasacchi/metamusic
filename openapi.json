@@ -5276,6 +5276,47 @@
         ],
         "type": "object"
       },
+      "DeskItemIn": {
+        "additionalProperties": false,
+        "properties": {
+          "cot": {
+            "description": "plan_seeds only",
+            "enum": [
+              "full",
+              "melody"
+            ],
+            "type": "string"
+          },
+          "n_seeds": {
+            "description": "plan_seeds only",
+            "format": "int64",
+            "maximum": 16,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "plan_ids": {
+            "description": "render_plan: the plans whose score is rendered (1..10). Each plan renders its own seed plus n_seeds-1 new ones; the base take of a plan is the mother of its takes",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "seeds": {
+            "description": "plan_seeds only",
+            "items": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "maxItems": 16,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "Device": {
         "additionalProperties": false,
         "properties": {
@@ -9324,6 +9365,10 @@
       "ItemIn": {
         "additionalProperties": false,
         "properties": {
+          "desk": {
+            "$ref": "#/components/schemas/DeskItemIn",
+            "description": "render_plan: the Desk plans to render (the Desk's own modes only; any other mode refuses it)"
+          },
           "draft_ids": {
             "description": "from_draft: the drafts to render",
             "items": {
@@ -9361,6 +9406,7 @@
               "complete",
               "stems",
               "cover",
+              "render_plan",
               "analyze"
             ],
             "type": "string"

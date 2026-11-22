@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
 	"github.com/nicolasacchi/metamusic/internal/jobs"
@@ -16,15 +17,24 @@ type e2Extra struct {
 	Backend provider.Backend
 	// KeysLoaded: the credentials of the backend are present (always true for the fake).
 	KeysLoaded bool
-	// Expect pins the weights the backend's worker must report (provider.WorkerExpect, per engine).
+	// Expect pins the weights the backend's worker must report (provider.WorkerExpect, per engine). An engine already in the set keeps its own
+	// pin: a second yue2 backend (the pods) never replaces the first one's.
 	Expect provider.WorkerExpect
+	// GateColdStartS and GateMaxRuntime, when set, replace the backend's own ColdStartS and MaxRuntime in its gate. The global worker bound
+	// (C151.5) reads them, so the pod backend's gate carries its boot and its window (MM_POD_MAX_RUNTIME + BootS + K, C396.5) while the backend
+	// itself keeps the per-take values.
+	GateColdStartS int
+	GateMaxRuntime time.Duration
+	// Meter, when set, is installed with MeterRouter.Use for this backend's batches (the pod meter, C393.5).
+	Meter jobs.PodMeter
 }
 
-// e2ExtraBackends constructs the ACE-Step backends (`fake-acestep` under MM_BACKEND=fake, `runpod-serverless-acestep` under
-// runpod when RUNPOD_ACESTEP_ENDPOINT_ID is present) once MM_ACESTEP is on. The constructors live in the provider packages
-// (lanes E2-PF and E2-PR), so the final wiring (E2-INT) installs them from an init in e2_hooks.go; nil, or a nil/empty result,
-// keeps the single-backend M3 set. It is only called when cfg.ACEStep is set.
-var e2ExtraBackends func(in e2Inputs) ([]e2Extra, error)
+// e2ExtraBackends is the list of constructors of the additional backends (C396.7): the ACE-Step backends (`fake-acestep` under
+// MM_BACKEND=fake, `runpod-serverless-acestep` under runpod when RUNPOD_ACESTEP_ENDPOINT_ID is present), installed from an init in
+// e2_hooks.go and only built under MM_ACESTEP=1 (that condition is the constructor's own), and the pod backends (bulk.go, only under
+// MM_POD_BACKEND=1). The constructors live in the provider packages, so the wiring installs them from an init; a nil or empty result
+// keeps the single-backend M3 set. Each constructor decides from the configuration whether it builds anything.
+var e2ExtraBackends []func(in e2Inputs) ([]e2Extra, error)
 
 // buildE2Set builds the backend set and its gates (C151.1). Lane E2-J1 owns this file: without extra backends a process
 // behaves as before (the M3 backend alone). With them it adds each backend's provider_state row (disarmed except fake*,
@@ -41,19 +51,27 @@ func buildE2Set(in e2Inputs) (*provider.Set, *provider.GateSet, error) {
 		return set, gates, err
 	}
 	var extras []e2Extra
-	if in.cfg.ACEStep && e2ExtraBackends != nil {
-		var err error
-		if extras, err = e2ExtraBackends(in); err != nil {
-			return nil, nil, fmt.Errorf("app: acestep backends: %w", err)
+	for _, build := range e2ExtraBackends {
+		xs, err := build(in)
+		if err != nil {
+			return nil, nil, fmt.Errorf("app: extra backends: %w", err)
 		}
+		extras = append(extras, xs...)
 	}
 	bs, gs := []provider.Backend{m.Backend}, []*provider.Gate{m.Gate}
 	for _, x := range extras {
 		if x.Backend == nil {
 			continue
 		}
+		cold, maxRun := x.Backend.ColdStartS(), x.Backend.MaxRuntime()
+		if x.GateColdStartS > 0 {
+			cold = x.GateColdStartS
+		}
+		if x.GateMaxRuntime > 0 {
+			maxRun = x.GateMaxRuntime
+		}
 		g := provider.NewGate(in.st.R, provider.GateConfig{Mode: in.cfg.Backend, Backend: x.Backend.Name(), Engine: x.Backend.Engine(),
-			KeysLoaded: x.KeysLoaded, ColdStartS: x.Backend.ColdStartS(), MaxRuntime: x.Backend.MaxRuntime()}, in.now)
+			KeysLoaded: x.KeysLoaded, ColdStartS: cold, MaxRuntime: maxRun}, in.now)
 		if err := ensureE2State(in, x.Backend.Name()); err != nil {
 			return nil, nil, err
 		}
@@ -98,7 +116,10 @@ func rebaseOnSet(in e2Inputs, set *provider.Set, gates *provider.GateSet, extras
 	}
 	expects := map[string]provider.WorkerExpect{provider.EngineYuE2: {Weights: yue2.Weights}}
 	for _, x := range extras {
-		if x.Backend != nil {
+		if x.Backend == nil {
+			continue
+		}
+		if _, have := expects[x.Backend.Engine()]; !have {
 			expects[x.Backend.Engine()] = x.Expect
 		}
 	}
@@ -113,7 +134,13 @@ func rebaseOnSet(in e2Inputs, set *provider.Set, gates *provider.GateSet, extras
 		return err
 	}
 	m.Reconciler = rs[0]
-	m.Runner.UseMeter(jobs.NewMeterRouter(rs)) // each backend's overhead lands on its own batches
+	router := jobs.NewMeterRouter(rs)
+	for _, x := range extras {
+		if x.Backend != nil && x.Meter != nil {
+			router.Use(x.Backend.Name(), x.Meter) // a pod batch's overhead is its pods' lifetimes, not a worker meter (C393.5)
+		}
+	}
+	m.Runner.UseMeter(router) // each backend's overhead lands on its own batches
 	sweeps := map[string]func() jobs.SweepSnapshot{}
 	caps := map[string]func() provider.Capabilities{}
 	for _, r := range rs {

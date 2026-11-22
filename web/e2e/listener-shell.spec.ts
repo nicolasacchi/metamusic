@@ -6,7 +6,7 @@ import { asOwner, ratingOf, setStatus } from "./u1Api";
 // U1 C314.7: the Listener sees the whole library read-only and none of the Owner's money, approvals or secrets.
 // Identity comes from the project's extraHTTPHeaders (carol); the Owner acts through a request context.
 
-const MAKE_AND_SECURE = ["Board", "Backlog", "Jobs", "Transforms", "Engines", "Generate", "Approvals", "Spend", "Tokens", "Connectors", "Audit", "Backups", "Receipts"];
+const MAKE_AND_SECURE = ["Board", "Backlog", "Jobs", "Transforms", "Desk", "Engines", "Generate", "Approvals", "Spend", "Tokens", "Connectors", "Audit", "Backups", "Receipts"];
 
 async function batchCalls(page: Page, during: () => Promise<void>): Promise<string[]> {
   const seen: string[] = [];

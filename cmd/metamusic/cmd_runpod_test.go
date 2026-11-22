@@ -710,6 +710,47 @@ func TestCLI_RunPodStatusLiveAttempts(t *testing.T) {
 	})
 }
 
+// live_pods is always present in `runpod status --json` and counts the pods that are not terminated: scripts/deploy-preflight.sh refuses on it.
+func TestCLI_StatusShowsLivePods(t *testing.T) {
+	t.Parallel()
+	r := newRPRig(t)
+	podsOf := func() (float64, string) {
+		code, out, errs := rp(t, r.env, "status", "--json")
+		if code != 0 {
+			t.Fatalf("status: %d %s %s", code, out, errs)
+		}
+		var m map[string]any
+		if err := json.Unmarshal([]byte(out), &m); err != nil {
+			t.Fatal(err)
+		}
+		n, ok := m["live_pods"].(float64)
+		if !ok {
+			t.Fatalf("live_pods missing or not a number: %s", out)
+		}
+		_, human, _ := rp(t, r.env, "status")
+		return n, human
+	}
+	if n, human := podsOf(); n != 0 || strings.Contains(human, "live pods") {
+		t.Fatalf("no pod: %v %q", n, human)
+	}
+	st := r.db(t)
+	librarytest.FixtureM3(t, st, rpNow)
+	seed := librarytest.SeedJob(t, st, rpNow, librarytest.JobSeed{Name: "podjob"})
+	ins := func(id, name string, n int) {
+		r.exec(t, `INSERT INTO pods(id,name,kind,batch_id,n,gpu_try,gpu_type,state,cloud,image_digest,price_pph_micro_usd,overhead_reserved_micro_usd,deadline_at,poll_exp,created_at,updated_at)
+			VALUES(?,?,'batch',?,?,1,'T','intent','SECURE','sha256:x',300000,0,?,1,?,?)`,
+			id, name, seed.BatchID, n, store.FormatTime(rpNow.Add(time.Hour)), store.FormatTime(rpNow), store.FormatTime(rpNow))
+	}
+	ins("a", "mm-aaaaaaaaaaaa", 1)
+	if n, human := podsOf(); n != 1 || !strings.Contains(human, "live pods:      1") {
+		t.Errorf("one live pod: %v %q", n, human)
+	}
+	ins("b", "mm-bbbbbbbbbbbb", 2)
+	if n, _ := podsOf(); n != 2 {
+		t.Errorf("two live pods: %v", n)
+	}
+}
+
 // `runpod status` sums the same worker_meter rows as the API: rows first seen before settings
 // meter.billable_since carry the legacy listing uptime and are excluded.
 func TestCLI_RunPodStatusMeterAppliesBillableSince(t *testing.T) {

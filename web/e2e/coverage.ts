@@ -9,19 +9,6 @@ type Doc = { paths: Record<string, Record<string, { operationId?: string; "x-mm"
  * entry is only ever added for a page that is still to come.
  */
 export const PENDING_UI: ReadonlySet<string> = new Set<string>([
-  // EARS-W2 (lane ears-web-diction) adds the karaoke view on /tracks/:id and the /diction page (m5b-ears C345); it removes these four.
-  "get_track_diction",
-  "set_diction_marks",
-  "get_diction_lexicon",
-  "update_lexicon_entry",
-  // DESK-W1 (lane desk-web) adds the Desk pages /desk and /desk/plans/:id and the "Open in the Desk" action on /tracks/:id
-  // (m5b-desk C363); it removes these six.
-  "list_plans",
-  "get_plan",
-  "check_abc",
-  "create_plan_from_take",
-  "edit_plan",
-  "set_plan_verdict",
   // DESK-W2 (lane desk-web) adds the audition player and the Audition button on /desk/plans/:id (m5b-desk C363); it removes these two.
   "create_plan_audition",
   "get_plan_audition",
@@ -30,8 +17,6 @@ export const PENDING_UI: ReadonlySet<string> = new Set<string>([
   "list_mandates",
   "get_mandate",
   "revoke_mandate",
-  // EARS-W2 also adds the "Create draft from transcript" button of the reference panel on /tracks/:id (m5b-ears C343.2, C347.5); it removes this one.
-  "recover_recipe",
   // M6N-W1 (lane loop-web-a) adds the /critics page (m6n-night C388.1, spec m6n-critics.spec.ts); it removes this one.
   "get_critic_bench",
   // M6N-W2 (lane loop-web-b) adds the /morning and /morning/:id pages: the player's crate mode, blind rating, the reveal and the settings

@@ -105,7 +105,7 @@ var EarsModes = []ModeSpec{
 	{Mode: ModeAnalyze, Operator: OpAnalyze, Seeds: SeedsParentOnly, Parent: "none", Engines: []string{EngineYuE2}},
 }
 
-// Spec returns the row of a mode (M3 table first, then the E2, M5 and Ears rows).
+// Spec returns the row of a mode (M3 table first, then the E2, M5, Ears and Desk rows).
 func Spec(mode string) (ModeSpec, bool) {
 	for _, m := range Modes {
 		if m.Mode == mode {
@@ -123,6 +123,11 @@ func Spec(mode string) (ModeSpec, bool) {
 		}
 	}
 	for _, m := range EarsModes {
+		if m.Mode == mode {
+			return m, true
+		}
+	}
+	for _, m := range DeskModes {
 		if m.Mode == mode {
 			return m, true
 		}

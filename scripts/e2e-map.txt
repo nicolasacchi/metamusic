@@ -24,7 +24,7 @@ web/src/lib/components/Library*	m1-library
 web/src/lib/components/TrackTable.svelte	m1-library
 web/src/lib/components/Pager.svelte	m1-library
 web/src/lib/libraryQuery.ts	m1-library
-web/src/routes/Track.svelte	m1-track t1-transforms m5-songpr m5-heat m5-voice m5-voice-save m5-layout e2-repaint e2-reference e2-yue2-clean ears-check
+web/src/routes/Track.svelte	m1-track t1-transforms m5-songpr m5-heat m5-voice m5-voice-save m5-layout e2-repaint e2-reference e2-yue2-clean ears-check ears-diction ears-recover
 web/src/lib/components/TrackEngineActions.svelte	e2-repaint e2-reference e2-yue2-clean e2-layout
 web/src/lib/components/Track*	m1-track
 web/src/lib/components/Player*	m1-player
@@ -50,6 +50,11 @@ web/src/lib/components/TierBPanel.svelte	ears-check m2b-ears
 web/src/lib/components/AnalyzeButton.svelte	ears-check
 web/src/lib/tierbView.ts	ears-check
 web/src/lib/estimateTierB.ts	ears-check m3-variant
+web/src/lib/components/KaraokeLyrics.svelte	ears-diction
+web/src/lib/karaoke.ts	ears-diction
+web/src/lib/dictionApi.ts	ears-diction ears-recover
+web/src/routes/Diction.svelte	ears-diction
+web/src/lib/components/RecipeUnknownPanel.svelte	ears-recover m2c-reference
 web/src/routes/Playlist*.svelte	m2a-playlists
 web/src/lib/components/Playlist*	m2a-playlists
 web/src/lib/components/AddToPlaylist.svelte	m2a-playlists
@@ -307,3 +312,11 @@ internal/engineadopt/*	e2-engine-picker e2-engines
 #internal/enginetrial/*	e2-trial
 #internal/suites/*	e2-suite
 # END E2-I1
+# DESK-W1 (the Desk pages)
+web/src/routes/Desk.svelte	desk-w1
+web/src/routes/DeskPlan.svelte	desk-w1
+web/src/lib/components/ScoreView.svelte	desk-w1
+web/src/lib/components/BarEditor.svelte	desk-w1
+web/src/lib/components/OpenInDesk.svelte	desk-w1
+web/src/lib/abcRender.ts	desk-w1
+web/src/lib/desk*.ts	desk-w1

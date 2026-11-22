@@ -80,11 +80,25 @@ func ScriptAnalyzeLyrics(sha, lyrics string) {
 	analyzeScript.BySHA[sha] = lyrics
 }
 
+// SetAnalyzeDefaultLyrics makes the simulated analyze kind hear lyrics in every file that ScriptAnalyzeLyrics did not script. The e2e
+// rig sets it (its reference takes are synthetic masters whose digests the rig does not know in advance); tests leave it empty, so
+// an unscripted file stays one with no sung line.
+func SetAnalyzeDefaultLyrics(lyrics string) {
+	analyzeMu.Lock()
+	defer analyzeMu.Unlock()
+	analyzeDefault = lyrics
+}
+
+var analyzeDefault string
+
 // AnalyzeHook is the SimKindHook of the "analyze" kind.
 func AnalyzeHook(_ context.Context, _ *SimWorker, in provider.WorkerInput) (SimKindResult, error) {
 	src := in.Inputs[provider.InputSrcAudio]
 	analyzeMu.RLock()
-	lyrics, _ := analyzeScript.Lyrics(src.SHA256)
+	lyrics, ok := analyzeScript.Lyrics(src.SHA256)
+	if !ok {
+		lyrics = analyzeDefault
+	}
 	analyzeMu.RUnlock()
 	o := tierbtest.Opts{Transcribe: in.Ears != nil && slices.Contains(in.Ears.Stages, "transcribe")}
 	if in.Ears != nil && in.Ears.Lang != "" {

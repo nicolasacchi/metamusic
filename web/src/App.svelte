@@ -39,6 +39,7 @@
   import Sounds from "./routes/Sounds.svelte";
   import Draft from "./routes/Draft.svelte";
   import Import from "./routes/Import.svelte";
+  import Diction from "./routes/Diction.svelte";
   import Settings from "./routes/Settings.svelte";
   import DraftNew from "./routes/DraftNew.svelte";
   import DraftUpload from "./routes/DraftUpload.svelte";
@@ -71,6 +72,8 @@
   import Jobs from "./routes/Jobs.svelte";
   import Transforms from "./routes/Transforms.svelte";
   import TransformScore from "./routes/TransformScore.svelte";
+  import Desk from "./routes/Desk.svelte";
+  import DeskPlan from "./routes/DeskPlan.svelte";
   import Engines from "./routes/Engines.svelte";
   import Job from "./routes/Job.svelte";
   import Lineage from "./routes/Lineage.svelte";
@@ -365,6 +368,14 @@
       {#key $router.query.track_id ?? ""}
         <TransformScore trackId={$router.query.track_id ?? ""} />
       {/key}
+    {:else if $router.route?.name === "desk"}
+      {#key JSON.stringify($router.query)}
+        <Desk query={$router.query} />
+      {/key}
+    {:else if $router.route?.name === "plan"}
+      {#key $router.params.id}
+        <DeskPlan id={$router.params.id ?? ""} navigate={router.navigate} />
+      {/key}
     {:else if $router.route?.name === "engines"}
       <Engines />
     {:else if $router.route?.name === "job"}
@@ -387,6 +398,8 @@
       <SecureGate><HumanSubsonic /></SecureGate>
     {:else if $router.route?.name === "import"}
       <Import />
+    {:else if $router.route?.name === "diction"}
+      <Diction />
     {:else if $router.route?.name === "settings"}
       <Settings />
     {:else}
