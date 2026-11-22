@@ -104,7 +104,11 @@ import (
 // EARS-G2 (M5b C340.1, lane ears-analyze): estimate_generation's item gains the mode analyze and track_ids, and the warning code list
 // names no_lyrics and lossy_master. Re-baselined 117931 -> 118071 (measured 117971, +140 over 117831, +100 headroom); the Ears track's
 // 1 200-byte share has 299 bytes spent (4 + 155 + 140).
-const toolsCeilingBytes = 118071
+//
+// DESK-M1 (M5b C360.2, lane desk-gen): estimate_generation's item gains the mode render_plan and the nested desk object (DeskItemIn:
+// plan_ids, and the plan_seeds fields n_seeds, seeds and cot that DESK-M2 reads). Re-baselined 118071 -> 118756 (measured 118656,
+// +685 over 117971, +100 headroom); the Desk track's 1 000-byte share of the program budget has 685 bytes spent.
+const toolsCeilingBytes = 118756
 
 // TestToolsList_Ceiling: tools/list stays within the absolute ceiling. The
 // measured size at the M2a-B4a contract freeze is recorded in its commit message.

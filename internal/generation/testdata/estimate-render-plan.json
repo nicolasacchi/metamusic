@@ -1,0 +1,49 @@
+{
+  "Takes": [
+    {
+      "Seed": 7001,
+      "RequestID": "fx-luna-s7001",
+      "Title": "Luna Park · plan s7001",
+      "Operator": "render_plan",
+      "Parent": "01900000-0000-7000-8000-000000000101",
+      "ExpectedAudioS": 30,
+      "TimeoutS": 140,
+      "ExpectedS": 47,
+      "ExpectedMicro": 9009,
+      "MaxMicro": 68043,
+      "Request": {
+        "abc": "X:1\nT:desk\nM:4/4\nL:1/8\nQ:1/4=120\nK:C\nCDEF|GABc|cBAG|FEDC|]\n",
+        "cot": "full",
+        "id": "fx-luna-s7001",
+        "lyrics": "[Verse 1]\nla la luna\n[Chorus]\nsing it loud\n[Outro]\nfade away",
+        "seed": 7001,
+        "style": "Dream pop, 120 bpm, warm synth, female vocal"
+      }
+    },
+    {
+      "Seed": 7002,
+      "RequestID": "fx-luna-s7002",
+      "Title": "Luna Park · plan s7002",
+      "Operator": "render_plan",
+      "Parent": "01900000-0000-7000-8000-000000000101",
+      "ExpectedAudioS": 30,
+      "TimeoutS": 140,
+      "ExpectedS": 47,
+      "ExpectedMicro": 9009,
+      "MaxMicro": 68043,
+      "Request": {
+        "abc": "X:1\nT:desk\nM:4/4\nL:1/8\nQ:1/4=120\nK:C\nCDEF|GABc|cBAG|FEDC|]\n",
+        "cot": "full",
+        "id": "fx-luna-s7002",
+        "lyrics": "[Verse 1]\nla la luna\n[Chorus]\nsing it loud\n[Outro]\nfade away",
+        "seed": 7002,
+        "style": "Dream pop, 120 bpm, warm synth, female vocal"
+      }
+    }
+  ],
+  "Expected": 56352,
+  "Max": 136086,
+  "Ceiling": 272172,
+  "Count": 2,
+  "RequiresApproval": false
+}

@@ -112,6 +112,9 @@ func (p *planner) planTake(b base, op string, sp seedPlan, nSeeds int) error {
 	}
 	t.Title = lineage.DefaultTitle(lineage.TitleIn{Explicit: explicit, Variant: isVariant(b.mode), ParentTitle: parentTitle,
 		FromDraft: b.draft != nil, Label: label, HasMother: b.parent != nil, RequestID: id, Seed: sp.seed})
+	if b.plan != nil {
+		p.finishPlanTake(b, t) // params.plan_id, the plan's title and warnings (expand_desk.go)
+	}
 
 	// lint: protocol and songwriting findings, then the engine's own batch rules
 	errs, warns := lineage.Lint(parsed.Canonical)
@@ -136,7 +139,7 @@ func (p *planner) planTake(b base, op string, sp seedPlan, nSeeds int) error {
 			return fmt.Errorf("generation: expected audio of %s: %w", id, err)
 		}
 	} else {
-		t.ExpectedAudioS = secs
+		t.ExpectedAudioS = b.planFloor(secs)
 		if err := p.forceMinimum(t); err != nil {
 			return err
 		}

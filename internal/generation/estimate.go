@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
@@ -160,11 +161,16 @@ func (s *Service) estimate(ctx context.Context, p auth.Principal, in EstimateIn,
 	if total > MaxTakes {
 		return Estimate{}, tooLarge(total, 0)
 	}
-	if err := s.checkMothers(ctx, in.Items); err != nil {
+	plans, err := s.resolvePlans(ctx, s.o.Store.R, in.Items) // render_plan: the Desk plans; nil, and no read, for any other estimate
+	if err != nil {
+		return Estimate{}, err
+	}
+	planMothers := deskMothers(in.Items, plans) // a plan's base take is the mother of its render
+	if err := s.checkMothers(ctx, append(slices.Clone(in.Items), planMothers...)); err != nil {
 		return Estimate{}, err
 	}
 	var parents []string
-	for _, it := range in.Items {
+	for _, it := range append(slices.Clone(in.Items), planMothers...) {
 		parents = append(parents, mothers(it)...)
 	}
 	if err := s.gateBacklog(ctx, s.o.Store.R, p, parents); err != nil {
@@ -172,7 +178,7 @@ func (s *Service) estimate(ctx context.Context, p auth.Principal, in EstimateIn,
 	}
 	pl := &planner{s: s, ctx: ctx, q: s.o.Store.R, eng: eng, backend: st.Backend, engName: name, ace: name != DefaultEngine, trial: in.TrialID,
 		ids: map[string]bool{}, planned: map[string][]int64{}, renders: map[string]int{}, tracks: map[string]trackInfo{}, drafts: map[string]draftInfo{},
-		reused: map[string]bool{}, refs: map[string]library.TrackRef{}, e2: map[int]*takeE2{}, patches: patches, canary: canary}
+		reused: map[string]bool{}, refs: map[string]library.TrackRef{}, e2: map[int]*takeE2{}, patches: patches, canary: canary, plans: plans}
 	if err := pl.loadInFlight(); err != nil {
 		return Estimate{}, err
 	}
@@ -236,7 +242,7 @@ func (s *Service) estimate(ctx context.Context, p auth.Principal, in EstimateIn,
 	}
 	daily := spend.PrincipalDaily(p, tok, caps)
 	fit := budgetFit(u, caps, daily, bq.CeilingMicro, bq.MaxMicro)
-	need := spend.NeedsApproval(p, via, len(pl.takes), bq.CeilingMicro, tok, caps)
+	need := deskRenderNeed(p, via, spend.NeedsApproval(p, via, len(pl.takes), bq.CeilingMicro, tok, caps), anyPlanRender(pl.takes))
 	cover, err := s.coverEstimate(ctx, p, in, name, pl.takes, bq.CeilingMicro, preview) // caps were evaluated first: a mandate never raises one
 	if err != nil {
 		return Estimate{}, err

@@ -4589,6 +4589,22 @@ export interface components {
             decision: "accept" | "reject";
             note?: string;
         };
+        DeskItemIn: {
+            /**
+             * @description plan_seeds only
+             * @enum {string}
+             */
+            cot?: "full" | "melody";
+            /**
+             * Format: int64
+             * @description plan_seeds only
+             */
+            n_seeds?: number;
+            /** @description render_plan: the plans whose score is rendered (1..10). Each plan renders its own seed plus n_seeds-1 new ones; the base take of a plan is the mother of its takes */
+            plan_ids?: string[];
+            /** @description plan_seeds only */
+            seeds?: number[];
+        };
         Device: {
             created_at: string;
             expires_at: string;
@@ -5684,6 +5700,8 @@ export interface components {
             severity: string;
         };
         ItemIn: {
+            /** @description render_plan: the Desk plans to render (the Desk's own modes only; any other mode refuses it) */
+            desk?: components["schemas"]["DeskItemIn"];
             /** @description from_draft: the drafts to render */
             draft_ids?: string[];
             edit?: components["schemas"]["EditIn"];
@@ -5693,7 +5711,7 @@ export interface components {
              * @description How the take list is built; see the modes table
              * @enum {string}
              */
-            mode: "new_seed" | "same_seed_edit" | "lyric_edit" | "style_edit" | "from_draft" | "compose_new" | "from_template" | "song_pr" | "port" | "extend" | "repaint" | "reference" | "complete" | "stems" | "cover" | "analyze";
+            mode: "new_seed" | "same_seed_edit" | "lyric_edit" | "style_edit" | "from_draft" | "compose_new" | "from_template" | "song_pr" | "port" | "extend" | "repaint" | "reference" | "complete" | "stems" | "cover" | "render_plan" | "analyze";
             /**
              * Format: int64
              * @description Seeds per base recipe (default 1)
