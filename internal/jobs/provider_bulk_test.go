@@ -88,6 +88,40 @@ func TestArmPods_RequiresProbe(t *testing.T) {
 	}
 }
 
+// A re-arm of an armed backend must not move the window start (changed_at): the 8 h maximum counts from the first arming.
+func TestArmPods_ReArmKeepsTheWindowStart(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	a := r.podAdmin(provider.BackendFakePod, false)
+	yes, no := true, false
+	arm := func(v *bool, why string) {
+		t.Helper()
+		if _, err := a.Update(t.Context(), humanP, UpdateIn{Armed: v, Reason: why, Backend: provider.BackendFakePod}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	at := func() string {
+		return r.str(`SELECT changed_at FROM provider_state WHERE backend = ?`, provider.BackendFakePod)
+	}
+	arm(&yes, "first")
+	first := at()
+	r.clk.Advance(7 * time.Hour)
+	arm(&yes, "again")
+	if got := at(); got != first {
+		t.Errorf("re-arm moved changed_at from %s to %s", first, got)
+	}
+	arm(&no, "off")
+	if got := at(); got == first {
+		t.Error("a disarm kept the old changed_at")
+	}
+	r.clk.Advance(time.Hour)
+	off := at()
+	arm(&yes, "new window")
+	if got := at(); got == off {
+		t.Error("arming a disarmed backend kept the old changed_at")
+	}
+}
+
 func TestArmPods_ProbeFlagChangesNothingElsewhere(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)

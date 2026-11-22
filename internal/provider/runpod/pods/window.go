@@ -24,6 +24,12 @@ func (l *Lifecycle) windows(ctx context.Context, st provider.State) error {
 	}
 	reason := ""
 	if l.windowOver(st) {
+		// the window end is derived from the arming time, which a disarm replaces: disarm only once no pod lives, so a stop that failed
+		// is still retried against the window (a live pod would otherwise outlive the approved maximum)
+		live, err := AllLiveRows(ctx, l.o.Store.R)
+		if err != nil || len(live) > 0 {
+			return err
+		}
 		reason = "window_ended"
 	} else {
 		busy, last, err := l.activity(ctx)

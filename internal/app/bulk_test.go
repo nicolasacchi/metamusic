@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -76,10 +77,13 @@ func TestApp_PodBackendOffIsInert(t *testing.T) {
 			// the loops that do exist run for a moment: nothing is written to the pod tables and no money moves
 			ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 			defer cancel()
+			var wg sync.WaitGroup
 			for _, l := range s.Loops {
-				go l.Run(ctx)
+				wg.Add(1)
+				go func() { defer wg.Done(); l.Run(ctx) }()
 			}
 			<-ctx.Done()
+			wg.Wait() // no loop may touch the store after the assertions or the cleanup
 			if n := podTables(t, e); n != 0 {
 				t.Errorf("pod tables hold %d rows after the loops ran", n)
 			}

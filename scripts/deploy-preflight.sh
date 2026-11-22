@@ -58,7 +58,7 @@ if [ "$pods" -gt 0 ]; then
     exit 0
   fi
   echo "deploy-preflight: $pods live pod(s) at RunPod; a deploy would strand billed pods." >&2
-  echo "deploy-preflight: disarm runpod-pod, wait until 'runpod status --backend runpod-pod' shows none, deploy, then arm (or --force)." >&2
+  echo "deploy-preflight: disarm runpod-pod, wait until 'runpod status' shows none, deploy, then arm (or --force)." >&2
   exit 1
 fi
 echo "deploy-preflight: no live attempts, no live pods"

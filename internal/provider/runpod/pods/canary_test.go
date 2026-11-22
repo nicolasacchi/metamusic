@@ -17,7 +17,9 @@ const canaryBatch = "01900000-0000-7000-8000-00000000b0c1"
 func newCanaryRig(t *testing.T) *lrig {
 	t.Helper()
 	r := newLRig(t)
+	r.lquote = `{"pod":{"canary":1}}`
 	r.lbatch(canaryBatch, "est-canary", 1, 1_000_000)
+	r.lquote = ""
 	r.batchID = canaryBatch
 	r.exec(`UPDATE batches SET state = 'finished', finished_at = ? WHERE id = ?`, "2026-11-21T00:00:00.000Z", rigBatch2)
 	return r

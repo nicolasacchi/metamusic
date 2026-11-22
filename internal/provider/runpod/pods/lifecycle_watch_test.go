@@ -3,6 +3,7 @@ package pods_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -480,6 +481,60 @@ func TestReconcilePods_SettlesOverheadAndExcess(t *testing.T) {
 	}
 }
 
+// settleExec settles the attempt the way the runner does: F(execution_ms) as reason "execution".
+func (r *lrig) settleExec(att string, ms int64) {
+	r.t.Helper()
+	job := r.str(`SELECT job_id FROM job_attempts WHERE id = ?`, att)
+	err := r.sp.RunTx(context.Background(), func(tx *sql.Tx) error {
+		_, err := r.sp.SettleAttempt(context.Background(), tx, spend.AttemptSettle{BatchID: r.batchID, JobID: job, AttemptID: att, PrincipalID: "human:alice",
+			Basis: spend.BasisMeasured, ExecutionMS: &ms, PricePPH: 300000, Lease: store.LeaseFence{Owner: "rig", Now: r.clk.Now()}})
+		return err
+	})
+	if err != nil {
+		r.t.Fatal(err)
+	}
+}
+
+// A healthy batch whose executions are not whole seconds settles F(ms) per take and F(life - sum of ceil seconds) as overhead; that is
+// short of F(life) by rounding only, which must not be an excess nor a trip.
+func TestReconcilePods_FractionalExecutionsAreNoExcess(t *testing.T) {
+	t.Parallel()
+	r := newLRig(t)
+	a1 := r.queue()
+	a2 := r.queue()
+	r.walkToReady()
+	if noTake(decodeResp(t, r.agent(1, idle()))) {
+		t.Fatal("no take")
+	}
+	r.step(1500 * time.Millisecond)
+	if noTake(decodeResp(t, r.agent(1, idle().with("done", done(a1, "ok", 1500))))) { // the done poll hands the next take
+		t.Fatal("no second take")
+	}
+	r.settleExec(a1, 1500)
+	r.step(99700 * time.Millisecond)
+	r.agent(1, idle().with("done", done(a2, "ok", 99700)))
+	r.settleExec(a2, 99700)
+	r.endJobs()
+	r.tick()
+	r.step(61 * time.Second)
+	r.step(10 * time.Second)
+	if row := r.row(r.batchID, 1, 1); row.State != pods.StateTerminated {
+		t.Fatalf("pod %s", row.State)
+	}
+	r.finish()
+	r.tick()
+	// (the rig's tiny execution pot makes the takes' own excess rows; the pod excess is the batch-level row, which has no job)
+	if got := r.count(`SELECT COUNT(*) FROM ledger WHERE batch_id = ? AND kind = 'settle' AND reason = 'excess' AND job_id IS NULL`, r.batchID); got != 0 {
+		t.Errorf("%d batch-level excess rows for a healthy batch", got)
+	}
+	if tr := r.tripped(); len(tr) != 0 {
+		t.Errorf("trips %v", tr)
+	}
+	if r.count(`SELECT COUNT(*) FROM pods WHERE batch_id = ? AND settled = 1`, r.batchID) != 1 {
+		t.Error("the pod is not marked settled")
+	}
+}
+
 func TestReconcilePods_SettlesExcessWhenPotIsShort(t *testing.T) {
 	t.Parallel()
 	r := newLRig(t)
@@ -549,6 +604,40 @@ func TestReconcilePods_AutoDisarmWindow(t *testing.T) {
 	// armed is false now: no more disarms, and no pod is created
 	r.step(time.Minute)
 	if len(r.disarms) != 1 {
+		t.Errorf("disarms %v", r.disarms)
+	}
+}
+
+func TestReconcilePods_WindowEndRetriesAFailedStop(t *testing.T) {
+	t.Parallel()
+	r := newLRig(t)
+	r.step(7*time.Hour + 20*time.Minute)
+	for range 10 {
+		r.queue()
+	}
+	r.walkToReady()
+	r.api.mu.Lock()
+	r.api.deleteErr = errors.New("api down")
+	r.api.mu.Unlock()
+	for end := r.clk.Now().Add(50 * time.Minute); r.clk.Now().Before(end); { // past the end of the window, and every stop fails
+		r.clk.Advance(60 * time.Second)
+		r.agent(1, state("busy"))
+		_ = r.l.Tick(context.Background()) // the failed stop is an error of the pass
+	}
+	if len(r.disarms) != 0 {
+		t.Fatalf("disarmed with a live pod: %v", r.disarms)
+	}
+	r.api.mu.Lock()
+	r.api.deleteErr = nil
+	r.api.mu.Unlock()
+	r.quiet(10 * time.Minute)
+	row := r.row(r.batchID, 1, 1)
+	if row.ErrorCode != "WINDOW_ENDED" || (row.State != pods.StateTerminating && row.State != pods.StateTerminated) {
+		t.Fatalf("the pod outlived the window: %s %q", row.State, row.ErrorCode)
+	}
+	r.step(time.Minute)
+	r.step(time.Minute)
+	if len(r.disarms) != 1 || r.disarms[0] != "window_ended" {
 		t.Errorf("disarms %v", r.disarms)
 	}
 }

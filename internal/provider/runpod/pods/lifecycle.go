@@ -311,7 +311,6 @@ type batchInfo struct {
 	totalS    int // Σ timeout_s of the batch's takes
 	maxS      int
 	canary    bool
-	nTakes    int
 	createdAt time.Time
 }
 
@@ -321,16 +320,17 @@ func (l *Lifecycle) batchOf(ctx context.Context, id string) (batchInfo, error) {
 	var price int64
 	var created string
 	var canary sql.NullInt64
+	var nTakes int
 	err := l.o.Store.R.QueryRowContext(ctx, `SELECT b.price_pph_micro_usd, b.n_takes, b.created_at, json_extract(e.quote_json, '$.pod.canary')
-		FROM batches b JOIN estimates e ON e.id = b.estimate_id WHERE b.id = ?`, id).Scan(&price, &b.nTakes, &created, &canary)
+		FROM batches b JOIN estimates e ON e.id = b.estimate_id WHERE b.id = ?`, id).Scan(&price, &nTakes, &created, &canary)
 	if err != nil {
 		return b, err
 	}
 	b.price = money.MicroUSD(price)
 	b.createdAt, _ = store.ParseTime(created)
-	// A pod batch of one take is the self-termination canary: ordinary pod estimates need MM_POD_MIN_TAKES >= 10 takes, so only the canary
-	// estimate (C399.10) can be that small. The quote may also say so (quoteDoc.Pod, BULK-P6).
-	b.canary = (canary.Valid && canary.Int64 == 1) || b.nTakes == 1
+	// The canary is only what the server-written quote says it is (quote_json.$.pod.canary = 1, BULK-P6); a batch's size never makes it one,
+	// because a canary skips the verified-canary gate and gets a throwaway poll key.
+	b.canary = canary.Valid && canary.Int64 == 1
 	err = l.o.Store.R.QueryRowContext(ctx, `SELECT COALESCE(SUM(timeout_s), 0), COALESCE(MAX(timeout_s), 0) FROM jobs WHERE batch_id = ?`, id).Scan(&b.totalS, &b.maxS)
 	return b, err
 }

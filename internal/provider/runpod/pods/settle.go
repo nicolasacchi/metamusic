@@ -11,7 +11,10 @@ import (
 // settle settles the pod time of every finished batch whose pods are all terminated (C393.5). The runner's FinishBatch already settled
 // min(F(overhead seconds), pot) through the meter; what remains is the lifetime beyond it:
 //
-//	excess = F(Σ lifetime_s) − Σ settle rows of the batch
+//	excess = F(Σ lifetime_s) − Σ settle rows of the batch − rounding gap
+//
+// The takes settle at F(execution_ms) while the meter took ceil(execution_ms / 1000) seconds off the lifetime, so the settled total of a
+// healthy batch falls short of F(lifetime) by the rounding gap Σ(F(ceil seconds) − F(ms)); that gap is not an excess.
 //
 // When positive it is written as a batch-level `settle excess` and trips pod_excess (the pot did not cover the pods). The pods are marked
 // settled in the same transaction, so a batch settles once.
@@ -55,7 +58,11 @@ func (l *Lifecycle) settleBatch(ctx context.Context, batchID string) error {
 	if err := l.o.Store.R.QueryRowContext(ctx, `SELECT COALESCE(SUM(micro_usd), 0) FROM ledger WHERE batch_id = ? AND kind = 'settle'`, batchID).Scan(&settled); err != nil {
 		return err
 	}
-	excess := money.ForSeconds(life, money.MicroUSD(price)) - money.MicroUSD(settled)
+	gap, err := l.roundingGap(ctx, batchID, money.MicroUSD(price))
+	if err != nil {
+		return err
+	}
+	excess := money.ForSeconds(life, money.MicroUSD(price)) - money.MicroUSD(settled) - gap
 	if excess > 0 {
 		// the trip first: if it fails the pods stay unsettled and the next tick tries again; it is one open row per backend
 		if err := l.trip(ctx, batchID, TripExcess, map[string]any{"excess_micro_usd": int64(excess), "lifetime_s": life}); err != nil {
@@ -81,4 +88,24 @@ func (l *Lifecycle) settleBatch(ctx context.Context, batchID string) error {
 		l.audit(ctx, OpPodSettle, map[string]any{"batch": batchID, "lifetime_s": life, "excess_micro_usd": int64(max(excess, 0))}, max(excess, 0), false)
 	}
 	return err
+}
+
+// roundingGap is Σ(F(ceil(execution_ms / 1000) s) − F(execution_ms)) over the pod-handed takes the meter counted.
+func (l *Lifecycle) roundingGap(ctx context.Context, batchID string, price money.MicroUSD) (money.MicroUSD, error) {
+	rows, err := l.o.Store.R.QueryContext(ctx, `SELECT execution_ms FROM pod_assignments WHERE batch_id = ? AND pod_id IS NOT NULL AND execution_ms IS NOT NULL`, batchID)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	var gap money.MicroUSD
+	for rows.Next() {
+		var ms int64
+		if err := rows.Scan(&ms); err != nil {
+			return 0, err
+		}
+		if d := money.ForSeconds((ms+999)/1000, price) - money.ForMillis(ms, price); d > 0 {
+			gap += d
+		}
+	}
+	return gap, rows.Err()
 }

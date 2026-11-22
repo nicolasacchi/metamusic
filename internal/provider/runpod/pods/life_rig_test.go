@@ -1,6 +1,7 @@
 package pods_test
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -183,6 +184,7 @@ type lrig struct {
 	opts    pods.LifecycleOptions
 	poller  http.Handler
 	batchID string
+	lquote  string // quote_json of the next lbatch estimate (default {})
 }
 
 const (
@@ -241,11 +243,12 @@ func newLRig(t *testing.T, mod ...func(*pods.LifecycleOptions)) *lrig {
 func (r *lrig) lbatch(id, est string, nTakes int, ceiling int64) {
 	r.t.Helper()
 	ts := store.FormatTime(rigNow)
+	quote := cmp.Or(r.lquote, "{}")
 	r.exec(`INSERT INTO estimates(id,principal_id,principal_kind,engine,backend,items_json,recipe_hashes,n_takes,quote_json,
 		expected_micro_usd,max_micro_usd,retry_allowance_micro_usd,ceiling_micro_usd,price_pph_micro_usd,workers_max,idle_s,
 		requires_approval,approval_reasons,token_hash,created_at,expires_at,consumed_at,consumed_batch_id)
-		VALUES(?,'human:alice','human','yue2',?,'[]','[]',?,'{}',10,?,?,?,300000,1,120,0,'[]',?,?,?,?,?)`,
-		est, lBackend, nTakes, ceiling-1000, 1000, ceiling, "hash-"+est, ts, ts, ts, id)
+		VALUES(?,'human:alice','human','yue2',?,'[]','[]',?,?,10,?,?,?,300000,1,120,0,'[]',?,?,?,?,?)`,
+		est, lBackend, nTakes, quote, ceiling-1000, 1000, ceiling, "hash-"+est, ts, ts, ts, id)
 	r.exec(`INSERT INTO batches(id,estimate_id,principal_id,principal_kind,principal_name,via,engine,backend,n_takes,rationale,
 		expected_micro_usd,max_micro_usd,retry_allowance_micro_usd,ceiling_micro_usd,price_pph_micro_usd,attempt_overhead_s,kill_slack_s,
 		workers_max,idle_s,state,created_at) VALUES(?,?,'human:alice','human','alice','api','yue2',?,?,NULL,10,?,?,?,300000,0,15,1,120,'active',?)`,

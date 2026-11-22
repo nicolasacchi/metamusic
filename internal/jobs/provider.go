@@ -450,8 +450,10 @@ func (a *ProviderAdmin) Update(ctx context.Context, p auth.Principal, in UpdateI
 			if *in.Armed {
 				armed = 1
 			}
+			// a re-arm of an armed backend keeps changed_at: it is when the window opened (the bulk window maximum counts from it)
 			q := `INSERT INTO provider_state(backend, armed, changed_by, changed_at, reason) VALUES (?,?,?,?,?)
-				ON CONFLICT(backend) DO UPDATE SET armed = excluded.armed, changed_by = excluded.changed_by, changed_at = excluded.changed_at, reason = excluded.reason`
+				ON CONFLICT(backend) DO UPDATE SET armed = excluded.armed, changed_by = excluded.changed_by,
+				changed_at = CASE WHEN provider_state.armed = 1 AND excluded.armed = 1 THEN provider_state.changed_at ELSE excluded.changed_at END, reason = excluded.reason`
 			if _, err := tx.ExecContext(ctx, q, st.Backend, armed, p.Key(), now, reason); err != nil {
 				return fmt.Errorf("jobs: update provider state: %w", err)
 			}
