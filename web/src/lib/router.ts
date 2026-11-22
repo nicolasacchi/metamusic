@@ -79,6 +79,12 @@ export const APP_ROUTES: Route[] = [
   { pattern: "/human/subsonic", name: "human-subsonic" },
   { pattern: "/human/records/:id/publish", name: "human-record-publish" },
   { pattern: "/human/curation", name: "human-curation" },
+  { pattern: "/mandates", name: "mandates" }, // M6N-W1: the night shift's mandates (More, Make); Owner only
+  { pattern: "/mandates/:id", name: "mandate" },
+  { pattern: "/human/mandates/new", name: "human-mandate-new" }, // the secure create form
+  { pattern: "/night-shift", name: "night-shift" }, // M6N-W1: status, authority, tonight's preview, last nights, Halt
+  { pattern: "/human/night-shift", name: "human-night-shift" }, // the secure settings form
+  { pattern: "/critics", name: "critics" }, // M6N-W1: the Critic Bench (Judge)
 ];
 
 const SERVER_PREFIXES = ["/api", "/human/api", "/start", "/pair", "/auth", "/mcp", "/healthz", "/__e2e", "/.well-known", "/media", "/icons", "/manifest.webmanifest", "/sw.js", "/rest"];

@@ -46,6 +46,7 @@ const TAB_OF: Record<string, Tab> = {
   duel: "judge",
   ladder: "judge",
   compare: "judge",
+  critics: "judge",
   more: "more",
   // Make
   board: "more",
@@ -66,6 +67,11 @@ const TAB_OF: Record<string, Tab> = {
   batch: "more",
   "human-generate": "more",
   "human-confirm": "more",
+  mandates: "more",
+  mandate: "more",
+  "night-shift": "more",
+  "human-mandate-new": "more",
+  "human-night-shift": "more",
   // Library tools, Settings
   export: "more",
   import: "more",
@@ -124,6 +130,7 @@ export const NAV_LINKS: NavLink[] = [
   { label: "Callbacks", path: "/judge/callbacks", tab: "judge" },
   { label: "Duels", path: "/duels", tab: "judge" },
   { label: "Ladder", path: "/ladder", tab: "judge" },
+  { label: "Critics", path: "/critics", tab: "judge" },
   { label: "Board", path: "/board", tab: "more", group: "Make" },
   { label: "Backlog", path: "/backlog", tab: "more", group: "Make" },
   { label: "Jobs", path: "/jobs", tab: "more", group: "Make" },
@@ -131,6 +138,8 @@ export const NAV_LINKS: NavLink[] = [
   { label: "Render score", path: "/transforms/score", tab: "more", group: "Make" },
   { label: "Desk", path: "/desk", tab: "more", group: "Make", testid: "nav-desk" },
   { label: "Engines", path: "/engines", tab: "more", group: "Make" },
+  { label: "Mandates", path: "/mandates", tab: "more", group: "Make", testid: "nav-mandates" },
+  { label: "Night shift", path: "/night-shift", tab: "more", group: "Make", testid: "nav-night-shift" },
   { label: "Generate", path: "/human/generate", tab: "more", group: "Make", secure: true },
   { label: "Import", path: "/import", tab: "more", group: "Library tools" },
   { label: "Export", path: "/export", tab: "more", group: "Library tools" },
@@ -179,6 +188,8 @@ export function subActive(l: NavLink, routeName: string | null | undefined): boo
       return routeName === "duels" || routeName === "duel";
     case "/ladder":
       return routeName === "ladder" || routeName === "compare";
+    case "/critics":
+      return routeName === "critics";
     default:
       return false;
   }
@@ -187,7 +198,7 @@ export function subActive(l: NavLink, routeName: string | null | undefined): boo
 /** Routes that are only reached from a page (an id, a form, query arguments), not from a tab. */
 export const CONTEXTUAL_ROUTES = new Set([
   "track", "muse", "song", "draft-new", "draft-upload", "draft", "playlist", "duel", "compare", "job", "batch", "lineage", "human-confirm",
-  "record", "crate", "human-record-publish", "callback", "patch", "plan",
+  "record", "crate", "human-record-publish", "callback", "patch", "plan", "mandate", "human-mandate-new", "human-night-shift",
 ]);
 
 const TITLES: Record<string, string> = {
@@ -214,6 +225,12 @@ const TITLES: Record<string, string> = {
   duel: "Duel",
   ladder: "Ladder",
   compare: "Compare",
+  critics: "Critics",
+  mandates: "Mandates",
+  mandate: "Mandate",
+  "human-mandate-new": "New mandate",
+  "night-shift": "Night shift",
+  "human-night-shift": "Night shift settings",
   more: "More",
   board: "Board",
   muse: "Muse",
@@ -258,7 +275,7 @@ export function titleFor(routeName: string | null | undefined): string {
 
 /** A route that is the root of its tab (no Back button on the phone top bar). */
 export function isTabRoot(routeName: string | null | undefined): boolean {
-  return !routeName || ["new", "home", "sounds", "atlas", "records", "crates", "playlists", "queue", "judge", "callbacks", "duels", "ladder", "more"].includes(routeName);
+  return !routeName || ["new", "home", "sounds", "atlas", "records", "crates", "playlists", "queue", "judge", "callbacks", "duels", "ladder", "critics", "more"].includes(routeName);
 }
 
 /**
@@ -289,6 +306,7 @@ export const ROUTE_OPS: Record<string, string | null> = {
   duel: "get_duel",
   ladder: "get_ladder",
   compare: "compare_tracks",
+  critics: "get_critic_bench",
   more: null,
   board: "get_muse_board",
   muse: "get_muse",
@@ -308,6 +326,11 @@ export const ROUTE_OPS: Record<string, string | null> = {
   batch: "get_batch",
   "human-generate": "estimate_generation",
   "human-confirm": "approve_batch",
+  mandates: "list_mandates",
+  mandate: "get_mandate",
+  "human-mandate-new": "create_mandate",
+  "night-shift": "get_night_shift",
+  "human-night-shift": "update_night_shift",
   export: "list_export_sources",
   import: "list_import_runs",
   offline: "get_offline_set",

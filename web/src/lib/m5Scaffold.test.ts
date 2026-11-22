@@ -38,7 +38,7 @@ describe("M5 routes and nav (C262)", () => {
     expect(tabFor("receipts")).toBe("more");
   });
   test("Callbacks is a Judge sub-view; Receipts a More row; the ids are contextual", () => {
-    expect(subLinks("judge").map((l) => l.label)).toEqual(["One by one", "Callbacks", "Duels", "Ladder"]);
+    expect(subLinks("judge").map((l) => l.label)).toEqual(["One by one", "Callbacks", "Duels", "Ladder", "Critics"]);
     const link = NAV_LINKS.find((l) => l.path === "/judge/callbacks")!;
     expect(subActive(link, "callbacks")).toBe(true);
     expect(subActive(link, "callback")).toBe(true);
