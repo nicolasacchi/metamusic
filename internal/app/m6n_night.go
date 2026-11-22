@@ -34,9 +34,10 @@ func wireNightShift(env *BuildEnv) error {
 			_, err := sv.Jobs.CancelBatch(ctx, p, batchID, reason)
 			return err
 		},
-		Now: env.Now, NewID: env.NewID,
+		Now: env.Now, NewID: env.NewID, Loc: env.Cfg.Zone(),
 	})
 	sv.NightShift = r
+	sv.Deps.NightShift = r
 	daily := r.Daily(env.Cfg.Zone())
 	env.AddLoop(Loop{Name: "night-shift", Run: daily.Loop})
 	env.AddLoop(Loop{Name: "night-shift-resume", Run: func(ctx context.Context) { r.Watch(ctx, nightResumeEvery) }})

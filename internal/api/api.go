@@ -52,6 +52,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/morning"
 	"github.com/nicolasacchi/metamusic/internal/muses"
 	"github.com/nicolasacchi/metamusic/internal/nextactions"
+	"github.com/nicolasacchi/metamusic/internal/nightshift"
 	"github.com/nicolasacchi/metamusic/internal/oidc"
 	"github.com/nicolasacchi/metamusic/internal/picks"
 	"github.com/nicolasacchi/metamusic/internal/playlists"
@@ -197,6 +198,10 @@ type Deps struct {
 	// internal/app/m6n_morning.go.
 	Morning *morning.Service
 
+	// M6N-N3 (C377): the night shift; nil makes its operations answer 503 UNAVAILABLE {component: night_shift}. Set by the build hook in
+	// internal/app/m6n_night.go.
+	NightShift *nightshift.Runner
+
 	// NewID returns a fresh identifier; nil => uuid.NewV7().String(). Tests inject a deterministic sequence.
 	NewID func() string
 }
@@ -304,6 +309,7 @@ func New(mux *http.ServeMux, d Deps) huma.API {
 	registerMandatesM6N(a, d)
 	registerBenchM6N(a, d)
 	registerMorningM6N(a, d)
+	registerNightM6N(a, d)
 	relaxResponseSchemas(a) // C308: the keys a role may not receive are optional in the response schemas
 	notFound(mux, "/api/")
 	notFound(mux, "/human/api/")

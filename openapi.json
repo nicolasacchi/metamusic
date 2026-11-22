@@ -9134,6 +9134,19 @@
         ],
         "type": "object"
       },
+      "HaltNightShiftInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "description": "Why, 1..500 characters",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
       "HeardCount": {
         "additionalProperties": false,
         "properties": {
@@ -13795,6 +13808,496 @@
         "required": [
           "duel",
           "open_total"
+        ],
+        "type": "object"
+      },
+      "NightAuthority": {
+        "additionalProperties": false,
+        "properties": {
+          "mandate": {
+            "additionalProperties": false,
+            "description": "The live mandate, else a scheduled one; null when there is none",
+            "properties": {
+              "budget_micro_usd": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "budget_usd": {
+                "type": "string"
+              },
+              "created_at": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "created_by": {
+                "$ref": "#/components/schemas/PrincipalRef"
+              },
+              "effective_state": {
+                "enum": [
+                  "scheduled",
+                  "live",
+                  "ended",
+                  "revoked"
+                ],
+                "type": "string"
+              },
+              "holder": {
+                "enum": [
+                  "night_shift"
+                ],
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "revoked": {
+                "additionalProperties": false,
+                "description": "Set once the mandate is revoked",
+                "properties": {
+                  "at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "by": {
+                    "$ref": "#/components/schemas/PrincipalRef"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "by",
+                  "at",
+                  "reason"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "scope": {
+                "$ref": "#/components/schemas/MandateScope"
+              },
+              "title": {
+                "type": "string"
+              },
+              "usage": {
+                "$ref": "#/components/schemas/MandateUsage"
+              },
+              "valid_from": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "valid_until": {
+                "format": "date-time",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "holder",
+              "title",
+              "budget_micro_usd",
+              "budget_usd",
+              "valid_from",
+              "valid_until",
+              "effective_state",
+              "scope",
+              "usage",
+              "created_by",
+              "created_at",
+              "revoked"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "reason": {
+            "description": "Why the night would spend nothing; null when a mandate is live",
+            "enum": [
+              "no_mandate",
+              "mandate_scheduled"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "mandate",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "NightDropped": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "root_track_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "root_track_id",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "NightPlan": {
+        "additionalProperties": false,
+        "properties": {
+          "dropped": {
+            "items": {
+              "$ref": "#/components/schemas/NightDropped"
+            },
+            "type": "array"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NightPlanItem"
+            },
+            "type": "array"
+          },
+          "mandate": {
+            "additionalProperties": false,
+            "description": "Null without a live mandate",
+            "properties": {
+              "covered": {
+                "type": "boolean"
+              },
+              "id": {
+                "type": "string"
+              },
+              "reasons": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "id",
+              "covered",
+              "reasons"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "night": {
+            "description": "The local date of the next night",
+            "type": "string"
+          },
+          "quote": {
+            "additionalProperties": false,
+            "description": "Null when nothing was priced",
+            "properties": {
+              "ceiling_micro_usd": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "ceiling_usd": {
+                "type": "string"
+              },
+              "expected_micro_usd": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "expected_usd": {
+                "type": "string"
+              },
+              "max_micro_usd": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "max_usd": {
+                "type": "string"
+              },
+              "takes": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "tier_b": {
+                "description": "Not reported yet: M6N-N4 makes the listening checks explicit; always false until then",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "takes",
+              "expected_micro_usd",
+              "expected_usd",
+              "max_micro_usd",
+              "max_usd",
+              "ceiling_micro_usd",
+              "ceiling_usd",
+              "tier_b"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "seed": {
+            "description": "Decimal; the same seed and library give the same plan",
+            "type": "string"
+          },
+          "trimmed": {
+            "description": "Takes cut so the mandate covers the night",
+            "items": {
+              "$ref": "#/components/schemas/NightDropped"
+            },
+            "type": "array"
+          },
+          "would_skip": {
+            "description": "The reason a night run now would spend nothing; null when it would create a batch",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "night",
+          "seed",
+          "items",
+          "dropped",
+          "trimmed",
+          "quote",
+          "mandate",
+          "would_skip"
+        ],
+        "type": "object"
+      },
+      "NightPlanItem": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "exploit",
+              "explore"
+            ],
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "parent_track_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "patch": {
+            "description": "The style a style edit would apply",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "root_track_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "root_track_id",
+          "parent_track_id",
+          "mode",
+          "patch",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "NightRun": {
+        "additionalProperties": false,
+        "properties": {
+          "batch_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ceiling_micro_usd": {
+            "description": "The batch's estimate ceiling",
+            "format": "int64",
+            "type": "integer"
+          },
+          "ceiling_usd": {
+            "type": "string"
+          },
+          "morning_crate_id": {
+            "description": "The first Morning Crate built after the night started",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "night": {
+            "description": "The local date of the night",
+            "type": "string"
+          },
+          "reason": {
+            "description": "Why a night spent nothing or ended early (skip reasons: disabled, halted, previous_running, no_mandate, mandate_scheduled, caps, over_ceiling, ...)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "settled_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "settled_usd": {
+            "type": "string"
+          },
+          "state": {
+            "description": "running and done split the stored created by whether its batch has finished",
+            "enum": [
+              "planned",
+              "running",
+              "done",
+              "skipped",
+              "halted",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "takes": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "night",
+          "state",
+          "reason",
+          "batch_id",
+          "takes",
+          "ceiling_micro_usd",
+          "ceiling_usd",
+          "settled_micro_usd",
+          "settled_usd",
+          "morning_crate_id"
+        ],
+        "type": "object"
+      },
+      "NightSettings": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "description": "Local time HH:MM (the server's configured zone)",
+            "type": "string"
+          },
+          "enabled": {
+            "description": "Off until the Owner enables it in the app",
+            "type": "boolean"
+          },
+          "explore_ppm": {
+            "description": "Share of takes that explore, parts per million, 0..500000",
+            "format": "int64",
+            "type": "integer"
+          },
+          "halted": {
+            "additionalProperties": false,
+            "description": "Set while a halt stands; enabling the shift again in the app clears it",
+            "properties": {
+              "at": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "by": {
+                "$ref": "#/components/schemas/PrincipalRef"
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "by",
+              "at",
+              "reason"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "listening_checks": {
+            "enum": [
+              "on",
+              "off"
+            ],
+            "type": "string"
+          },
+          "max_takes": {
+            "description": "Takes per night before the mandate trims it, 1..12",
+            "format": "int64",
+            "type": "integer"
+          },
+          "min_stars": {
+            "description": "The best take's Owner stars a lineage needs, 1..5",
+            "format": "int64",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updated_by": {
+            "$ref": "#/components/schemas/PrincipalRef"
+          }
+        },
+        "required": [
+          "enabled",
+          "at",
+          "max_takes",
+          "explore_ppm",
+          "min_stars",
+          "listening_checks",
+          "halted",
+          "updated_by",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "NightShift": {
+        "additionalProperties": false,
+        "properties": {
+          "authority": {
+            "$ref": "#/components/schemas/NightAuthority"
+          },
+          "next_run_at": {
+            "description": "Null while the shift is disabled or halted",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "runs": {
+            "description": "The last 14 nights, newest first",
+            "items": {
+              "$ref": "#/components/schemas/NightRun"
+            },
+            "type": "array"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/NightSettings"
+          }
+        },
+        "required": [
+          "settings",
+          "authority",
+          "next_run_at",
+          "runs"
         ],
         "type": "object"
       },
@@ -25945,6 +26448,42 @@
         ],
         "type": "object"
       },
+      "UpdateNightShiftInBody": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "description": "HH:MM local",
+            "type": "string"
+          },
+          "enabled": {
+            "description": "true needs a live mandate and clears a halt",
+            "type": "boolean"
+          },
+          "explore_ppm": {
+            "description": "0..500000",
+            "format": "int64",
+            "type": "integer"
+          },
+          "listening_checks": {
+            "enum": [
+              "on",
+              "off"
+            ],
+            "type": "string"
+          },
+          "max_takes": {
+            "description": "1..12",
+            "format": "int64",
+            "type": "integer"
+          },
+          "min_stars": {
+            "description": "1..5",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "UpdatePlaylistInBody": {
         "additionalProperties": false,
         "properties": {
@@ -32008,6 +32547,128 @@
           "mcp": "generic",
           "ui": "/",
           "human_only": false
+        }
+      }
+    },
+    "/api/night-shift": {
+      "get": {
+        "description": "The night shift's settings and halt state, the mandate it would spend under (or why it has none), when it next runs, and the last 14 nights with their takes, estimate ceiling and settled spend. A stored created night shows as running while its batch works and done after. Reads only. Owner side only.",
+        "operationId": "get_night_shift",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NightShift"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get the night shift",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/night-shift",
+          "human_only": false,
+          "owner_only": true
+        }
+      }
+    },
+    "/api/night-shift/halt": {
+      "post": {
+        "description": "Stops the night shift: records the halt, cancels the batch of a night still running, and skips every later night until the Owner enables the shift again in the app. It only reduces spend, so an agent with the write scope and the Owner's paired phone may. Idempotent: a second halt keeps the first.",
+        "operationId": "halt_night_shift",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HaltNightShiftInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NightSettings"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Halt the night shift",
+        "x-mm": {
+          "scope": "write",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/night-shift",
+          "human_only": false,
+          "owner_only": true
+        }
+      }
+    },
+    "/api/night-shift/preview": {
+      "get": {
+        "description": "Plans the coming night with the real planner (one take per lineage, exploit and explore, the mandate's scope) and prices it, trimming takes the mandate cannot cover. It claims nothing, creates no estimate or batch and spends nothing; a halted or disabled shift still shows its plan, with would_skip naming why a run now would do nothing. Owner side only.",
+        "operationId": "preview_night_shift",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NightPlan"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Preview tonight's plan and price",
+        "x-mm": {
+          "scope": "read",
+          "cost": "free",
+          "mcp": "generic",
+          "ui": "/night-shift",
+          "human_only": false,
+          "owner_only": true,
+          "rate": "heavy"
         }
       }
     },
@@ -38321,6 +38982,53 @@
           "human_only": true,
           "owner_only": true,
           "idempotency": "create"
+        }
+      }
+    },
+    "/human/api/night-shift": {
+      "put": {
+        "description": "Human only, Owner only. Sets when it runs, how many takes, the explore share, the star floor and the listening checks, and switches it on or off. Enabling needs a live mandate (409 MANDATE_REQUIRED) and clears a halt. It holds no money: the mandate alone bounds spend, and the global caps stay the ceiling. Absent fields keep their value.",
+        "operationId": "update_night_shift",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNightShiftInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NightSettings"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Change the night shift",
+        "x-mm": {
+          "scope": "generate",
+          "cost": "free",
+          "mcp": "exclude:human-only",
+          "ui": "/human/night-shift",
+          "human_only": true,
+          "owner_only": true
         }
       }
     },

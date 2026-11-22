@@ -19,6 +19,11 @@ export const PENDING_UI: ReadonlySet<string> = new Set<string>([
   "revoke_mandate",
   // M6N-W1 (lane loop-web-a) adds the /critics page (m6n-night C388.1, spec m6n-critics.spec.ts); it removes this one.
   "get_critic_bench",
+  // M6N-W1 (lane loop-web-a) adds the /night-shift page and the secure /human/night-shift form (m6n-night C388.1, spec m6n-night.spec.ts); it removes these four.
+  "get_night_shift",
+  "preview_night_shift",
+  "update_night_shift",
+  "halt_night_shift",
   // M6N-W2 (lane loop-web-b) adds the /morning and /morning/:id pages: the player's crate mode, blind rating, the reveal and the settings
   // (m6-night C384, spec m6n-morning.spec.ts); it removes these seven.
   "get_morning_crate_settings",

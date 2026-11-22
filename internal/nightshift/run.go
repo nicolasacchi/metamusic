@@ -81,6 +81,8 @@ type Options struct {
 	Cancel func(ctx context.Context, p auth.Principal, batchID, reason string) error
 	Now    func() time.Time
 	NewID  func() string
+	// Loc is the zone of the night's local day and clock time (the Daily's zone); the read side (next_run_at, the preview's night key) uses it. Nil is time.Local.
+	Loc *time.Location
 	// StaleAfter is how old a `planned` run must be before Resume takes it over (C375.2; default 10 minutes).
 	StaleAfter time.Duration
 	// AfterCreate is a test seam called between create's commit and the run's update (the crash window of C375.6).
@@ -100,6 +102,9 @@ func New(o Options) *Runner {
 	}
 	if o.NewID == nil {
 		o.NewID = func() string { return uuid.NewV7().String() }
+	}
+	if o.Loc == nil {
+		o.Loc = time.Local
 	}
 	if o.StaleAfter <= 0 {
 		o.StaleAfter = 10 * time.Minute

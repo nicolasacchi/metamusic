@@ -69,6 +69,7 @@ get_morning_crate	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
 get_morning_crate_settings	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
 get_muse	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_muse_board	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
+get_night_shift	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
 get_offline_set	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
 get_patch	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_plan	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
@@ -95,6 +96,7 @@ get_track_spectrogram	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
 get_track_tier_b	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_transform	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 get_transform_capabilities	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
+halt_night_shift	write	-	Y	OO	OO	SC	Y	Y	Y	OO	OO
 lint_recipe	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
 list_backups	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
 list_batches	read	-	Y	Y	SC	Y	Y	Y	Y	Y	SC
@@ -132,6 +134,7 @@ map_sound_term	write	-	Y	OO	OO	SC	Y	Y	Y	OO	OO
 next_duel	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
 pin_pick	write	-	Y	OO	OO	SC	Y	Y	Y	OO	OO
 ping	listen	-	Y	Y	Y	Y	Y	Y	Y	Y	Y
+preview_night_shift	read	-	Y	OO	OO	Y	Y	Y	Y	OO	OO
 propose_patch	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 propose_pick	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 propose_record	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
@@ -168,6 +171,7 @@ update_draft	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 update_lexicon_entry	write	-	Y	OO	OO	SC	Y	Y	Y	OO	OO
 update_morning_crate_settings	write	-	Y	OO	OO	SC	Y	Y	Y	OO	OO
 update_muse	write	-	Y	OO	OO	SC	Y	Y	Y	OO	OO
+update_night_shift	generate	-	Y	OO	OO	HO	HO	HO	HO	HO	HO
 update_playlist	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC
 update_provider_state	admin	-	Y	OO	OO	HO	HO	HO	HO	HO	HO
 update_record	write	-	Y	Y	SC	SC	Y	Y	Y	Y	SC

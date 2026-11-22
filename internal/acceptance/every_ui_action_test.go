@@ -170,6 +170,13 @@ var uiScript = map[string]func(s *uiState) map[string]any{
 	"revoke_mandate": func(s *uiState) map[string]any {
 		return map[string]any{"id": s.mandate, "reason": "scripted: an agent may only reduce spend"}
 	},
+	// M6N-N3: update_night_shift is human-only (the Owner in the app). Preview reads the seeded library under the seeded mandate and spends nothing;
+	// halting only stops the night, so an agent with the write scope may.
+	"get_night_shift":     func(*uiState) map[string]any { return nil },
+	"preview_night_shift": func(*uiState) map[string]any { return nil },
+	"halt_night_shift": func(*uiState) map[string]any {
+		return map[string]any{"reason": "scripted: an agent may only stop the night"}
+	},
 	// M6N-C4: the Morning Crate reads and writes an agent may do (the page /morning comes in M6N-W2). submit_morning_crate_events and
 	// reveal_morning_crate are person-only (exclude:person-only), so they are not scripted.
 	"get_morning_crate_settings":    func(*uiState) map[string]any { return nil },
@@ -377,8 +384,8 @@ var uiOrder = []string{
 	"list_engines",
 	// DESK-S1: open a take's score on the Desk, read it, edit it, judge the edit, list
 	"check_abc", "create_plan_from_take", "get_plan", "edit_plan", "set_plan_verdict", "list_plans", "create_plan_audition", "get_plan_audition",
-	// M6N-M1: the mandate reads, then the revoke (last: it ends the mandate)
-	"list_mandates", "get_mandate", "revoke_mandate",
+	// M6N-M1: the mandate reads, then the revoke (it ends the mandate); M6N-N3: the night shift reads, then the halt (last: it stops the shift)
+	"list_mandates", "get_mandate", "get_night_shift", "preview_night_shift", "revoke_mandate", "halt_night_shift",
 	// M6N-C4: the Morning Crate settings, the list and the seeded crate, then a build (last: it starts a background build)
 	"get_morning_crate_settings", "update_morning_crate_settings", "list_morning_crates", "get_morning_crate", "build_morning_crate",
 }
