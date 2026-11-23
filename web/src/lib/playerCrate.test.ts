@@ -119,6 +119,18 @@ describe("player crate mode", () => {
     expect(el.src).toBe("/media/side1.flac");
   });
 
+  test("pausing commits a buffered lone marker", async () => {
+    const { p, el, sent, flush } = setup();
+    p.playCrate(view(), 0, 0);
+    await flush();
+    el.currentTime = 30;
+    el.emit("timeupdate");
+    p.crate!.press("previoustrack");
+    expect(sent.filter((e) => e.kind === "marker")).toEqual([]);
+    el.emit("pause");
+    expect(sent.filter((e) => e.kind === "marker").length).toBe(1);
+  });
+
   test("on-screen next and previous never mark; previous goes to the chapter start", async () => {
     const { p, el, sent, flush } = setup();
     p.playCrate(view(), 0, 0);

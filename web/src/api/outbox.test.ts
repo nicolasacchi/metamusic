@@ -290,8 +290,28 @@ describe("postMorning", () => {
   });
 
   test("never-acceptable answers drop, server trouble retries", async () => {
-    for (const s of [400, 403, 404, 409, 413, 422]) expect(await postMorning([e], api(s, { code: "X", message: "m" }))).toEqual({ kind: "drop" });
+    for (const s of [400, 404, 409, 413, 422]) expect(await postMorning([e], api(s, { code: "X", message: "m" }))).toEqual({ kind: "drop" });
+    for (const c of ["HUMAN_ONLY", "FORBIDDEN_ROLE"]) expect(await postMorning([e], api(403, { code: c, message: "m" }))).toEqual({ kind: "drop" });
+    // an edge or session 403 is transient: the blind ratings stay queued
+    expect(await postMorning([e], api(403, { code: "FORBIDDEN", message: "m" }))).toEqual({ kind: "retry" });
+    expect(await postMorning([e], createApi({ baseUrl: "http://x.test", fetch: async () => new Response("denied", { status: 403 }) }))).toEqual({ kind: "retry" });
     for (const s of [500, 502, 503]) expect(await postMorning([e], api(s, { code: "X", message: "m" }))).toEqual({ kind: "retry" });
+  });
+
+  test("one rejected event does not discard the valid ones of its batch", async () => {
+    const seen: string[][] = [];
+    const client = createApi({
+      baseUrl: "http://x.test",
+      fetch: async (r) => {
+        const ids = ((await r.json()) as { events: { id: string }[] }).events.map((x) => x.id);
+        seen.push(ids);
+        if (ids.includes("bad")) return new Response(JSON.stringify({ code: "VALIDATION", message: "m" }), { status: 422, headers: { "Content-Type": "application/problem+json" } });
+        return new Response(JSON.stringify({ accepted: 1, duplicates: 0, rejected: [], revealed: false }), { status: 200, headers: { "Content-Type": "application/json" } });
+      },
+    });
+    const r = await postMorning([{ ...e, id: "g1" }, { ...e, id: "bad" }, { ...e, id: "g2" }], client);
+    expect(r).toEqual({ kind: "drop" });
+    expect(seen).toEqual([["g1", "bad", "g2"], ["g1"], ["bad"], ["g2"]]);
   });
 
   test("429 is a rate answer with Retry-After", async () => {

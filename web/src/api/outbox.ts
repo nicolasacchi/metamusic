@@ -317,9 +317,10 @@ export function onMorningResult(fn: (r: MorningResult) => void): () => void {
 }
 
 /** Posts the queued events crate by crate. A batch that settled is safe to send again: the server counts a replayed id as a duplicate. */
-export async function postMorning(events: MorningOutEvent[], client: typeof api = api): Promise<PostResult> {
+export async function postMorning(events: MorningOutEvent[], client: typeof api = api, single = false): Promise<PostResult> {
   let worst: PostResult = { kind: "ok" };
-  for (const batch of morningBatches(events)) {
+  const batches = single ? events.map((e) => [e]) : morningBatches(events);
+  for (const batch of batches) {
     const id = batch[0]!.crate_id;
     let r: PostResult;
     try {
@@ -329,8 +330,14 @@ export async function postMorning(events: MorningOutEvent[], client: typeof api 
         r = { kind: "ok" };
       } else {
         const s = res.response.status;
-        // never acceptable: a bad batch, a crate that is gone or not ready, a principal that may not submit
-        r = [400, 403, 404, 409, 413, 422].includes(s) ? { kind: "drop" } : { kind: "retry" };
+        const code = (res.error as { code?: string } | undefined)?.code;
+        // never acceptable: a bad batch, a crate that is gone or not ready, a principal that may not submit.
+        // A 403 that is not the server's own refusal (an expired proxy session or edge secret) is transient.
+        const never = [400, 404, 409, 413, 422].includes(s) || (s === 403 && (code === "HUMAN_ONLY" || code === "FORBIDDEN_ROLE"));
+        if (never && batch.length > 1) {
+          // One bad event must not discard the valid ones: send them one at a time, the server refuses only its own.
+          r = await postMorning(batch, client, true);
+        } else r = never ? { kind: "drop" } : { kind: "retry" };
       }
     } catch (e) {
       r = e instanceof RateLimited ? { kind: "rate", retryAfterS: e.retryAfterS } : { kind: "retry" };
@@ -366,11 +373,27 @@ interface Flushable {
   onHide(): Promise<void>;
 }
 
+const beforeHide = new Set<() => void>();
+/** Registers work that must queue its events before the outbox beacons on pagehide / hidden (a buffered marker). */
+export function onBeforeHide(fn: () => void): () => void {
+  beforeHide.add(fn);
+  return () => void beforeHide.delete(fn);
+}
+
 /** Flush on load, every 30 s, on `online`; beacon on pagehide / hidden. Returns the uninstaller. */
 export function startOutbox(box: Outbox = outbox, extra: Flushable[] = [morningOutbox]): () => void {
   const all: Flushable[] = [box, ...extra];
   const flush = () => all.forEach((b) => void b.flush());
-  const hide = () => all.forEach((b) => void b.onHide());
+  const hide = () => {
+    for (const fn of beforeHide) {
+      try {
+        fn();
+      } catch {
+        /* a failing hook must not stop the beacon */
+      }
+    }
+    all.forEach((b) => void b.onHide());
+  };
   const vis = () => {
     if (document.visibilityState === "hidden") hide();
   };

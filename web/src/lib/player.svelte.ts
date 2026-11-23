@@ -8,7 +8,7 @@ import { uuidv7 } from "./id";
 import { getAudioContext } from "./audioContext";
 import { api } from "../api/client";
 import { session } from "../api/session";
-import { morningOutbox } from "../api/outbox";
+import { morningOutbox, onBeforeHide } from "../api/outbox";
 import { offline } from "./offline.svelte";
 import type { LocalSource } from "../api/offline";
 import type { components } from "../api/schema";
@@ -428,6 +428,7 @@ export class Player {
         this.prefetchNext();
       }),
       on("pause", () => {
+        this.crate?.flush(); // a buffered lone marker is committed when playback stops
         this.state.playing = false;
         this.stallStart = null;
       }),
@@ -1582,5 +1583,7 @@ export const player = new Player({
   online: () => typeof navigator === "undefined" || navigator.onLine !== false,
 });
 
+// a lone marker still inside its window is queued before the outbox beacons on pagehide / hidden
+onBeforeHide(() => player.crate?.flush());
 session.configure({ isPlaying: () => playerInUse(player.state) });
 offline.setDeviceFormat(() => player.deviceFormat());

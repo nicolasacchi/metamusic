@@ -57,7 +57,7 @@
 
   // the server answered a batch of this crate: it may have revealed it (every chapter rated)
   const off = onMorningResult((r) => {
-    if (r.crate_id === id && (r.revealed || crate?.revealed === false)) void load();
+    if (r.crate_id === id && r.revealed && crate?.revealed === false) void load();
   });
   onDestroy(off);
 
@@ -74,6 +74,7 @@
     revealing = true;
     revealError = "";
     try {
+      player.crate?.flush(); // a marker still inside its window is committed first
       await morningOutbox.flush();
       await morningOutbox.idle();
       const r = await api.POST("/api/morning-crates/{id}/reveal", { params: { path: { id } } });
