@@ -61,6 +61,13 @@ func ParseLoudness(r io.Reader) (analysis.Loudness, error) {
 			last = map[string]float64{}
 		case inFrame && strings.HasPrefix(line, "lavfi.r128."):
 			k, v, _ := strings.Cut(strings.TrimPrefix(line, "lavfi.r128."), "=")
+			if (k == "M" || k == "S") && isNaNText(v) {
+				// ffmpeg's ebur128 can print NaN for the momentary (or short-term) value of a frame whose whole window is digital
+				// silence: "nan" from n9.0.2, "-nan" from the 8.1.3 of the app image (Go's ParseFloat rejects the signed spelling).
+				// M is not used and an S frame without a value is skipped by flush; every other key, the final values included,
+				// must still be a number.
+				continue
+			}
 			x, err := strconv.ParseFloat(v, 64)
 			if err != nil || math.IsNaN(x) {
 				return analysis.Loudness{}, fmt.Errorf("ffmpeg: malformed value for %s", k)
@@ -94,6 +101,11 @@ func ParseLoudness(r io.Reader) (analysis.Loudness, error) {
 		ShortTerm1Hz:     curve(samples),
 	}
 	return l, nil
+}
+
+// isNaNText reports whether v is a NaN spelled the way C printf does: nan or -nan (any case), optionally with a sign.
+func isNaNText(v string) bool {
+	return strings.EqualFold(strings.TrimLeft(v, "+-"), "nan") && len(v)-len(strings.TrimLeft(v, "+-")) <= 1
 }
 
 func linToDB(v float64) float64 {
