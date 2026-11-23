@@ -90,7 +90,7 @@ web/src/routes/Jobs.svelte	m3-jobs bulk-pods
 web/src/routes/Job.svelte	m3-jobs
 web/src/lib/components/Job*	m3-jobs
 web/src/lib/jobState.ts	m3-jobs
-web/src/routes/Batch.svelte	m3-batch editor-shell desk-w2 bulk-pods
+web/src/routes/Batch.svelte	m3-batch editor-shell desk-w2 desk bulk-pods
 web/src/lib/components/BatchCard.svelte	m3-batch
 web/src/routes/HumanGenerate.svelte	m3-compose m3-variant e2-engine-picker e2-layout ears-check desk-w2 bulk-pods
 web/src/lib/components/Generate*	m3-compose m3-variant
@@ -313,20 +313,23 @@ internal/engineadopt/*	e2-engine-picker e2-engines
 #internal/suites/*	e2-suite
 # END E2-I1
 # DESK-W1 (the Desk pages), DESK-W2 (audition, render, keep, plan_seeds form)
-web/src/routes/Desk.svelte	desk-w1 desk-w2
-web/src/routes/DeskPlan.svelte	desk-w1 desk-w2
+web/src/routes/Desk.svelte	desk-w1 desk-w2 desk
+web/src/routes/DeskPlan.svelte	desk-w1 desk-w2 desk
 web/src/lib/components/ScoreView.svelte	desk-w1 desk-w2
-web/src/lib/components/AuditionPlayer.svelte	desk-w2
+web/src/lib/components/AuditionPlayer.svelte	desk-w2 desk
 web/src/lib/components/KeepAsTake.svelte	desk-w2
-web/src/lib/components/PlanSeedsForm.svelte	desk-w2
+web/src/lib/components/PlanSeedsForm.svelte	desk-w2 desk
 web/src/lib/auditionPlayer.ts	desk-w2
-web/src/lib/deskRender.ts	desk-w2
-web/src/lib/deskApi.ts	desk-w1 desk-w2
-web/e2e/soundfont.ts	desk-w2 desk-t4-score
+web/src/lib/deskRender.ts	desk-w2 desk
+web/src/lib/deskApi.ts	desk-w1 desk-w2 desk
+web/e2e/soundfont.ts	desk-w2 desk-t4-score desk
 web/e2e/global-setup.ts	core
 web/src/lib/components/BarEditor.svelte	desk-w1
 web/src/lib/components/OpenInDesk.svelte	desk-w1
 web/src/lib/abcRender.ts	desk-w1 desk-w2
+internal/desk/*	desk-w1 desk-w2 desk
+internal/score/*	desk-w2 desk
+scripts/e2e.sh	desk-w2 desk
 web/src/lib/desk*.ts	desk-w1
 # M6N-W1 (the night shift, mandates and Critic Bench pages)
 web/src/routes/Mandates.svelte	m6n-night

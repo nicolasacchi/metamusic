@@ -1005,6 +1005,87 @@ per language with their rates, and the Owner (or an agent with write scope) can 
 (target: 60 lines across 6 takes before the thresholds are tuned; a numbers-only change to `DefaultThresholds`). A risky word of the lexicon
 appears as a warning in the draft lint and the estimate, never as an error.
 
+## The Composer's Desk (M5b Desk, T1b)
+
+Architecture: `docs/architecture.md` ("The Composer's Desk and the score renderer"); plan: `docs/plans/2026-11-20-m5b-desk.md`. The Desk is
+plan, audition, render. All code lanes are merged and deployed; what is open in production depends on three operator steps below.
+
+### What works when, and who may spend
+
+- **Spend-free, available as soon as the app image has fluidsynth and `MM_SOUNDFONTS` is set** (see "Score renders: fluidsynth and the
+  soundfont (T1b)"): opening a take's score on the Desk, bar edits, verdicts, and auditions. Without a soundfont or fluidsynth the Desk
+  answers auditions and `score_render` with 503 `UNAVAILABLE` naming the missing component (`transform`, `soundfont` or `fluidsynth`); the
+  plans and edits still work.
+- **`render_plan` needs no worker capability.** It is a plain `/1` render of the plan's score text, an ordinary estimate and confirmation. It
+  works with every capability closed.
+- **`plan_seeds` stays unavailable** (estimate and create refuse with 503 `GENERATION_DISABLED`, reason `worker_outdated`, missing `plan` and
+  `v2`) **until the worker wave opens the `plan` capability**, which needs an attended provision of the image that carries the plan stage and an
+  approved canary (steps X3 below). Only the operator CLI opens a capability.
+- **Renders and planning jobs await the Owner's approval (or a covering mandate).** A `render_plan` batch is never auto-approved: the
+  Owner's own confirmation on the human generate page is the approval, an agent's or an Editor's batch waits for the Owner (approval reason
+  `desk_render` or `editor_batch`), and only a mandate that covers the batch lets it run unattended. A `plan_seeds` batch follows the ordinary
+  rules (caps, the Editor rule, mandates). **Editors can plan, edit and audition but never spend**; a Listener reaches no Desk page or
+  operation; a person's verdict on a plan is the Owner's. An audition is CPU-only and free for everyone who may make one (200 new ones per
+  principal per local day, `AUDITION_LIMIT` after that).
+
+### Deploying: the Desk server and the soundfont (X1, X2)
+
+1. **X1, attended T1b deploy.** Image with fluidsynth and the pinned soundfont; add `MM_SOUNDFONTS=gm=/opt/mm/soundfonts/FluidR3_GM.sf2` to
+   the deployment environment; run `metamusic config check` first (it prints the soundfont checksum and the fluidsynth version); then
+   listen to one `score_render` take and one Desk audition.
+2. **X2, attended Desk server deploy.** Back up first: the release applies migration `0026_desk` (additive: four tables, triggers, and the
+   expression index `jobs_desk_plan` on `jobs`). Any later migration that rebuilds `jobs` must recreate that index. The startup sweep removes
+   only orphan files older than ten minutes under `plans/` and `derived/auditions/`.
+3. **Backups.** `plans/` is a backup media root and the plan files are artifacts; audition MP3s are not backed up and are rebuilt on request.
+
+### Desk verify checks and troubleshooting
+
+`metamusic library verify` includes the Desk. Lines are `<severity> <code> <subject> <detail>` and never print score text. Errors:
+`desk_file_missing` and `desk_file_changed` (a plan file is gone or differs from its row; restore it from the backup, plan files are
+immutable), `desk_score_mismatch` (a take plan's score is not its take's score), `desk_plan_job_empty` (a completed plan job with
+no plans). Warning: `desk_audition_file` (an audition MP3 is missing; it is rebuilt by the next identical request).
+
+- **`plan_bundle_invalid` job event and `PLANS_FAILED`.** A plan job's seed whose bundle breaks a rule (member allow-list, size, `plan.json`
+  strictness, the job's seed or cot, a score that does not parse) is lost alone: the event carries `index`, `seed` and `rule`, and the other
+  seeds go on. If no plan is stored the job fails `PLANS_FAILED`, and its text lists the refused `index:rule` pairs (the events roll back with
+  the failed take). A seed the worker itself reported as an error writes no event. A bundle that does not match the worker's reported size
+  or sha256 fails the whole job (`ARTIFACT_MISMATCH`, nothing stored).
+- **Audition answers.** 409 `AUDITION_BUSY` (the render slot is taken by a transform; retry after `retry_after_s`), 429 `AUDITION_LIMIT`,
+  422 `AUDITION_TOO_LONG` (over 600 s with the tail) or `SCORE_INVALID`, 422 `SOUNDFONT_UNKNOWN`, 500 `AUDITION_FAILED`.
+- **A changed soundfont or fluidsynth version** changes the rendered PCM, so older audition and score-render takes report `inconclusive`
+  in `transform verify`, not corruption.
+
+### The two canary cases (X2, X3)
+
+**These canaries spend real money and need the operator's written approval**: the case list and `--max-usd` per case, in writing, before the
+first command. They are never run by an agent on its own, unattended or in CI; they run only from the operator's terminal. Print the worst
+case first, it spends nothing and needs no token: `metamusic runpod canary --case plan --dry-run` (the same for `plan-render`). The figures
+are illustrative; the real estimate is compared with `--max-usd` before any spend.
+
+1. **`plan-render` (X2)**: `metamusic runpod canary --url URL --case plan-render --max-usd N [--plan-id ID]`. It needs no capability. Without
+   `--plan-id` it opens (free) the score of the newest kept `mm-canary-*-cot-full-*` take (make one first with `--case cot-full --keep`). A
+   `render_plan` batch from the canary's agent token waits for the Owner, and the canary refuses (exit 3) right after the estimate when approval is
+   required, so a **mandate that covers the batch** must exist beforehand. Passes when the take completes clean with verified artifacts,
+   `get_track` shows operator `render_plan` and `get_plan?include=renders` lists it. Its measurement decides the flip of
+   `generation.DeskRenderSkipsPlan` (a one-line PR the operator approves; until then a `cot=full` request with a score is charged the planning
+   phase, conservatively).
+2. **`plan` (X3)**, in the order of "Worker wave checklist": the server release, the CI image, the digest PR, the attended provision, the
+   regression canary `main`; then, **only right before the approved canary**, `metamusic runpod contract open --caps plan,v2 --reason "canary:
+   <approval ref>"` (add `--backend B` unless it is the default), then `metamusic runpod canary --url URL --case plan --max-usd N`. Passes when
+   the job completes, `list_plans?job_id=` lists plans with yue2 scores and every plan carries its seed, cot, bars, meter, expected audio, sha256
+   and `abc_tokens`; the report's `measured` gives `plan_seconds_per_seed_milli`.
+3. **On any failure** (exit other than 0, a trip, a closed capability in `get_provider_status`): `metamusic runpod contract close --caps plan
+   --reason TEXT` (`--strand-queued` when plan jobs are queued), find the cause and do not reopen until the case passes again.
+4. **X4, the first real session** (phone and desktop): `plan_seeds` of 8 on a chosen song, auditions, at most two `render_plan` takes, all
+   through ordinary estimates and approvals. Record the expected and metered worker-seconds of the plan job and the renders in the private
+   appendix; the public revision log gets one paragraph. The measurement is reported, not a gate.
+
+### Development and CI
+
+The e2e servers and the Go media tests use a generated test soundfont (`tools/sf2gen`; nothing is committed) when fluidsynth is installed.
+CI installs fluidsynth and sets `MM_REQUIRE_FLUIDSYNTH=1`, which turns a missing synthesizer into a failure; locally those tests skip
+cleanly. `servertest.Options.WithSoundfont` configures a test rig with it.
+
 ## The night shift, mandates and the Morning Crate (M6N)
 
 Architecture: `docs/architecture.md`, "Night shift, mandates, Morning Crate and Critic Bench (M6N)". Migrations `0025_mandates`,

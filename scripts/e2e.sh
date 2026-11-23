@@ -57,6 +57,11 @@ else
   rm -rf covdata/e2e covdata/e2e.stamp
   unset GOCOVERDIR
 fi
+# T1b (Desk auditions, score_render): the test soundfont is NOT made here. web/e2e/global-setup.ts calls configureTestSoundfont
+# (web/e2e/soundfont.ts), which, when fluidsynth is on PATH and MM_SOUNDFONTS is unset, writes the generated SF2 (tools/sf2gen,
+# nothing committed) and sets MM_SOUNDFONTS for every e2e server; one generator, so this script only passes the environment through.
+# CI installs fluidsynth and sets MM_REQUIRE_FLUIDSYNTH=1, which makes the specs demand the real audition path; locally, without
+# fluidsynth, they assert the plain "not available" answers.
 # the seeded e2e server finds the pinned ffmpeg/metaflac in bin/
 export PATH="$root/bin:$PATH"
 rm -rf web/test-results # each run writes its own subdirectory (web/e2e/env.ts)
