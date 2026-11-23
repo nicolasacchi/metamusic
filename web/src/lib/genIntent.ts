@@ -68,6 +68,8 @@ export interface GenerationIntent {
   track_ids?: string[];
   /** "Skip the listening check" on the estimate (options.tier_b false); never sent inside the item. */
   skip_tier_b?: boolean;
+  /** "Run as one bulk pod batch" (m6-bulk C398.6): the pod backend to price on (options.backend); never sent inside the item. */
+  pod_backend?: string;
 }
 
 export interface IntentStorage {
@@ -78,10 +80,15 @@ export interface IntentStorage {
 
 export type EstimateCall =
   | { kind: "variant"; trackId: string; body: VariantBody }
-  | { kind: "generation"; body: { items: ItemIn[]; engine?: EngineName; options?: { tier_b: false } } };
+  | { kind: "generation"; body: { items: ItemIn[]; engine?: EngineName; options?: { tier_b?: false; backend?: string } } };
 
 export function isVariantMode(m: string): m is VariantMode {
   return VARIANT_MODES.includes(m);
+}
+
+/** How many takes the intent will render (the bulk option is offered by this count, before any estimate). */
+export function intentTakes(i: GenerationIntent): number {
+  return takesOf(i);
 }
 
 function takesOf(i: GenerationIntent): number {
@@ -162,6 +169,7 @@ function isIntent(v: unknown): v is GenerationIntent {
   if (typeof mode !== "string") return false;
   if (o.engine !== undefined && (typeof o.engine !== "string" || !ENGINE_NAMES.includes(o.engine))) return false;
   if (o.skip_tier_b !== undefined && typeof o.skip_tier_b !== "boolean") return false;
+  if (o.pod_backend !== undefined && (typeof o.pod_backend !== "string" || o.pod_backend === "")) return false;
   if (mode === "analyze") return Array.isArray(o.track_ids) && o.track_ids.length > 0 && o.track_ids.every((x) => typeof x === "string");
   if (mode === "reference") return typeof o.reference === "object" && o.reference !== null && typeof (o.reference as Record<string, unknown>).track_id === "string";
   if (isEngineMode(mode)) return typeof o.parent_track_id === "string";
@@ -191,7 +199,8 @@ export function loadIntent(s: IntentStorage): GenerationIntent | null {
  */
 export function intentToEstimate(i: GenerationIntent): EstimateCall {
   const skip = i.skip_tier_b === true && i.mode !== "analyze" && engineOf(i) === "yue2";
-  if (isVariantMode(i.mode) && engineOf(i) === "yue2" && !skip) {
+  const pod = i.pod_backend !== undefined && i.pod_backend !== "" ? i.pod_backend : null;
+  if (isVariantMode(i.mode) && engineOf(i) === "yue2" && !skip && pod === null) {
     const body: VariantBody = { mode: i.mode };
     if (i.n_seeds !== undefined) body.n_seeds = i.n_seeds;
     if (i.seeds !== undefined) body.seeds = i.seeds;
@@ -199,13 +208,15 @@ export function intentToEstimate(i: GenerationIntent): EstimateCall {
     if (i.title !== undefined) body.title = i.title;
     return { kind: "variant", trackId: i.parent_track_id ?? "", body };
   }
-  const { engine: _engine, skip_tier_b: _skip, ...item } = i;
+  const { engine: _engine, skip_tier_b: _skip, pod_backend: _pod, ...item } = i;
   void _engine;
   void _skip;
+  void _pod;
   const engine = engineOf(i);
+  const options = skip || pod !== null ? { options: { ...(skip ? { tier_b: false as const } : {}), ...(pod !== null ? { backend: pod } : {}) } } : {};
   return {
     kind: "generation",
-    body: { items: [{ ...item, mode: i.mode } as ItemIn], ...(engine === "yue2" ? {} : { engine }), ...(skip ? { options: { tier_b: false as const } } : {}) },
+    body: { items: [{ ...item, mode: i.mode } as ItemIn], ...(engine === "yue2" ? {} : { engine }), ...options },
   };
 }
 
@@ -233,6 +244,13 @@ export function withSkipTierB(i: GenerationIntent, skip: boolean): GenerationInt
   const { skip_tier_b: _old, ...rest } = i;
   void _old;
   return skip ? { ...rest, skip_tier_b: true } : rest;
+}
+
+/** The intent priced on a pod backend (name) or, with null, back on the ordinary one (the field is dropped). */
+export function withPodBackend(i: GenerationIntent, backend: string | null): GenerationIntent {
+  const { pod_backend: _old, ...rest } = i;
+  void _old;
+  return backend ? { ...rest, pod_backend: backend } : rest;
 }
 
 /** The take (variant) intent for the Track page menu: "New seed" asks for three seeds; edits open the form first. */

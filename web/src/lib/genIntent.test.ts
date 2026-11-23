@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { INTENT_KEY, MAX_TAKES, analyzeIntent, clearIntent, engineIntent, engineSwitchable, intentToEstimate, loadIntent, referenceIntent, saveIntent, validateIntent, variantIntent, withSkipTierB, type GenerationIntent } from "./genIntent";
+import { INTENT_KEY, MAX_TAKES, analyzeIntent, clearIntent, engineIntent, engineSwitchable, intentTakes, intentToEstimate, loadIntent, referenceIntent, saveIntent, validateIntent, variantIntent, withPodBackend, withSkipTierB, type GenerationIntent } from "./genIntent";
 
 function store() {
   const m = new Map<string, string>();
@@ -240,5 +240,32 @@ describe("analyze intent and the listening check option (M5b W1)", () => {
   });
   test("analyze is not engine-switchable", () => {
     expect(engineSwitchable(analyzeIntent(["t1"]))).toBe(false);
+  });
+});
+
+describe("bulk pod option (m6-bulk C398.6)", () => {
+  test("a pod backend sends options.backend, keeps the field out of the item and turns a variant into a generation item", () => {
+    const i = withPodBackend({ mode: "new_seed", parent_track_id: "t1", n_seeds: 30 }, "fake-pod");
+    expect(intentToEstimate(i)).toEqual({ kind: "generation", body: { items: [{ mode: "new_seed", parent_track_id: "t1", n_seeds: 30 }], options: { backend: "fake-pod" } } });
+  });
+  test("a pod backend and a skipped listening check travel together; null drops the field", () => {
+    const i = withSkipTierB(withPodBackend({ mode: "from_draft", draft_ids: ["d1"] }, "runpod-pod"), true);
+    expect(intentToEstimate(i)).toEqual({ kind: "generation", body: { items: [{ mode: "from_draft", draft_ids: ["d1"] }], options: { tier_b: false, backend: "runpod-pod" } } });
+    expect(intentToEstimate(withPodBackend(i, null))).toEqual({ kind: "generation", body: { items: [{ mode: "from_draft", draft_ids: ["d1"] }], options: { tier_b: false } } });
+    expect("pod_backend" in withPodBackend(i, null)).toBe(false);
+  });
+  test("intentTakes counts seeds per mother and drafts", () => {
+    expect(intentTakes({ mode: "new_seed", parent_track_id: "t", n_seeds: 30 })).toBe(30);
+    expect(intentTakes({ mode: "from_draft", draft_ids: ["a", "b"], n_seeds: 2 })).toBe(4);
+  });
+  test("the pod backend survives the sessionStorage round trip; an empty or non-string one does not load", () => {
+    const m = new Map<string, string>();
+    const s = { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k) };
+    saveIntent(s, withPodBackend(variantIntent("t1", "new_seed"), "fake-pod"));
+    expect(loadIntent(s)?.pod_backend).toBe("fake-pod");
+    s.setItem(INTENT_KEY, JSON.stringify({ mode: "new_seed", parent_track_id: "t1", pod_backend: "" }));
+    expect(loadIntent(s)).toBeNull();
+    s.setItem(INTENT_KEY, JSON.stringify({ mode: "new_seed", parent_track_id: "t1", pod_backend: 3 }));
+    expect(loadIntent(s)).toBeNull();
   });
 });

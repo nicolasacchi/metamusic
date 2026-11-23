@@ -7,8 +7,12 @@
   import { pushToast } from "../lib/judge.svelte";
   import { pollDelayMs, type Viewer } from "../lib/jobState";
   import { player } from "../lib/player.svelte";
+  import PodList from "../lib/components/PodList.svelte";
+  import { podErrorCodes } from "../lib/bulkView";
+  import { can } from "../lib/me.svelte";
 
   type Batch = components["schemas"]["Batch"];
+  type Pod = components["schemas"]["PodSummary"];
   interface Props {
     id: string;
   }
@@ -18,8 +22,21 @@
   let error = $state("");
   let busy = $state(false);
   let tick = $state(0);
+  // The pod block (m6-bulk C398.6) is the Owner's: list_pods is Owner-only, so nobody else asks.
+  let pods = $state<Pod[]>([]);
+
+  async function loadPods() {
+    if (!can("list_pods")) return;
+    try {
+      const r = await api.GET("/api/pods", { params: { query: { batch_id: id, state: "all", limit: 20 } } });
+      if (r.data) pods = r.data.items;
+    } catch {
+      // the pod block is secondary: the batch stays readable
+    }
+  }
 
   async function load() {
+    void loadPods();
     try {
       const r = await api.GET("/api/batches/{id}", { params: { path: { id } } });
       if (r.data) {
@@ -87,6 +104,14 @@
   <BatchCard {batch} {viewer} {busy} onterminate={terminateBatch} />
   {#if batch.rationale}<p>Rationale: {batch.rationale}</p>{/if}
   {#if batch.approval.reasons.length > 0}<p class="muted">Approval notes: {batch.approval.reasons.join("; ")}</p>{/if}
+  {#if pods.length > 0}
+    <section data-testid="batch-pods" aria-label="Pod">
+      <h2>Pod</h2>
+      <p class="muted">This batch runs on one rented GPU pod, which stops itself when the batch is done, cancelled or past its deadline.</p>
+      <PodList {pods} empty="" now={new Date()} />
+      {#if podErrorCodes(pods).length}<p role="alert" data-testid="batch-pod-alerts">Pod alerts: {podErrorCodes(pods).join(", ")}</p>{/if}
+    </section>
+  {/if}
   <h2>Takes</h2>
   <table data-testid="batch-jobs">
     <tbody>
