@@ -68,6 +68,8 @@ ENV MM_YUE2_COMMIT=$YUE2_COMMIT MM_WORKER_BUILD=$GIT_SHA
 # C322.2: what this image speaks. io.metamusic.caps must equal the `caps:` line of MODE=selftest (CI asserts it;
 # a stage lane adds its cap here in the same commit that adds the stage module and its models). Sorted, as caps.compose prints it:
 # the ears stage registers `ears` and `analyze`, only when its lock verifies against /opt/mm/ears-models; `fallback` is the
-# upload fallback channel of upload.py (C399.7) and `agent` the pod loop of agent.py (C397), both always built in.
-LABEL io.metamusic.contracts="mm.worker/1 mm.worker/2" io.metamusic.caps="agent analyze ears fallback v2"
+# upload fallback channel of upload.py (C399.7) and `agent` the pod loop of agent.py (C397), both always built in; the plan stage
+# (DESK-P1) registers `plan` only when the installed yue2 exposes the staged API (YuE2Pipeline.plan, SymbolicPlan.save), which the
+# pinned commit does (worker/contract/test_yue2_contract.py pins it).
+LABEL io.metamusic.contracts="mm.worker/1 mm.worker/2" io.metamusic.caps="agent analyze ears fallback plan v2"
 ENTRYPOINT ["python", "-m", "mmworker"]

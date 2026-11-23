@@ -379,7 +379,8 @@ def _run_plan(ctx: _Ctx, uploader, timings, uploaded, state, output, put_result)
         _stopped(watch)
         raise WorkerError("PIPELINE_ERROR", redact.message(f"{type(e).__name__}: {e}")) from None
     timings["generate_s"] = round(ctx.clock() - g0, 3)
-    _stopped(watch)
+    if watch.closed:
+        _stopped(watch)
     seeds = take.plan.seeds
     if not isinstance(outcomes, list) or not all(
             isinstance(o, stages.PlanOutcome) and isinstance(o.index, int) and isinstance(o.seed, int)
@@ -399,6 +400,9 @@ def _run_plan(ctx: _Ctx, uploader, timings, uploaded, state, output, put_result)
         plans.append(p)
     if len(plans) != len(seeds):
         raise WorkerError("PIPELINE_ERROR", "the plan stage did not report every seed")
+    if watch.deadline_hit and not any(p["status"] == "ok" for p in plans):
+        raise WorkerError("DEADLINE", "the generation deadline passed")
+    # a deadline that fired mid-run keeps the seeds that finished: their bundles ship and the rest report DEADLINE
     state["plans"] = plans
     table = tuple((n, m) for n, m, _ in artifacts_v2(KIND_PLAN, seeds=len(seeds)))
     required = {p["bundle"] for p in plans if p["status"] == "ok"}

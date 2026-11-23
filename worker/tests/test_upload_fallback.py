@@ -201,7 +201,7 @@ def test_caps_fallback_registered(monkeypatch: pytest.MonkeyPatch) -> None:
     assert handler.caps_mod.advertised is caps.advertised and selftest.caps is caps
     # Dockerfile label equals the advertised list (the stage lane's label test covers the stage part)
     text = (Path(__file__).resolve().parents[1] / "Dockerfile").read_text()
-    assert 'io.metamusic.caps="agent analyze ears fallback v2"' in text
+    assert 'io.metamusic.caps="agent analyze ears fallback plan v2"' in text
 
 
 def test_window_clamps_long_retry_after(sink: Sink, data: Path) -> None:

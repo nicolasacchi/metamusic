@@ -773,6 +773,10 @@ def test_dockerfile_labels_equal_selftest_caps(tmp_path: Path, monkeypatch: pyte
     monkeypatch.setenv("MM_EARS_MODELS_DIR", str(ears_models_tree(tmp_path / "models")))
     monkeypatch.setenv("MM_EARS_LOCK", str(LOCK))
     monkeypatch.delitem(sys.modules, "mmworker.stages.ears", raising=False)  # discover() re-imports it under the new environment
+    from .test_plan_stage import install_staged_yue2
+
+    install_staged_yue2(tmp_path / "site", monkeypatch)  # the image's yue2 exposes the staged API: the plan stage registers too
+    monkeypatch.delitem(sys.modules, "mmworker.stages.plan", raising=False)
     text = (ROOT / "Dockerfile").read_text()
     m = re.search(r'^LABEL io\.metamusic\.contracts="([^"]*)" io\.metamusic\.caps="([^"]*)"$', text, re.M)
     assert m, "the worker Dockerfile must carry both labels"
