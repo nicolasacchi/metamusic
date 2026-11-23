@@ -7,6 +7,10 @@
   import ModeForm from "../lib/components/ModeForm.svelte";
   import ModePanel from "../lib/components/ModePanel.svelte";
   import ProviderBanner from "../lib/components/ProviderBanner.svelte";
+  import BulkOption from "../lib/components/BulkOption.svelte";
+  import PodEstimate from "../lib/components/PodEstimate.svelte";
+  import { POD_MIN_TAKES_FLOOR, bulkFailureText, bulkOffer, statusAskedAfter } from "../lib/bulkView";
+  import { can } from "../lib/me.svelte";
   import { estimateFailureText, hasListeningCheckChoice, tierBSummary } from "../lib/estimateTierB";
   import { planSeedsRefusalText } from "../lib/deskRender";
   import { capsOf, engineLabel, fetchEngines, modeUnavailable, pickerChoices, type EnginesResult } from "../lib/engines";
@@ -15,6 +19,7 @@
     clearIntent,
     engineOf,
     engineSwitchable,
+    intentTakes,
     intentToEstimate,
     isEngineMode,
     isVariantMode,
@@ -22,6 +27,8 @@
     saveIntent,
     validateIntent,
     withEngine,
+    withPodBackend,
+    keepPodBackend,
     withSkipTierB,
     type EngineName,
     type GenerationIntent,
@@ -96,8 +103,9 @@
         estimate = r.data;
         void priceWithout(i, r.data);
       } else {
+        const details = r.error?.details as Record<string, unknown> | undefined;
         const why = i.mode === "plan_seeds" ? planSeedsRefusalText : estimateFailureText;
-        error = why(r.response.status, r.error?.code ?? "", r.error?.message ?? "", r.error?.details as Record<string, unknown> | undefined);
+        error = (i.pod_backend ? bulkFailureText(r.error?.code ?? "", details) : null) ?? why(r.response.status, r.error?.code ?? "", r.error?.message ?? "", details);
       }
     } catch {
       if (mine === seq) error = "Network error while estimating.";
@@ -125,6 +133,30 @@
     void run(intent);
   }
 
+  /* Bulk pods (m6-bulk C398.6): only the Owner reads the provider status, so only the Owner is offered, or told about, the pod option. */
+  let status = $state<components["schemas"]["ProviderStatus"] | null>(null);
+  let statusAsked = false;
+  async function loadStatus() {
+    if (statusAsked || !can("get_provider_status")) return;
+    statusAsked = true;
+    try {
+      const r = await api.GET("/api/provider", {});
+      if (r.data) status = r.data;
+      statusAsked = statusAskedAfter(r.data);
+    } catch {
+      statusAsked = statusAskedAfter(null); // the option stays hidden until the next try
+    }
+  }
+  const offer = $derived(intent ? bulkOffer(status, intentTakes(intent), can("get_provider_status")) : bulkOffer(null, 0, false));
+  function bulk(on: boolean) {
+    if (!intent) return;
+    intent = withPodBackend(intent, on ? offer.backend : null);
+    saveIntent(sessionStorage, intent);
+    void run(intent);
+  }
+
+  /* svelte-ignore state_referenced_locally */
+  if (intent && intentTakes(intent) >= POD_MIN_TAKES_FLOOR) void loadStatus();
   /* svelte-ignore state_referenced_locally */
   if (intent) {
     if (engineOf(intent) !== "yue2") void loadEngines();
@@ -132,10 +164,13 @@
     else void run(intent);
   }
 
-  function submitted(i: GenerationIntent) {
+  function submitted(next: GenerationIntent) {
+    // "Change options" keeps the bulk pod choice while the new take count still qualifies.
+    const i = keepPodBackend(intent, next, POD_MIN_TAKES_FLOOR);
     intent = i;
     saveIntent(sessionStorage, i);
     editing = false;
+    if (intentTakes(i) >= POD_MIN_TAKES_FLOOR) void loadStatus();
     void run(i);
   }
   function opened(id: string) {
@@ -178,6 +213,7 @@
       </p>
     {/if}
   {/if}
+  {#if !editing}<BulkOption {offer} on={intent.pod_backend !== undefined} onchange={bulk} />{/if}
   {#if modeOff}<p role="alert" data-testid="mode-unavailable">{modeOff}</p>{/if}
   {#if editing && isEngineMode(intent.mode)}
     <ModePanel mode={intent.mode} {intent} caps={panelCaps} onsubmit={submitted} />
@@ -188,6 +224,7 @@
     {#if error}<p role="alert" data-testid="estimate-error">{error}</p>{/if}
     {#if estimate}
       <EstimateView {estimate} {without} skipTierB={intent.skip_tier_b === true} onskip={skipTierB} />
+      {#if estimate.pod}<PodEstimate pod={estimate.pod} backend={estimate.backend} />{/if}
       <ConfirmSpend {estimate} onbatch={opened} onreestimate={reestimate} />
     {/if}
     {#if intent.mode === "render_plan" || intent.mode === "plan_seeds"}

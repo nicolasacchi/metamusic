@@ -13,6 +13,9 @@
   import { pushToast } from "../lib/judge.svelte";
   import { LIVE_STATES, pollDelayMs, shouldLoadLedger, type Viewer } from "../lib/jobState";
   import { formatMicroUSD } from "../lib/money";
+  import PodList from "../lib/components/PodList.svelte";
+  import { podAlerts, podsOff } from "../lib/bulkView";
+  import { can } from "../lib/me.svelte";
 
   type Job = components["schemas"]["JobSummary"];
   type Batch = components["schemas"]["BatchSummary"];
@@ -20,6 +23,7 @@
   type Status = components["schemas"]["ProviderStatus"];
   type Spend = components["schemas"]["Spend"];
   type Ledger = components["schemas"]["LedgerEntry"];
+  type Pod = components["schemas"]["PodSummary"];
 
   const viewer: Viewer = { kind: "human" };
   type Tab = "jobs" | "spend" | "ledger" | "provider";
@@ -37,9 +41,25 @@
   let busy = $state(false);
   let ledgerLoaded = $state(false);
   let tick = $state(0);
+  // Live pods (m6-bulk C398.6): list_pods and the pod status block are the Owner's; an Editor never asks and never sees the section.
+  let pods = $state<Pod[]>([]);
+  let podsLoaded = $state(false);
+  async function loadPods() {
+    if (!can("list_pods")) return;
+    try {
+      const r = await api.GET("/api/pods", { params: { query: { state: "live", limit: 50 } } });
+      if (r.data) {
+        pods = r.data.items;
+        podsLoaded = true;
+      }
+    } catch {
+      // the section keeps its last answer
+    }
+  }
 
   async function loadJobs() {
     try {
+      void loadPods();
       void refreshApprovals();
       const [l, r, b] = await Promise.all([
         api.GET("/api/jobs", { params: { query: { state: [...LIVE_STATES], limit: 100 } } }),
@@ -180,6 +200,16 @@
         {#each recent as j (j.id)}<JobRow job={j} {viewer} {busy} onterminate={terminateJob} />{/each}
       </tbody>
     </table>
+  {/if}
+  {#if can("list_pods") && podsLoaded}
+    <section data-testid="jobs-pods" aria-label="Pods">
+      <h2>Pods</h2>
+      {#if podsOff(status)}
+        <p data-testid="pods-off">Bulk pod batches are off. They stay off until the operator has set up the pod backend on the server.</p>
+      {/if}
+      <PodList {pods} empty="No pod is running." now={new Date()} batchLinks />
+      {#if podAlerts(status).length}<p role="alert" data-testid="pod-alerts">Pod alerts: {podAlerts(status).join(", ")}</p>{/if}
+    </section>
   {/if}
   <h2>Batches</h2>
   {#each batches as b (b.id)}<BatchCard batch={b} {viewer} {busy} onterminate={terminateBatch} />{:else}<p class="muted">None yet.</p>{/each}

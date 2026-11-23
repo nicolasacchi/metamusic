@@ -9,8 +9,6 @@ type Doc = { paths: Record<string, Record<string, { operationId?: string; "x-mm"
  * entry is only ever added for a page that is still to come.
  */
 export const PENDING_UI: ReadonlySet<string> = new Set<string>([
-  // BULK-W1 (lane bulk-web) adds the Batch pod block and the Jobs live pods (m6-bulk C398.6, spec bulk-pods.spec.ts, // ops: ..., list_pods); it removes this one.
-  "list_pods",
 ]);
 
 /** Operation ids whose x-mm.ui is a route (not "none:<reason>"): the SPA must exercise them, except the PENDING_UI ones. */

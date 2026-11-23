@@ -86,17 +86,17 @@ web/src/lib/songLine.ts	ux-judge ux-inbox
 web/src/lib/queueSource.ts	ux-player
 web/src/lib/judge*	m2a-judge
 web/src/lib/components/ContextButton.svelte	m2a-context
-web/src/routes/Jobs.svelte	m3-jobs
+web/src/routes/Jobs.svelte	m3-jobs bulk-pods
 web/src/routes/Job.svelte	m3-jobs
 web/src/lib/components/Job*	m3-jobs
 web/src/lib/jobState.ts	m3-jobs
-web/src/routes/Batch.svelte	m3-batch editor-shell desk-w2
+web/src/routes/Batch.svelte	m3-batch editor-shell desk-w2 bulk-pods
 web/src/lib/components/BatchCard.svelte	m3-batch
-web/src/routes/HumanGenerate.svelte	m3-compose m3-variant e2-engine-picker e2-layout ears-check desk-w2
+web/src/routes/HumanGenerate.svelte	m3-compose m3-variant e2-engine-picker e2-layout ears-check desk-w2 bulk-pods
 web/src/lib/components/Generate*	m3-compose m3-variant
 web/src/lib/components/ModeForm.svelte	m3-compose
 web/src/lib/components/Estimate*	m3-compose e2-engine-picker ears-check
-web/src/lib/genIntent.ts	m3-compose m3-variant e2-engine-picker e2-repaint e2-reference ears-check desk-w2
+web/src/lib/genIntent.ts	m3-compose m3-variant e2-engine-picker e2-repaint e2-reference ears-check desk-w2 bulk-pods
 web/src/lib/components/ConfirmSpend.svelte	m3-approval ears-check
 web/src/routes/HumanSpend.svelte	m3-spend
 web/src/routes/HumanTokens.svelte	m3-spend m3-approval
@@ -351,3 +351,8 @@ web/src/lib/morningCrate.ts	m6n-morning
 web/src/lib/morningMedia.ts	m6n-morning
 web/src/lib/mediaSession.ts	m6n-morning m1-player
 web/src/api/outbox.ts	m6n-morning m2a-listen
+# BULK-W1 (m6-bulk C398.6): the pod option, estimate panel, Batch pod block and Jobs live pods
+web/src/lib/bulkView.ts	bulk-pods
+web/src/lib/components/BulkOption.svelte	bulk-pods
+web/src/lib/components/PodEstimate.svelte	bulk-pods
+web/src/lib/components/PodList.svelte	bulk-pods
