@@ -62,9 +62,10 @@ func TestAcceptance_M6N_NightFeedsMorningCrate(t *testing.T) {
 
 	// the Owner's mandate ($1.00 over a week, $1.00 a night) and the night
 	until := r.Clock.Now().Add(7 * 24 * time.Hour).Format(time.RFC3339)
-	mandateID := obj(h.OK(t, "POST", "/human/api/mandates", map[string]any{"holder": "night_shift", "title": "Night shift", "budget_micro_usd": 1_000_000, "valid_until": until,
+	const mandateBudget = 800_000 // under the night's $1.00 ceiling: three takes estimate to about $0.60 and a budget of $0.60 trims the night to two, so the mandate's budget, not the per-night ceiling, is what bounds it
+	mandateID := obj(h.OK(t, "POST", "/human/api/mandates", map[string]any{"holder": "night_shift", "title": "Night shift", "budget_micro_usd": mandateBudget, "valid_until": until,
 		"scope": map[string]any{"modes": []string{"new_seed", "style_edit"}, "engines": []string{"yue2"}, "min_stars": 3, "root_track_ids": nil,
-			"max_takes_per_lineage": 5, "max_takes_per_batch": 6, "max_batch_ceiling_micro_usd": 1_000_000, "max_batches_per_day": 1, "tier_b": false}},
+			"max_takes_per_lineage": 5, "max_takes_per_batch": 6, "max_batch_ceiling_micro_usd": mandateBudget, "max_batches_per_day": 1, "tier_b": false}},
 		"Idempotency-Key", "cross-mandate"))["id"].(string)
 	h.OK(t, "PUT", "/human/api/night-shift", map[string]any{"enabled": true, "at": "01:30", "max_takes": 3, "min_stars": 4, "explore_ppm": 300000, "listening_checks": "off"})
 	h.OK(t, "PUT", "/api/morning-crates/settings", map[string]any{"enabled": true})
@@ -111,14 +112,16 @@ func TestAcceptance_M6N_NightFeedsMorningCrate(t *testing.T) {
 	}
 	mu := obj(h.OK(t, "GET", "/api/mandates/"+mandateID, nil))
 	used = int64(obj(mu["usage"])["used_micro_usd"].(float64))
-	if ceiling <= 0 || ceiling > 1_000_000 || settled <= 0 || settled > ceiling || used > 1_000_000 || used < settled {
+	if ceiling <= 0 || ceiling > mandateBudget || settled <= 0 || settled > ceiling || used > mandateBudget || used < settled {
 		t.Fatalf("money: ceiling %d settled %d reserved %d mandate used %d", ceiling, settled, reserved, used)
 	}
 	if capsAfter := capsOf(); capsAfter != capsBefore {
 		t.Fatalf("a cap moved: %s -> %s", capsBefore, capsAfter)
 	}
-	if n := obj(h.OK(t, "GET", "/api/night-shift", nil)); n == nil {
-		t.Fatal("no night shift status")
+	// the batch was approved by the mandate (not a click, not the global auto-approve cap), and the mandate's own id is the authority
+	var via, viaMandate string
+	if err := r.Store.R.QueryRow(`SELECT a.via, COALESCE(n.mandate_id, '') FROM approvals a JOIN night_shift_runs n ON n.batch_id = a.batch_id WHERE a.batch_id = ?`, batch).Scan(&via, &viaMandate); err != nil || via != "mandate" || viaMandate != mandateID {
+		t.Fatalf("approval: via %q mandate %q (%v), want mandate %s", via, viaMandate, err, mandateID)
 	}
 
 	// 07:00 the same day: the crate is built from the night's takes. It spends nothing.
@@ -195,8 +198,14 @@ func TestAcceptance_M6N_NightFeedsMorningCrate(t *testing.T) {
 	}
 	// the agent cannot rate or reveal it
 	ag, _ := r.Agent(t, auth.ScopeWrite)
-	if resp := ag.Do(t, "POST", "/api/morning-crates/"+crateID+"/reveal", nil, "Idempotency-Key", "cross-agent-reveal"); resp.Status != 403 {
-		t.Fatalf("agent reveal: %d %s", resp.Status, resp.Body)
+	agentEvs := []map[string]any{{"id": "01900000-0000-7000-8000-0000000cffff", "side": 0, "chapter": 1, "kind": "rate", "stars": 3, "side_ms": 1000, "client_at": r.Clock.Now().Format(time.RFC3339)}}
+	for name, resp := range map[string]*servertest.Response{
+		"reveal": ag.Do(t, "POST", "/api/morning-crates/"+crateID+"/reveal", nil, "Idempotency-Key", "cross-agent-reveal"),
+		"events": ag.Do(t, "POST", "/api/morning-crates/"+crateID+"/events", map[string]any{"events": agentEvs}, "Idempotency-Key", "cross-agent-events"),
+	} {
+		if body, _ := resp.JSON(t).(map[string]any); resp.Status != 403 || body["code"] != "HUMAN_ONLY" {
+			t.Fatalf("agent %s: %d %s, want 403 HUMAN_ONLY", name, resp.Status, resp.Body)
+		}
 	}
 
 	// blind stars on every non-anchor chapter reveal it in the same call
@@ -256,7 +265,7 @@ func TestAcceptance_M6N_NightFeedsMorningCrate(t *testing.T) {
 		t.Fatalf("a cap moved by the end: %s -> %s", capsBefore, capsAfter)
 	}
 	mu = obj(h.OK(t, "GET", "/api/mandates/"+mandateID, nil))
-	if obj(mu["usage"])["used_micro_usd"].(float64) > 1_000_000 || mu["budget_micro_usd"].(float64) != 1_000_000 {
+	if obj(mu["usage"])["used_micro_usd"].(float64) > mandateBudget || mu["budget_micro_usd"].(float64) != mandateBudget {
 		t.Fatalf("mandate after the crate: %v", mu)
 	}
 }

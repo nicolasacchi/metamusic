@@ -493,8 +493,12 @@ changes nothing. The Morning Crate is on from the start (07:00, local time `MM_T
   critic (Tier A metrics, Tier B scalars, each agent's stars and duel verdicts, the Diction Lab's line classifier) agrees with the Owner: Wilson
   95 % intervals over the Owner's within-lineage rating pairs and blind duels; a critic is `trusted` only with at least 30 effective pairs and a
   lower bound above 0.55. Trust never discards or approves anything; it breaks a tie in the night's plan and picks the label critic.
-- **Operations and roles.** Sixteen operations, all Owner-side only (an Editor or Listener, and their devices, get 403 `OWNER_ONLY`); an
-  agent can read, halt, revoke and build a crate but never create a mandate, change the night settings, submit crate events or reveal.
+- **Operations and roles.** Sixteen operations. Every one is Owner-side: an Editor or Listener, and their devices, get 403 `OWNER_ONLY`
+  from all sixteen. For agents it differs per operation. `create_mandate` and `update_night_shift` are human-only (403 `HUMAN_ONLY` for every
+  agent and every device). `submit_morning_crate_events` and `reveal_morning_crate` pass the role check for a write-scope agent but the
+  handler refuses it with 403 `HUMAN_ONLY` (person-only, see the parity exceptions). The reads, `halt_night_shift`, `revoke_mandate` and
+  `build_morning_crate` are open to an agent with the needed scope (a read token gets 403 `FORBIDDEN_SCOPE` on the writes). The matrix is pinned by
+  `role_matrix.golden`, and the two person-only refusals by `TestAcceptance_M6N_NightFeedsMorningCrate`.
   `TestImportGraph_M6N` pins the package rules (the night never imports jobs, the crate never imports generation, spend or jobs), and no
   package may depend on ACE-Step.
 - **Tests that pin the loop.** `TestAcceptance_M6N_SimulatedNight` (one night under a mandate, then a skipped night),

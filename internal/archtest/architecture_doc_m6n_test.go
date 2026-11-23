@@ -10,7 +10,7 @@ import (
 func TestArchitectureDoc_M6N(t *testing.T) {
 	t.Parallel()
 	sec := docSection(t, "Night shift, mandates, Morning Crate and Critic Bench (M6N)")
-	for _, want := range []string{"off until the Owner creates a mandate", "estimate ceiling", "via = mandate", "Blind", "Wilson", "TestAcceptance_M6N_NightFeedsMorningCrate"} {
+	for _, want := range []string{"off until the Owner creates a mandate", "estimate ceiling", "via = mandate", "Blind", "Wilson", "OWNER_ONLY", "HUMAN_ONLY", "FORBIDDEN_SCOPE", "TestAcceptance_M6N_NightFeedsMorningCrate"} {
 		if !strings.Contains(sec, want) {
 			t.Errorf("M6N section lost %q", want)
 		}
