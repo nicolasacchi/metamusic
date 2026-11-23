@@ -57,6 +57,7 @@ func TestArchitectureDoc_Sections(t *testing.T) {
 		"Engines (E2)":          {"registry", "runpod-serverless-acestep", "ENGINE_NOT_ADOPTED", "backend column"},
 		"Transforms (T1)":       {"render child", "GOAMD64=v1", "FinishStream", "never spends money"},
 		"Closing the loop (M5)": {"Song PR", "callbacks", "rewind", "voice"},
+		"Ears Tier B, Recover and the Diction Lab (M5b)": {"mm.ears-b/1", "Recover never spends", "draft_recoveries", "TierBSweep", "HumanLabelledLines"},
 	} {
 		sec := docSection(t, heading)
 		for _, want := range wants {
