@@ -896,6 +896,87 @@ per language with their rates, and the Owner (or an agent with write scope) can 
 (target: 60 lines across 6 takes before the thresholds are tuned; a numbers-only change to `DefaultThresholds`). A risky word of the lexicon
 appears as a warning in the draft lint and the estimate, never as an error.
 
+## The night shift, mandates and the Morning Crate (M6N)
+
+Architecture: `docs/architecture.md`, "Night shift, mandates, Morning Crate and Critic Bench (M6N)". Migrations `0025_mandates`,
+`0027_morning_crate` and `0029_night_shift` are additive; deploy each attended (backup first, `metamusic config check`, preflight, no live
+attempt).
+
+### The night is OFF until the Owner creates a mandate and enables it
+
+Nothing spends at night after the deploy. The night-shift settings row is seeded `enabled = 0`, and a night without a live mandate is
+skipped (`no_mandate`, or `mandate_scheduled` before the mandate's window) and writes no estimate, batch or approval. Turning it on is two
+human steps, both on secure pages that need the two-factor step-up and that an agent token cannot reach:
+
+1. **Create the mandate** at `/human/mandates/new` (More, Mandates): holder Night shift, a window, a budget, and the scope (modes, minimum
+   stars, takes per lineage and per batch, **the per-night ceiling**, one batch a day, Tier B yes or no). The per-night amount is the mandate's
+   per-batch ceiling (the plan's approved figure is $1.00); it is compared with the **estimate ceiling**, not with what is later settled. No form
+   field is prefilled with money, and nothing here can raise a monthly, daily or batch cap: a batch that would break a cap is refused with 402
+   exactly as before.
+2. **Enable the night** at `/human/night-shift`: the time (default 01:30 in `MM_TZ`), takes per night (up to 12, approved 6), the explore share,
+   the planner's minimum stars and the listening-check setting. Enabling is refused (409 `MANDATE_REQUIRED`) without a live mandate. The form
+   has no money field.
+
+Reading: `/mandates` and `/mandates/:id` show state (scheduled, live, ended, revoked), usage (used, committed, remaining) and the roots;
+`/night-shift` shows the settings, the next run, tonight's preview (`preview_night_shift`, which writes nothing and names the reason a night
+run now would spend nothing) and the last nights, each with state, reason, takes, ceiling and settled amount.
+
+### The first night is run attended, during the day
+
+Do not leave the first night unattended. With the mandate created and the Morning Crate on:
+
+1. Set the night's time to a slot a few minutes ahead in the daytime and enable it. Read the preview first: it must list the takes you expect.
+2. Watch the night run: `/night-shift` shows the run, `/generate` (or `list_batches`) the one batch under the mandate with approval "mandate",
+   and the jobs settle. Compare the batch ceiling with the mandate's per-night ceiling and the mandate's remaining budget.
+3. Build a crate by hand (`build_morning_crate`, or the Build button on `/morning`) and check the night's takes are in it.
+4. Set the time back to the real night slot (01:30), or disable the shift if anything looked wrong.
+
+### Halting, revoking, what a skipped night means
+
+- **Halt tonight:** `halt_night_shift` from `/night-shift` (the paired phone can do it, an agent with write scope can too). It records the halt,
+  cancels the night's unfinished batch and keeps the shift halted until the Owner enables it again on the secure page. It never needs the
+  two-factor step.
+- **Revoke the mandate:** `revoke_mandate` on `/mandates/:id` (phone too). In one transaction it ends the mandate and cancels its unfinished
+  batches; a mandate that already ended cannot be revoked (409 `INVALID_TRANSITION`) and a batch still running after its window is stopped with
+  `cancel_batch`. A night with no live mandate spends nothing.
+- **Disable:** the secure page, or revoke the mandate; both leave past nights and takes untouched.
+- **A skipped night** is not a failure. The reason says why: `no_mandate`, `mandate_scheduled`, `nothing_planned` (no rated lineage matched the
+  settings), `over_ceiling` (no take fits the ceiling or the remaining budget; this is also what an exhausted mandate looks like),
+  `caps` (a global cap refused, 402), `estimate_stale` (prices moved twice while planning), `previous_running` (last night's batch is still unfinished), `halted`, `disabled`, `missed` (the process was
+  down more than 2 hours), `generation_disabled` (the kill switch) or `mandate_changed`. A skipped night writes one audit row
+  (`nightshift:skip`) and nothing else. A `failed` night shows the lower-cased problem code; read the `audit_log` row.
+- Under `MM_TZ` that differs from the process zone, a mandate's "per day" counts days in the process zone (the spend zone) while the night's key
+  is the `MM_TZ` date; with one batch a day the two agree except across a DST change at an hour distance.
+
+### The Morning Crate
+
+The crate is built every day at **07:00** local time (`/morning` settings; `MM_TZ`). It is on by default and spends nothing: it reads takes that
+already exist, so it works without the night shift. A missed 07:00 builds within 2 hours of a restart. A scheduled crate waits for the night's
+batch to finish for up to 45 minutes (`wait_minutes`) and builds without it afterwards.
+
+- **What goes in:** takes made by jobs since the last crate, not rated by the Owner and not in an earlier crate; the night's takes first, up to the
+  length (default 40 minutes, sides of at most 15), one anchor (a take the Owner rated five stars, else one marked final), loudness matched to
+  -16 LUFS under a -1 dBTP ceiling. A take with no loudness measurement is left out.
+- **Blind:** until the reveal the page and the API name no take, lineage or anchor. Rate every chapter with stars (or finish the sides and use
+  Reveal) to see them; the reveal turns your events into ordinary comments, ratings and listen events and creates the playlist "Morning crate
+  YYYY-MM-DD" for Subsonic clients. A reveal is one transaction and is idempotent.
+- **Disk use and the sweep:** each side is a lossless 24-bit FLAC under `derived/morning/<sha prefix>/`, about 15 minutes each; a 40-minute
+  crate is on the order of a few hundred megabytes. **The sides are kept 7 days** (`keep_days`, 1 to 30). The sweep runs daily at 04:30, removes
+  the files of crates older than `keep_days` and orphan files older than a day, and marks the rows removed; a link to a removed side answers
+  404. Raise `keep_days` only if the disk has room. Masters are never touched.
+- **A crate that did not build:** `failed` rows carry a code (`MORNING_CRATE_LOUDNESS`, `MORNING_CRATE_SAMPLES`, `INTERRUPTED`, `TOOL_FAILED`);
+  `empty` means nothing was eligible. A build that was running when the process died is failed as `INTERRUPTED` at the next start, and the
+  takes it never carried are tried again. A manual `build_morning_crate` is always possible (409 `MORNING_CRATE_BUILD_IN_PROGRESS` if one is
+  running).
+- **Phone:** the crate's sides can be made available offline from `/morning/:id`; the checklist is DC-M6N-1 to DC-M6N-8 in
+  `docs/device-checklist.md`.
+
+### Critic Bench
+
+`/critics` (Judge) lists each critic with its agreement with your within-lineage ratings and blind duels, a 95 % interval and a state
+(`trusted`, `contrary`, `unknown`, `insufficient`). The numbers only appear once you have judged enough pairs inside lineages. Trust never
+acts on its own: it breaks a tie in the night's plan, and the label critic is the one the Diction Lab reads.
+
 ## Migrations 0013 to 0016
 
 Applied in order at startup (the loader refuses gaps; numbers follow merge order, not plan order):

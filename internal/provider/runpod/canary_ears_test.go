@@ -342,7 +342,7 @@ func TestCanary_EarsCasesAreListed(t *testing.T) {
 		}
 	}
 	_, err := runpod.ParseCanaryCase("bogus")
-	if err == nil || !strings.Contains(err.Error(), "tier-b") || !strings.HasSuffix(err.Error(), "or analyze)") {
+	if err == nil || !strings.Contains(err.Error(), "tier-b") || !strings.Contains(err.Error(), "tier-b, analyze, ") {
 		t.Errorf("error text %v", err)
 	}
 }

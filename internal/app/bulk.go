@@ -136,9 +136,10 @@ func wirePods(env *BuildEnv) error {
 			},
 			Audit: pods.AuditFunc(systemAudit(s.Audit, env.Now)),
 		})
+		s.PodLifecycle = lc
 		env.AddLoop(Loop{Name: "pod-lifecycle", Run: func(ctx context.Context) { _ = lc.Run(ctx) }})
 	}
-	po := pods.PollOptions{Store: env.Store, Signer: signer, Queue: w.backend.Queue(), Clock: clk, Log: log, KillSlackS: env.Cfg.KillSlackS}
+	po := pods.PollOptions{Store: env.Store, Signer: signer, Queue: w.backend.Queue(), Clock: clk, Log: log, KillSlackS: env.Cfg.KillSlackS, Hold: env.Options.M3.PodHold}
 	if lc != nil {
 		po.Nudge = lc.Nudge
 	}

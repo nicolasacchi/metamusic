@@ -453,6 +453,61 @@ Everything below the worker boundary (parsing, storage, flags, Recover, the Dict
 - **Ownership.** `draft_recoveries`, `diction_marks` and `lexicon_overrides` have a single writing package (`TestWriteOwners_Ears`);
   `internal/ears/earsjobs` may not import `internal/provider` (`TestImportGraph_Ears`, `TestImportGraph_Diction`).
 
+## Night shift, mandates, Morning Crate and Critic Bench (M6N)
+
+Plan: [plans/2026-11-20-m6-night.md](plans/2026-11-20-m6-night.md) (contracts C365 to C389; each lane's "as built" note records what the
+code does). Every code lane is merged and deployed (migrations `0025_mandates`, `0027_morning_crate` and `0029_night_shift`, all additive).
+**The night is off until the Owner creates a mandate and enables it**: the seeded `night_shift_settings` row is `enabled = 0`, so deploying
+changes nothing. The Morning Crate is on from the start (07:00, local time `MM_TZ`) and never spends.
+
+- **A mandate is the Owner's own spend approval, in advance** (`internal/mandates`). `create_mandate` is human-only (two-factor secure page,
+  `/human/mandates/new`): holder `night_shift` (principal key `agent:nightshift`), a window, a budget in integer micro-USD, and a scope (modes,
+  engine, minimum stars, optional root tracks, takes per lineage and per batch, a per-batch ceiling, batches per day, Tier B). One live mandate
+  per holder. `revoke_mandate` stays on `/api/` so the Owner's paired phone can stop spend; it cancels the mandate's unfinished batches in
+  the same transaction. Nothing in this track can raise a cap: `internal/spend` owns the arithmetic (`MandateUsage`, `MandateFits`), counts
+  settled plus reserved against the budget, and `generation` (`seams_m6n.go`, `estimate_m6n.go`, `create_m6n.go`) re-checks coverage inside the
+  create transaction, with the ordinary monthly, daily and batch caps still applying under a mandate. A batch covered by a mandate has approval
+  `via = mandate`; a create without a mandate is byte-identical to before (`TestCreate_NoMandateByteIdentical`).
+- **The night shift** (`internal/nightshift`) is a scheduled agent, not a new spender. At its local time (default 01:30; the Owner's approved
+  setting is $1.00 and up to 6 takes, typed into the app, never a code default) it plans one take per rated lineage (`plan.go`, pure: explore
+  and exploit split, mandate scope filter, a trusted Critic Bench critic only as the last tie-break), prices the plan with the ordinary
+  estimate (`Estimate` once per night), trims it until the **estimate ceiling** fits the mandate's per-batch ceiling and remaining budget, and
+  creates one batch through the ordinary `Create` as principal `agent:nightshift` (read and generate scopes, no token). With no live mandate,
+  or when nothing fits, the night is `skipped` with a reason and writes no estimate, batch, job, approval or ledger row; there is no
+  notification. A night is claimed once per local day (`night_shift_runs.night` unique), is crash-safe (a `planned` run is adopted or redone
+  within 2 hours) and leaves exactly one audit row (`nightshift:create` or `nightshift:skip`). Tier B on night takes follows the
+  `listening_checks` setting and the mandate, and the night never sends `tier_b: true`; with the capability closed it renders plain.
+- **Halt and settings.** `halt_night_shift` (any Owner-side principal with write scope, including the paired phone) records the halt, then
+  cancels the night's unfinished batch; `update_night_shift` (human-only) enables, which needs a live mandate and clears a halt, and carries no
+  money field. `preview_night_shift` shows tonight's plan and would-skip reason and writes nothing.
+- **The Morning Crate** (`internal/morning`, never imports generation, spend or jobs) builds the daily tape at 07:00 (catch-up 2 hours): the
+  takes made by jobs since the previous crate that the Owner has not rated, night-batch takes first, up to 40 minutes in sides of at most 15
+  minutes, loudness matched to -16 LUFS with a -1 dBTP ceiling (`gain.go`), one calibration anchor mixed in, written as lossless FLAC sides under
+  `derived/morning/` (`build.go`, `wav.go`) with a slate tone naming each chapter's number. **Blind**: until the reveal no chapter carries a
+  track id, title, lineage, anchor flag or gain. The headset grammar (`previoustrack`, `nexttrack` and the buffered marker) and blind 1 to 5
+  star ratings arrive as raw events (`submit_morning_crate_events`, person-only); the batch that gives every non-anchor chapter stars reveals
+  the crate in the same transaction, and the reveal (`reveal_morning_crate`) maps the events to the Owner's comments, ratings and listen
+  events and creates the shared playlist "Morning crate YYYY-MM-DD", which the Subsonic clients then list. Side files are kept 7 days
+  (`keep_days`); the daily sweep (04:30) removes older files and marks their rows removed, never deletes a row.
+- **The Critic Bench** (`internal/criticbench`, read-only SQL over `analyses`, the ratings views and `duel_verdicts`) measures how well each
+  critic (Tier A metrics, Tier B scalars, each agent's stars and duel verdicts, the Diction Lab's line classifier) agrees with the Owner: Wilson
+  95 % intervals over the Owner's within-lineage rating pairs and blind duels; a critic is `trusted` only with at least 30 effective pairs and a
+  lower bound above 0.55. Trust never discards or approves anything; it breaks a tie in the night's plan and picks the label critic.
+- **Operations and roles.** Sixteen operations. Every one is Owner-side: an Editor or Listener, and their devices, get 403 `OWNER_ONLY`
+  from all sixteen. For agents it differs per operation. `create_mandate` and `update_night_shift` are human-only (403 `HUMAN_ONLY` for every
+  agent and every device). `submit_morning_crate_events` and `reveal_morning_crate` pass the role check for a write-scope agent but the
+  handler refuses it with 403 `HUMAN_ONLY` (person-only, see the parity exceptions). The reads, `halt_night_shift`, `revoke_mandate` and
+  `build_morning_crate` are open to an agent with the needed scope (a read token gets 403 `FORBIDDEN_SCOPE` on the writes). The matrix is pinned by
+  `role_matrix.golden`, and the two person-only refusals by `TestAcceptance_M6N_NightFeedsMorningCrate`.
+  `TestImportGraph_M6N` pins the package rules (the night never imports jobs, the crate never imports generation, spend or jobs), and no
+  package may depend on ACE-Step.
+- **Tests that pin the loop.** `TestAcceptance_M6N_SimulatedNight` (one night under a mandate, then a skipped night),
+  `TestAcceptance_M6N_NightFeedsMorningCrate` (a night's takes are the first, blind chapters of the next crate; blind stars reveal it; the
+  playlist reaches a Subsonic client; the night's ceiling stayed within $1.00 and the mandate, and no cap moved). The money
+  properties are `TestProperty_MandateNeverOverCommits` and `TestProperty_RevokeRacingCreate` (`internal/jobs/property_m6n_test.go`); the
+  plan's randomised `TestProperty_MandateNeverExceeded` under M3's fault menu was not built (see its revision log). Operating notes are in the runbook, "The night shift, mandates and
+  the Morning Crate (M6N)".
+
 ## Documented parity exceptions
 
 CLAUDE.md rule 1 admits only documented exceptions to "a capability is a registry operation". They are:
@@ -469,6 +524,11 @@ CLAUDE.md rule 1 admits only documented exceptions to "a capability is a registr
   engine to spend. `engines list` mirrors `list_engines`.
 - **Provisioning and canary commands** (`runpod provision|probe|canary|arm|disarm`) are operator CLI; the provider state is
   also reachable by the human-only `update_provider_state` operation.
+- **M6N: `create_mandate` and `update_night_shift`** are registry operations with `mcp: exclude:human-only` under `/human/api/`: only the
+  Owner as a person, with two factors, creates a mandate or changes the night's settings, so no agent can grant itself spend or switch the night on.
+  **`submit_morning_crate_events` and `reveal_morning_crate`** are registry operations with `mcp: exclude:person-only` (the voice-note
+  precedent): they need an Owner-side person and answer 403 `HUMAN_ONLY` to every other principal, because blind ratings are the Owner's own
+  judgment and an agent that rated or revealed a crate would break the blindness the Critic Bench measures.
 
 ## GPU work
 
