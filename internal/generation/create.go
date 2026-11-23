@@ -301,6 +301,9 @@ func (s *Service) revalidate(ctx context.Context, tx *sql.Tx, e estimateRow) err
 				draftIDs = append(draftIDs, *t.DraftID)
 			}
 		}
+		if t.Kind == jobspec.KindPlan && t.ReuseRecipeID != nil { // a plan job on a take's own recipe: the parent check above is all that can drift
+			continue
+		}
 		if t.ReuseRecipeID != nil {
 			d, ok, err := loadDraft(ctx, tx, *t.DraftID)
 			if err != nil {
@@ -359,9 +362,14 @@ func (s *Service) insertBatch(ctx context.Context, tx *sql.Tx, p auth.Principal,
 		state, jobState = "awaiting_confirmation", "awaiting_confirmation"
 	}
 	recipeIDs := make([]string, len(e.Items))
+	planRecipes := map[string]string{} // recipe hash -> id of a plan job's new recipe: the jobs of one split item share it
 	for i, t := range e.Items {
 		if t.ReuseRecipeID != nil {
 			recipeIDs[i] = *t.ReuseRecipeID
+			continue
+		}
+		if rid, ok := planRecipes[t.RecipeHash]; ok && t.Kind == jobspec.KindPlan {
+			recipeIDs[i] = rid
 			continue
 		}
 		eng, ok := s.o.Engines[e.Engine]
@@ -381,6 +389,9 @@ func (s *Service) insertBatch(ctx context.Context, tx *sql.Tx, p auth.Principal,
 			return err
 		}
 		recipeIDs[i] = rid
+		if t.Kind == jobspec.KindPlan {
+			planRecipes[t.RecipeHash] = rid
+		}
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO batches(id, estimate_id, principal_id, principal_kind, principal_name, via, engine, backend, n_takes, rationale,
 		expected_micro_usd, max_micro_usd, retry_allowance_micro_usd, ceiling_micro_usd, price_pph_micro_usd, attempt_overhead_s, kill_slack_s, workers_max, idle_s, state, created_at, mandate_id)

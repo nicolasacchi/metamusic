@@ -244,6 +244,9 @@ func analyzeTitle(title string) string {
 // quoteTakeIn is the quote input of planned take k: a render's audio, cot and listening check, or an analyze take's fetch seconds and
 // listening check (C340.4: AudioS 0, LoadS = MM_ANALYZE_FETCH_S).
 func (p *planner) quoteTakeIn(k int, t *planTake, ears earsPlan) spend.TakeIn {
+	if n, ok := p.planJobs[k]; ok { // a plan job (D-DESK-4): n seeds of audio at the planning rate, no render phases
+		return spend.TakeIn{AudioS: n * t.ExpectedAudioS, RTFMilli: spend.PlanMilli, LoadS: spend.LoadS}
+	}
 	if earsS, ok := p.analyze[k]; ok {
 		_, _, _, fetchS := p.s.earsTerms()
 		return spend.TakeIn{AudioS: 0, LoadS: fetchS, EarsS: earsS}

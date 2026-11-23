@@ -404,6 +404,55 @@ lane built). G1 adds seams only; no track feature is built here, and nothing in 
 - **Spend rules unchanged.** Every new GPU feature is a new item mode or option of the existing estimate and create pair, so caps, the
   Editor approval rule and parity apply as before. ACE-Step was rejected on 2026-11-20; no new package may depend on it (archtest).
 
+## Ears Tier B, Recover and the Diction Lab (M5b)
+
+Plan: [plans/2026-11-20-m5b-ears.md](plans/2026-11-20-m5b-ears.md) (contracts C330 to C349; each lane's "as built" note records what the
+code does). All code lanes are merged and deployed. The GPU side is **not open in production**: the capabilities `v2`, `ears` and `analyze`
+stay closed until worker wave W2 (an attended provision of the new image and a canary under the operator's written spend approval), so
+today every estimate runs with the listening check off (`tier_b_unavailable`) and an analyze item is refused 503 `GENERATION_DISABLED`.
+Everything below the worker boundary (parsing, storage, flags, Recover, the Diction Lab) is spend-free and works on any stored document.
+
+- **Where the listening check runs.** After a yue2 render, or as the whole of an `analyze` job, the worker runs a subprocess (`mmears`,
+  `worker/ears`, driven by `worker/src/mmworker/stages/ears.py`) in its own site directory with three pinned MIT models (vocal separation,
+  speech recognition, pitch contour; `worker/ears/models.lock.json`). It emits only raw output as `analysis.json` (contract `mm.ears-b/1`, schema
+  `worker/src/mmworker/schema/mm-ears-b-1.schema.json`): words, segments, a pitch contour, timings and resources. It never judges. The stage fails
+  closed: a crash, a deadline or a missing document becomes a schema-valid `status: error` document written by the parent.
+- **Everything else is Go, deterministic and recomputable.** `internal/ears/tierb` is pure: strict parse (`Parse`, `ErrContract`), text
+  normalisation and alignment (`Norm`, `Fold`, `Align`), per-line and per-section CER and WER (`Diction`), measured sections
+  (`MeasuredSections`), score adherence (`SungNotes`, `Adherence`) and `RecoverLyrics`. `internal/ears` stores the results as `analyses` rows
+  (`tier_b_raw`, `tier_b_diction`, `tier_b_adherence`) from the artifact `analysis.json`; a new definition version is recomputed from the
+  stored artifact by a CPU-only sweep (`TierBSweep`, loop `ears-tierb-sweep`, every 30 minutes), which never creates GPU work and never
+  backfills a take that has no document. Measured sections are written once per track (`library.AddMeasuredSections`) and become the best timing
+  source; `library.TimingChain` lets the plan fill the gaps of a measured source for Song PRs, duels, attention and callbacks.
+- **Ingest.** `earsjobs.TierBHook` analyses a take whose job needed `ears` once it is committed; `earsjobs.AnalyzeIngester` attaches the
+  document of an `analyze` job to the existing take (`AttachAnalysis`, artifact `analysis.json` or the next free `analysis-N.json`) without a
+  new track and without a mutation. A stored error document is terminal: a take is never silently re-billed.
+- **Read surfaces.** The Dossier tier is `B` when Tier A is complete and the check is `ok`; flags `diction_poor`, `alignment_failed`,
+  `vocals_not_detected`, `listening_check_failed`, `melody_off_plan`, `sung_transposed` come from the stored rows (so library filters see them);
+  perception carries `diction` and `adherence`; `/context` carries the diction summary. `get_track_tier_b` answers the stored document and
+  rows, and 409 `ANALYSIS_UNAVAILABLE` (state `none`, `pending` or `missing`) otherwise. Editors see the check but never money.
+- **Quote and gate.** The check is priced into the take's timeout and reservation (`spend.QuoteTakes`, `TakeIn.EarsS`); `options.tier_b` of
+  `estimate_generation` is tri-state (auto, `true`, `false`), and the analyze item mode (`track_ids`, 1 to 50) is an ordinary approved spend.
+  Both need the worker capabilities (the gate of "Shared foundations"); the canary cases `tier-b` and `analyze` are operator CLI and spend real
+  money only under written approval (runbook, "Wave W2").
+- **Recover.** `recover_recipe` (generic MCP, REST, SPA on a track whose recipe is unknown) turns the stored transcript of a **reference** track
+  into a draft: `tierb.RecoverLyrics` cleans, splits and groups the heard lines into sections, `ears.RecoverInput` assembles lyrics and a
+  placeholder style from the Tier A facts, and `drafts.CreateRecovered` writes the draft (origin `recovered`) and its `draft_recoveries` row in
+  one transaction (lint failure leaves nothing). **Recover never spends**: it creates no job, estimate or ledger row. The draft renders later
+  through the ordinary estimate as operator `recover`: a new root (generation 0, no parent track) whose mutation names the reference as
+  `parent_track_id` for provenance only. Without a stored `ok` check it answers 409 `ANALYSIS_UNAVAILABLE` (the hint says to estimate an
+  analyze item); an empty transcript is 422 `TRANSCRIPT_EMPTY`; a track with a known recipe is 422 `RECIPE_KNOWN`.
+- **Diction Lab.** `internal/diction` (no jobs, spend, provider or API imports) builds per-line views of a take from the stored rows and the
+  lyric (`get_track_diction`, with a basis: `asr` timed by the recogniser, or `proportional` from the plan), a per-language lexicon of words
+  the recogniser mangled (`get_diction_lexicon`, `update_lexicon_entry`) and human or critic marks (`set_diction_marks`; `diction_marks` is
+  append-only, a mark is withdrawn by writing `none`). `set_diction_marks` and `update_lexicon_entry` are `OwnerOnly` ops: the Owner, the Owner's devices and role-less principals (agents) with write scope may call them, an Editor or Listener gets 403 `OWNER_ONLY`. A person's marks are `human` and feed the lexicon and calibration; an agent's are `critic` and affect neither. Discarded takes are left out of the lexicon, which is shared by every viewer. The lexicon feeds the draft lint (a
+  warning, never an error, naming words heard wrongly in earlier takes) and the estimate's planner warnings, and `diction.HumanLabelledLines` is
+  the interface the Critic Bench reads. The SPA has the karaoke view on the Track page and `/diction`. With the Subsonic option on, a take
+  with word timings answers `getLyricsBySongId` as synced lyrics (at least 75 % of lines timed); every other take answers as in M4a.
+- **Migrations.** `0021_diction` and `0024_recover`, both additive (new tables with triggers; no table rebuild).
+- **Ownership.** `draft_recoveries`, `diction_marks` and `lexicon_overrides` have a single writing package (`TestWriteOwners_Ears`);
+  `internal/ears/earsjobs` may not import `internal/provider` (`TestImportGraph_Ears`, `TestImportGraph_Diction`).
+
 ## Documented parity exceptions
 
 CLAUDE.md rule 1 admits only documented exceptions to "a capability is a registry operation". They are:

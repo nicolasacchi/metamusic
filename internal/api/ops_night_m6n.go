@@ -158,7 +158,7 @@ func nightPlanWire(pv nightshift.PlanView) NightPlan {
 	}
 	if q := pv.Quote; q != nil {
 		nq := NightQuoteOrNull{Takes: q.Takes, ExpectedMicroUSD: int64(q.ExpectedMicroUSD), ExpectedUSD: q.ExpectedMicroUSD.USD(), MaxMicroUSD: int64(q.MaxMicroUSD),
-			MaxUSD: q.MaxMicroUSD.USD(), CeilingMicroUSD: int64(q.CeilingMicroUSD), CeilingUSD: q.CeilingMicroUSD.USD()}
+			MaxUSD: q.MaxMicroUSD.USD(), CeilingMicroUSD: int64(q.CeilingMicroUSD), CeilingUSD: q.CeilingMicroUSD.USD(), TierB: q.TierB}
 		w.Quote = &nq
 	}
 	if m := pv.Mandate; m != nil {

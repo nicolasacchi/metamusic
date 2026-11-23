@@ -12,18 +12,6 @@ export const PENDING_UI: ReadonlySet<string> = new Set<string>([
   // DESK-W2 (lane desk-web) adds the audition player and the Audition button on /desk/plans/:id (m5b-desk C363); it removes these two.
   "create_plan_audition",
   "get_plan_audition",
-  // M6N-W1 (lane loop-web-a) adds the /mandates and /mandates/:id pages and the secure /human/mandates/new form (m6-night C388.1); it removes these four.
-  "create_mandate",
-  "list_mandates",
-  "get_mandate",
-  "revoke_mandate",
-  // M6N-W1 (lane loop-web-a) adds the /critics page (m6n-night C388.1, spec m6n-critics.spec.ts); it removes this one.
-  "get_critic_bench",
-  // M6N-W1 (lane loop-web-a) adds the /night-shift page and the secure /human/night-shift form (m6n-night C388.1, spec m6n-night.spec.ts); it removes these four.
-  "get_night_shift",
-  "preview_night_shift",
-  "update_night_shift",
-  "halt_night_shift",
   // M6N-W2 (lane loop-web-b) adds the /morning and /morning/:id pages: the player's crate mode, blind rating, the reveal and the settings
   // (m6-night C384, spec m6n-morning.spec.ts); it removes these seven.
   "get_morning_crate_settings",

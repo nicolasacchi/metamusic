@@ -5945,7 +5945,7 @@ export interface components {
              * @description How the take list is built; see the modes table
              * @enum {string}
              */
-            mode: "new_seed" | "same_seed_edit" | "lyric_edit" | "style_edit" | "from_draft" | "compose_new" | "from_template" | "song_pr" | "port" | "extend" | "repaint" | "reference" | "complete" | "stems" | "cover" | "render_plan" | "analyze";
+            mode: "new_seed" | "same_seed_edit" | "lyric_edit" | "style_edit" | "from_draft" | "compose_new" | "from_template" | "song_pr" | "port" | "extend" | "repaint" | "reference" | "complete" | "stems" | "cover" | "render_plan" | "plan_seeds" | "analyze";
             /**
              * Format: int64
              * @description Seeds per base recipe (default 1)
@@ -7296,7 +7296,7 @@ export interface components {
                 max_usd: string;
                 /** Format: int64 */
                 takes: number;
-                /** @description Not reported yet: M6N-N4 makes the listening checks explicit; always false until then */
+                /** @description Whether some planned take has a listening check (Tier B); false when listening checks are off, the mandate does not allow them, or the worker capability is closed */
                 tier_b: boolean;
             } | null;
             /** @description Decimal; the same seed and library give the same plan */

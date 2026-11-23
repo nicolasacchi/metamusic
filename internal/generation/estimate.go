@@ -179,7 +179,9 @@ func (s *Service) estimate(ctx context.Context, p auth.Principal, in EstimateIn,
 	}
 	var parents []string
 	for _, it := range append(slices.Clone(in.Items), planMothers...) {
-		parents = append(parents, mothers(it)...)
+		if it.Mode != lineage.ModePlanSeeds { // a plan job makes no take, so it adds nothing to a root's backlog
+			parents = append(parents, mothers(it)...)
+		}
 	}
 	if err := s.gateBacklog(ctx, s.o.Store.R, p, parents); err != nil {
 		return Estimate{}, err
@@ -195,6 +197,9 @@ func (s *Service) estimate(ctx context.Context, p auth.Principal, in EstimateIn,
 	}
 	if err := pl.expandAll(in.Items); err != nil {
 		return Estimate{}, err
+	}
+	if len(pl.takes) > MaxTakes { // a plan_seeds item counts as one take before expansion; its real jobs are counted here
+		return Estimate{}, tooLarge(len(pl.takes), 0)
 	}
 	pl.markV2Canary()
 	if pod != nil {
