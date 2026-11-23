@@ -366,7 +366,7 @@ lane built). G1 adds seams only; no track feature is built here, and nothing in 
 - **Worker protocol `mm.worker/2`.** A strict superset of `mm.worker/1`: every `/1` field keeps its name and meaning, `/2` adds optional
   fields (`kind`, `ears`, `plan`, `attach`, and the reserved `fallback` upload targets). `/1` is frozen; a job with no needs is sent as `/1`,
   byte-identical to before. The contract is chosen per attempt at submit by `provider.WireFor` (`internal/provider/wire_v2.go`): `/2` only for
-  a yue2 job whose needs are non-empty (or, later, when the upload fallback is open); ACE-Step always stays on its `/1` variant. Input and output documents are parsed strictly in Go
+  a yue2 job whose needs are non-empty (or when the upload fallback is open for the attempt); ACE-Step always stays on its `/1` variant. Input and output documents are parsed strictly in Go
   (`ParseWorkerInput`, `DecodeOutput`) and in Python (`worker/src/mmworker/contract.py`), and agree with the schemas
   `mm-worker-2.input.schema.json` and `mm-worker-2.output.schema.json`; a `/1` output that carries a `/2` key is a decode error.
   `Runner.applyWire` (`internal/jobs/wire_v2.go`) fills a `/2` document from the job's frozen spec and builds and re-parses it before sending,
@@ -508,6 +508,63 @@ changes nothing. The Morning Crate is on from the start (07:00, local time `MM_T
   plan's randomised `TestProperty_MandateNeverExceeded` under M3's fault menu was not built (see its revision log). Operating notes are in the runbook, "The night shift, mandates and
   the Morning Crate (M6N)".
 
+## Bulk pods and the upload fallback (BULK)
+
+Plan: [plans/2026-11-20-m6-bulk.md](plans/2026-11-20-m6-bulk.md) (contracts C390 to C399; its revision log records what each lane built). Two optional
+transports for the existing yue2 engine. Both are built and deployed and both are **off in production**: no pod key exists, `MM_POD_BACKEND` is `0`,
+no R2 bucket is configured, and the capabilities `agent` and `fallback` are closed. Neither adds a spend path outside `estimate_generation` and
+`create_generation`, and neither changes `mm.worker/1` or the `/2` output.
+
+- **The pod backend.** `runpod-pod` (simulated: `fake-pod`) is one more `provider.Backend` of engine `yue2` in E2's set
+  (`internal/provider/runpod/pods/backend.go`, `quote.go`). It is built only when `MM_POD_BACKEND=1` and is routed only by an estimate that names it in
+  `options.backend`; every default route is unchanged. `Submit` puts the take into an in-memory hand-out queue (`handout.go`); nothing with a URL is
+  stored, so a restart turns an unhanded take into a never-ran requeue. A pod is one RunPod pod per batch, one take at a time, created through the REST v2
+  pod API by `pods/client.go` with a closed body (SECURE cloud, one GPU, no ports, no SSH, no `queue`, no template, no volume) and a key read from the
+  mode 0600 file `runpod-pod.env` at every call. The package imports neither `internal/provider/runpod` nor `jobs`, `generation`, `httpserver` or anything
+  that reaches ACE-Step (`TestImportGraph_Bulk`).
+- **The poll route.** The pod has no inbound port. It long-polls `POST /worker/v1/pods/{id}/poll` (`pods/poll.go`, schemas `mm-pod-poll-1.*`), a signed
+  link bound to one pod and its deadline (`pods.Signer`, key derived from the server secret), and answers `wait`, `take` (one `mm.worker/1` or `/2`
+  document), `cancel` or `stop`. It is a plain machine-class handler under `/worker/`, the documented exception for worker routes: no registry
+  operation, no MCP tool, no OpenAPI path. With the backend off it answers 404. Executions are measured by the server (`done` minus hand-out); the
+  agent's own figure is diagnostic.
+- **The lifecycle.** One loop (`pods/lifecycle.go`, wired in `internal/app/bulk.go`) is the only writer of pod states (`pods`, `pod_assignments`,
+  `pod_events`, migration `0028_pods`; `pod_safety_log` is append-only). It creates a pod only inside an armed window, with the key present and a pod batch
+  waiting, and watches it with one `GetPod` per pass. The pod ends by the server (idle, the batch has no unfinished job, the window is over, the absolute
+  deadline, a boot timeout, an orphan with no poll, a price above the frozen one), by its own watchdog (the absolute deadline in its environment and a
+  dead-man on failed polls, `worker/src/mmworker/watchdog.py`) through the Terminator (DELETE, then the actions `terminate` and `stop`, then exit), and as a
+  last resort by the operator. A name sweep every minute deletes any `mm-*` pod that has no live row and trips `pod_unknown`. Trips are M3's `actOnTrips`
+  with the pod reasons `pod_overrun`, `pod_deadman`, `pod_unknown`, `pod_price`, `pod_access`, `pod_excess`, `pod_create_invalid`; a trip cancels live attempts,
+  purges the queue and deletes every live `mm-*` pod. A bulk window is the time the backend is armed: the server disarms it (`changed_by system:bulk`) at
+  `MM_POD_WINDOW_MAX` after arming (reason `window_ended`, which also stops live pods) or after 30 minutes with no pod batch and no live pod
+  (`window_idle`). Disarming by hand does not stop a live pod.
+- **The safety gate.** Arming needs a `pod_safety_log` probe row (`metamusic runpod probe --pods`, read-only; `ok`, or `too_broad` with an audited flag). An
+  ordinary pod estimate or pod creation needs the latest canary row for the configured image digest to be `verified`; the self-termination canary
+  (`options.pod_canary`, one take, always waits for the Owner's approval on `/human`, never covered by a mandate) is the only pod batch before that. The
+  capabilities `v2,agent` must also be open on `runpod-pod` for that digest (the capability gate above).
+- **Who may.** Pod estimates are Owner-as-human only (agents, tokens, mandates and the night shift get 403 `HUMAN_ONLY`; an Editor or Listener 403
+  `OWNER_ONLY`), kind `generate` only, `MM_POD_MIN_TAKES` to `MM_POD_MAX_TAKES` takes. The one added operation is `list_pods` (OwnerOnly); stopping a pod batch is
+  `cancel_batch`, which never spends and never re-creates a pod. Status is in `get_provider_status` (a `pods` block on the pod backend's entry).
+- **Money.** Integer micro-USD as everywhere. `spend.QuotePod` (`internal/spend/podquote.go`) prices a batch: the per-take `take` reserves at the dearest
+  listed GPU type with the margin, plus one `pod_overhead` reserve per pod (boot, idle, slack, kill slack, overrun) taken when the pod is created
+  (`ReservePodOverhead`, exactly once per pod through `pods.MarkOverheadReserved`), under the batch ceiling and the caps. The ceiling includes one
+  re-creation. The pod's lifetime (create sent to the first sighting of its absence, rounded up to the minute) settles through a pod meter after the batch
+  finishes; anything above the reserves settles as `excess` and opens a `pod_excess` trip. No code here writes or raises a cap.
+- **The upload fallback.** `internal/objstore` is a generic SigV4 client (stdlib plus `redact`), `internal/upload/fallback` the server side, read from
+  `r2.env` once at startup (rotation is a restart; absent means nothing is built and no loop runs). For an attempt sent as `/2` on a backend where the
+  capability `fallback` is open, the runner mints one presigned `PUT` per artifact (key = prefix plus the upload UUID) and records a `fallback_objects` row
+  first (migration `0023_upload_fallback`). The worker switches, sticky for the attempt, after `MM_FALLBACK_AFTER_S` of transport failures on the primary and never on an
+  answered 4xx. The server finds objects by `HEAD`, verifies size and sha256, records the upload `via = 'fallback'` and lets the normal result path complete
+  the take; a rescue runs before any time-bound settlement. Objects are deleted when their attempt is terminal and in any case when older than 7 days; the
+  bucket's own lifecycle rule is the backstop. `upload_drills` (operator CLI only) makes the primary route answer 503 for one attempt for a bounded time, so
+  the fallback can be exercised without stopping the app. `get_provider_status` reports `upload_fallback {configured, objects_pending, last_used_at}`.
+- **Operator-only commands** (documented parity exceptions): `metamusic runpod probe --pods`, `--backend runpod-pod` on `status|arm|disarm|reset-trip`, the
+  canary cases `fallback` and `pod-selfterm`, `metamusic upload fallback check` and `metamusic upload drill`. No REST, MCP or SPA path can open a
+  capability, arm a pod backend, write a cap or start a drill.
+- **Simulation.** `fake.PodSim` (`internal/provider/fake/pods.go`) runs the real backend, poll handler and lifecycle against an in-process pod API and one
+  simulated agent per pod on a manual clock; `servertest.Options.Pods` and `Options.ObjStore` plug it into the rig. Property and chaos tests
+  (`TestProperty_SpendNeverExceedsCap_Pods`, `TestChaos_Pod*`, `TestProperty_FallbackNeverLosesAVerifiedResult`) and the acceptance tests
+  `TestAcceptance_Bulk_*` use no RunPod and no bucket. Operating steps are in the runbook, "Bulk pods and the upload fallback: operating".
+
 ## Documented parity exceptions
 
 CLAUDE.md rule 1 admits only documented exceptions to "a capability is a registry operation". They are:
@@ -523,7 +580,9 @@ CLAUDE.md rule 1 admits only documented exceptions to "a capability is a registr
 - **`metamusic engines adopt|reject`**: an operator decision deliberately kept off REST and MCP, so that no agent can admit an
   engine to spend. `engines list` mirrors `list_engines`.
 - **Provisioning and canary commands** (`runpod provision|probe|canary|arm|disarm`) are operator CLI; the provider state is
-  also reachable by the human-only `update_provider_state` operation.
+  also reachable by the human-only `update_provider_state` operation. **The pod poll route** (`/worker/v1/pods/{id}/poll`) is a worker route like the
+  upload links: a signed machine-class handler with no operation. **`metamusic upload fallback check|drill`** and `runpod probe --pods` are operator CLI
+  (see "Bulk pods and the upload fallback").
 - **M6N: `create_mandate` and `update_night_shift`** are registry operations with `mcp: exclude:human-only` under `/human/api/`: only the
   Owner as a person, with two factors, creates a mandate or changes the night's settings, so no agent can grant itself spend or switch the night on.
   **`submit_morning_crate_events` and `reveal_morning_crate`** are registry operations with `mcp: exclude:person-only` (the voice-note
@@ -532,7 +591,7 @@ CLAUDE.md rule 1 admits only documented exceptions to "a capability is a registr
 
 ## GPU work
 
-Rendering runs on a RunPod Serverless endpoint per engine (YuE2 and, when enabled, ACE-Step); the server submits jobs and ingests results. A yue2 job speaks `mm.worker/1`, or `mm.worker/2` when it needs a capability the operator has opened for the running image (see "Shared foundations"). Transforms run on the application host.
+Rendering runs on a RunPod Serverless endpoint per engine (YuE2 and, when enabled, ACE-Step) or, for a human-approved bulk batch with the pod backend on, on one short-lived pod (see "Bulk pods and the upload fallback"); the server submits jobs and ingests results. A yue2 job speaks `mm.worker/1`, or `mm.worker/2` when it needs a capability the operator has opened for the running image (see "Shared foundations"). Transforms run on the application host.
 
 ## Build and delivery
 

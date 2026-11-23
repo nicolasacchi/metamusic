@@ -33,6 +33,14 @@ services:
       # MM_OIDC_CLIENTS: metamusic-claude=Claude
       # MM_OIDC_SCOPES: "openid metamusic"
       # MM_OIDC_JWKS_URL: https://auth.example.com/jwks.json   # only if not discoverable from the container
+      # Bulk pods (docs/runbook.md, "Bulk pods and the upload fallback: operating"). OFF by default: with MM_POD_BACKEND
+      # unset or 0 nothing is built and no pod key is read. Turn on only for an attended bulk window, after the pod key file,
+      # a probe and the self-termination canary. Placeholders below; no key ever goes here (it is the secret file runpod-pod.env).
+      # MM_POD_BACKEND: "1"
+      # MM_POD_IMAGE: registry.example.com/metamusic-worker@sha256:<64 hex>   # the digest the serverless endpoint runs
+      # MM_POD_GPU_TYPES: "<catalog GPU type id>"      # ordered, 1..4; the quote prices the dearest
+      # MM_JOB_TTL: 2h                                 # at least MM_POD_BOOT_S plus 10 minutes
+      # MM_POD_WINDOW_MAX: 8h                          # a window ends this long after arming (30 min idle shutdown is fixed)
     ports:
       - "127.0.0.1:8080:8080"
     user: "1000:1000"
@@ -47,6 +55,9 @@ services:
       # - ntfy_token   # optional; also declare it under the top-level secrets below
       # - runpod.env   # only with MM_BACKEND=runpod; scoped keys only (never the admin key); also
       #                # declare it under the top-level secrets below
+      # - r2.env           # upload fallback only: R2_ENDPOINT, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY
+      #                    # (optional R2_REGION, R2_PREFIX); read once per start, so a change needs a restart
+      # - runpod-pod.env   # bulk window only: exactly RUNPOD_POD_KEY, a key limited to pods, catalog and billing read
     read_only: true
     tmpfs:
       - /tmp
@@ -63,6 +74,11 @@ services:
 # jobs, read and write keys and the console URL, add "runpod.env" to the service "secrets" list and
 # to the top-level map below. The all-access admin key is never mounted: it is used by
 # "metamusic runpod provision" from an operator-provided file and deleted afterwards.
+# Upload fallback (optional): create deploy/secrets/r2.env (mode 600) with the bucket's endpoint, bucket and a token that has
+# object read and write on that bucket only; list it under the service "secrets" and the top-level map. Pod key (optional,
+# bulk windows only): create deploy/secrets/runpod-pod.env (mode 600) with RUNPOD_POD_KEY only, and remove it again after the
+# window (a file secret is a bind mount: take it out of the list and recreate the container to make it disappear). Neither
+# file's variables belong in "environment" or "env_file": the server refuses them there. Both stay off until the operator's steps.
 # After "up", create the human account (password read from stdin):
 #   printf '%s\n' "$PW" | docker compose -f deploy/compose.example.yml exec -T metamusic \
 #     metamusic user set-password --username <you>
@@ -71,6 +87,10 @@ secrets:
     file: ./secrets/secret_key
   # runpod.env:
   #   file: ./secrets/runpod.env
+  # r2.env:
+  #   file: ./secrets/r2.env
+  # runpod-pod.env:
+  #   file: ./secrets/runpod-pod.env
 
 # Data and backups share the one /state volume (data/ and backup/) so snapshots hardlink
 # masters instead of copying them. A bind mount works too if both directories are on it.

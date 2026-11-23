@@ -801,6 +801,117 @@ then, or disarms with `window_idle` after 30 minutes with no pod batch active or
 the window, one at a time. After the window delete the key file. `scripts/deploy-preflight.sh` refuses while `metamusic runpod status --json`
 shows `live_pods` above zero: disarm, wait until it reads 0, deploy, arm (`--force` overrides, as for live attempts).
 
+## Bulk pods and the upload fallback: operating (BULK)
+
+**Status.** Every code lane is merged and deployed, and **pods and the R2 fallback are off until the operator sets them up**. In production there is no
+pod key, `MM_POD_BACKEND` is `0`, no R2 bucket or `r2.env` exists, and the capabilities `agent` and `fallback` are closed. With them off nothing in this
+section can run: `metamusic config check` prints `pod backend: off`, `pod key: absent` and `upload fallback: not configured`, and `options.backend =
+"runpod-pod"` is refused for every caller. The two halves are independent. Every real step below spends money or touches an account, so each is the
+operator's own act; no agent performs one, and no agent reads `r2.env` or `runpod-pod.env`, prints a key or puts one on a command line. The configuration
+variables are in "Bulk pods: configuration and the pod key" above. Hostnames, bucket names, account and pod ids and the approved figures stay in the
+private appendix; this repository uses `mm.example.com` and placeholders.
+
+### The upload fallback: R2 bucket, `r2.env`, checks and the drill
+
+The fallback lets a paid render survive an unreachable app: the worker puts its artifacts in a private S3-compatible bucket and the server fetches,
+verifies (size and sha256) and deletes them. Cloudflare R2 is the recommendation; any S3 API works with the same client by changing `r2.env`.
+
+1. **Bucket and token (the operator's account).** One private bucket in the EU jurisdiction with no public access and a lifecycle rule "delete objects
+   7 days after upload"; one API token with object read and write on that bucket only. A token with object rights cannot read the lifecycle rule, so
+   confirm the rule in the provider dashboard. Add the account host and the bucket name to `.public-gate-patterns` and the CI secret
+   `PUBLIC_GATE_PATTERNS` so they cannot reach this public repository.
+2. **`r2.env`.** A mode 0600 file in the secrets directory with exactly `R2_ENDPOINT` (https, host only, no path), `R2_BUCKET`, `R2_ACCESS_KEY_ID`,
+   `R2_SECRET_ACCESS_KEY`, and optionally `R2_REGION` (default `auto`) and `R2_PREFIX` (default `mm/`). Any other variable stops startup. The six `R2_`
+   names in the process environment stop startup too. Mount it as a compose secret (see `deploy/compose.example.yml`), never through `environment` or
+   `env_file`. It is read once per start, so **a change takes a restart**; a broken file stops startup naming the file and the variable, never a value.
+3. **Deploy attended** (backup, `metamusic config check`, `scripts/deploy-preflight.sh`), then `metamusic upload fallback check`: a presigned `PUT`,
+   `HEAD`, `GET` and `DELETE` of a 1 KiB random object and the clock skew; it spends nothing and exits 3 without `r2.env`.
+4. **Worker wave.** The image must carry `fallback` (and `agent`, for pods): follow "Worker wave checklist" above (server first, image second,
+   capability third).
+5. **Open the capability right before its canary:** `metamusic runpod contract open --caps v2,fallback --reason "canary fallback: <approval ref>"`,
+   then `metamusic runpod canary --url URL --case fallback --max-usd N`. The case needs the application host's data directory (it reads the drill row and
+   the receipts), so run it on the host; it refuses before any spend otherwise. It runs one take and, once the job is generating, writes a drill row: the primary upload route answers 503
+   `UPLOAD_DRILL` for that attempt only (30 to 600 seconds), the worker switches to the bucket, and the server completes the take from the object. On
+   failure run `contract close --caps fallback`. `metamusic upload drill --attempt ID --seconds N --reason TEXT` is the same drill by hand; it refuses an
+   attempt with no live fallback object (exit 3).
+6. **Watching it.** `get_provider_status` shows `upload_fallback {configured, objects_pending, last_used_at}`; every fallback receipt is a job event with
+   `"via":"fallback"`, so a fallback never hides an outage. A growing `objects_pending` means objects the server could not fetch yet.
+
+**Retention.** The server deletes an object when its attempt is `done` or `rejected` and its job has ended or its upload is no longer open, and in any
+case when it is older than 7 days; R2 objects are kept at most 7 days (the bucket rule is the backstop and the server's rule does not depend on it).
+Unreleased audio sits in a private third-party bucket for that time: this trade-off was accepted by the operator (D-BULK-OP-6).
+
+### A bulk window: from the pod key to the pilot
+
+A pod renders a large human-approved batch (30 to 100 takes) one take after another and removes itself. Order (the operator's checklist; the first two
+rows are done once, the rest per window):
+
+1. **Pod key (the operator's account).** A RunPod key restricted to pods (read and write), catalog read and billing read. Create
+   `runpod-pod.env` (mode 0600, exactly `RUNPOD_POD_KEY`) in the secrets directory only for the window (see `deploy/compose.example.yml`). If RunPod cannot
+   restrict the key, `runpod probe --pods` reports `too_broad` and arming then needs `--accept-broad-pod-key` (audited); decide that beforehand.
+2. **Environment and deploy, attended.** In the compose file set `MM_POD_BACKEND=1`, `MM_POD_IMAGE` (the `ref@sha256:` digest the serverless endpoint
+   runs), `MM_POD_GPU_TYPES` (ordered; the quote prices the dearest listed type, so a second type makes every batch dearer) and `MM_JOB_TTL` of at least
+   `MM_POD_BOOT_S` plus 10 minutes. Run `metamusic config check` (expect `pod backend: on`, `pod key: present`), take a backup, disarm serverless,
+   drain (`scripts/deploy-preflight.sh`), deploy, check the startup log. The pinned 3B weights must download without a token from a fresh machine (the
+   agent never carries a Hugging Face token).
+3. **Probe.** `metamusic runpod probe --pods` is read-only (lists pods, the catalog, an hour of billing, and must be refused on serverless endpoints). It
+   writes a probe row; exit 0 is `ok`, 3 is `too_broad`, 1 is `failed`. Arming needs a row that is `ok`.
+4. **Open the capabilities, right before the canary:** `metamusic runpod contract open --backend runpod-pod --caps v2,agent --reason "canary pod: <approval ref>"`
+   (add `ears` only after the Ears wave passed). A new image digest closes them again and needs a new canary.
+5. **Arm for the window:** `metamusic runpod arm --backend runpod-pod --reason TEXT` (no `--endpoint-name`). It is refused (exit 3) without the key, a
+   cached pod quote, an enabled gate, or a usable probe row. **A bulk window is armed explicitly by the operator, for at most 8 hours
+   (`MM_POD_WINDOW_MAX`), with a 30 minute idle shutdown**: these are the approved defaults. The server disarms by itself (`window_ended`, which also stops
+   any live pod; `window_idle`), pods are created only inside the window and only one is live at a time. `metamusic runpod status --backend runpod-pod`
+   (read-only, local) shows the key, the probe, the safety verdict, the window and the live pods.
+6. **Self-termination canary.** `metamusic runpod canary --url URL --case pod-selfterm --max-usd N` (required). It estimates a one-take pod batch with a
+   deliberately broken link that must wait for the **Owner's approval on `/human`** (the case waits up to 30 minutes, then cancels and spends nothing),
+   then watches the pod until it is `terminated` without the server's help. Passing writes a `verified` canary row for the image digest; ordinary pod
+   estimates stay refused (503 `GENERATION_DISABLED`, `pod_safety_unverified`) until it exists. A failed or inconclusive result leaves them refused. At most two runs.
+7. **Pilot.** One 30-take bulk batch from `/human/generate` ("Run as one bulk pod batch"), attended. Approve the ceiling the estimate shows; the
+   overhead is part of Expected, Maximum and the Ceiling, and expected spend is roughly half of it. Watch `runpod status --backend runpod-pod`, `/jobs`
+   and the batch page. Expect billed to be at most the reserved amount; a trip `pod_excess` means it was not.
+8. **Close the window.** `metamusic runpod disarm --backend runpod-pod --reason TEXT`, wait until `runpod status` shows no live pod (`live_pods 0`), delete the
+   key (below), check `pod key: absent`, and look in the RunPod console for any pod left. Whether future windows are wanted is the operator's call; each
+   batch is priced by its own estimate and there is no blanket approval. A bulk batch is never created by a token, a mandate or the night shift.
+
+**Every canary and the pilot need the operator's written spend approval, with a `--max-usd` per case,** before the first command. Print costs first where a
+case allows `--dry-run`. Canaries are never run by an agent on its own, unattended or in CI. The figures are in the private appendix.
+
+**Deleting the key.** `runpod-pod.env` is read at every call, so with a bare file removing it closes the backend at once. Under compose the file is
+usually a single-file bind mount, which keeps showing the old file inside the container after the host file is removed: take the secret out of the
+service list and recreate the container (an attended deploy, with no live pod), or check with `runpod status` that `pod key: absent` before relying on it.
+Never remove the key while a pod is live: the server can then neither delete it nor watch it (it records `key_absent` and alerts), and only the pod's own
+dead-man and deadline end it.
+
+### Stopping a pod, and what disarming does
+
+**Disarming does not stop a live pod.** `metamusic runpod disarm --backend runpod-pod` only stops new pods and new hand-outs; a live pod ends by its idle
+shutdown (default 120 seconds with nothing to do), by its absolute deadline (`MM_POD_MAX_RUNTIME` from the first create), or because the window ended:
+`window_ended` stops pods (the next poll answers `stop`, the server deletes after 60 seconds if it is still there). To stop one sooner, in this order:
+
+1. Cancel the batch (`cancel_batch`, on the batch page or by an agent with write scope): its takes stop, the pod is told to `stop`, nothing new is created and nothing is spent
+   on a replacement.
+2. A trip deletes every live `mm-*` pod (M3's trip action). The operator has no CLI command that raises one; they come from the loop's own evidence.
+3. As last resort delete the pod in the RunPod console: it is the one named `mm-` followed by 12 hex characters (a canary pod `mm-c` followed by 11); the
+   server sees it gone, closes the row and settles its lifetime. Spend is bounded by the pod's own deadline and the account balance.
+
+Then confirm with `metamusic runpod status --backend runpod-pod` that no pod is live, and read `list_pods` or `/jobs` for alerts. `scripts/deploy-preflight.sh`
+refuses a deploy while a pod is live.
+
+**Never create a pod named `mm-` anything by hand**, for any purpose, while the backend is built: the name sweep (every 60 seconds, key present) deletes
+every `mm-*` pod that has no live row and opens a `pod_unknown` trip, which also cancels live work. Name your own pods differently, and do not run another
+tool that creates `mm-*` pods on the same RunPod account. Serverless endpoints named `mm-yue2` are not pods and are not touched.
+
+### Key rotation
+
+Key rotation is by file, not by environment, and always between windows. **Pod key:** with no pod live and the backend disarmed, create a new key in the
+RunPod account, replace `runpod-pod.env` (mode 0600), run `metamusic runpod probe --pods` (the old key's probe row is not enough), arm again, then delete
+the old key in the account. The next call reads the new file; no restart is needed unless the file is a single-file bind mount that was replaced (then
+recreate the container). A key the server can no longer use shows as a `pod_access` trip: fix the key, then `reset-trip --backend runpod-pod`. **R2 token:**
+create the new token, replace `r2.env`, **restart** (it is read once per start; rotation is a restart, as an attended deploy with no live attempt),
+run `metamusic upload fallback check`, then delete the old token. Objects minted with the old token are fetched with the new one only if the new token
+can read them; presigned URLs already handed to a worker are signed with the old key, so rotate when no attempt is in flight.
+
 ## Listening checks: the quote (M5b Ears)
 
 A new yue2 render with at least one lyric line gets a listening check (Tier B: vocal separation, speech recognition and, for a take
