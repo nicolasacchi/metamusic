@@ -323,6 +323,7 @@ web/src/lib/auditionPlayer.ts	desk-w2
 web/src/lib/deskRender.ts	desk-w2
 web/src/lib/deskApi.ts	desk-w1 desk-w2
 web/e2e/soundfont.ts	desk-w2 desk-t4-score
+web/e2e/global-setup.ts	core
 web/src/lib/components/BarEditor.svelte	desk-w1
 web/src/lib/components/OpenInDesk.svelte	desk-w1
 web/src/lib/abcRender.ts	desk-w1 desk-w2

@@ -89,9 +89,10 @@
   <BatchCard {batch} {viewer} {busy} onterminate={terminateBatch} />
   {#if batch.rationale}<p>Rationale: {batch.rationale}</p>{/if}
   {#if batch.approval.reasons.length > 0}<p class="muted">Approval notes: {batch.approval.reasons.join("; ")}</p>{/if}
-  {#each (batch.jobs ?? []).filter((j) => j.kind === "plan" && j.state === "completed") as j (j.id)}
+  {@const planJobs = (batch.jobs ?? []).filter((j) => j.kind === "plan" && j.state === "completed")}
+  {#each planJobs as j, i (j.id)}
     {#if can("list_plans")}
-      <p data-testid="batch-plans"><a class="btn" href={planJobsHref(j.id)} data-testid="batch-plans-link">Open the plans from this job in the Desk</a></p>
+      <p data-testid="batch-plans"><a class="btn" href={planJobsHref(j.id)} data-testid="batch-plans-link">Open the plans from {planJobs.length > 1 ? `plan job ${i + 1} of ${planJobs.length}` : "this job"} in the Desk</a></p>
     {/if}
   {/each}
   <h2>Takes</h2>
