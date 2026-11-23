@@ -175,3 +175,54 @@ func TestVersionToken(t *testing.T) {
 		}
 	}
 }
+
+// TestParseLoudness_MomentaryNaN pins the e2e evidence (CI run 45107923188) and the production tools: score renders (music, then a
+// 3 s tail of exact digital silence) analysed by ffmpeg print a NaN momentary value on every frame whose 400 ms window is silent,
+// while S, I and the peaks stay finite. n9.0.2 (the CI tool) prints "nan", the alpine 3.24 ffmpeg 8.1.3 of the app image prints
+// "-nan" (rendered with FluidR3_GM and fluidsynth 2.5.4); the fixtures are those outputs verbatim. The per-frame momentary value is
+// not used, so it must not fail the ingest; the final values still come from the last frame.
+func TestParseLoudness_MomentaryNaN(t *testing.T) {
+	for _, tc := range []struct {
+		file, nan string
+		i         float64
+		secs      int
+	}{
+		{"testdata/ebur128_m_nan_n9.0.2.txt", "lavfi.r128.M=nan\n", -16.003, 9},
+		{"testdata/ebur128_m_nan_n8.1.3.txt", "lavfi.r128.M=-nan\n", -16.005, 7},
+	} {
+		b, err := os.ReadFile(tc.file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Contains(b, []byte(tc.nan)) {
+			t.Fatalf("%s lost its NaN frames", tc.file)
+		}
+		l, err := ParseLoudness(bytes.NewReader(b))
+		if err != nil {
+			t.Fatalf("%s: %v", tc.file, err)
+		}
+		near(t, tc.file+" I", l.IntegratedLUFS, tc.i, 1e-9)
+		if len(l.ShortTerm1Hz) != tc.secs {
+			t.Errorf("%s: 1 Hz curve has %d points, want %d: %v", tc.file, len(l.ShortTerm1Hz), tc.secs, l.ShortTerm1Hz)
+		}
+		if l.TruePeakDBTP > 0 || l.TruePeakDBTP < -60 {
+			t.Errorf("%s: true peak %v", tc.file, l.TruePeakDBTP)
+		}
+	}
+}
+
+// TestParseLoudness_FinalValueNaNStillFails: only the per-frame M and S may be NaN; a NaN integrated value, in either spelling, is
+// still malformed.
+func TestParseLoudness_FinalValueNaNStillFails(t *testing.T) {
+	b, err := os.ReadFile("testdata/ebur128_m_nan_n9.0.2.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	i := bytes.LastIndex(b, []byte("lavfi.r128.I="))
+	for _, v := range []string{"nan", "-nan"} {
+		bad := append(append([]byte{}, b[:i]...), append([]byte("lavfi.r128.I="+v+"\n"), b[i+bytes.IndexByte(b[i:], '\n')+1:]...)...)
+		if _, err := ParseLoudness(bytes.NewReader(bad)); err == nil {
+			t.Errorf("I=%s was accepted", v)
+		}
+	}
+}
