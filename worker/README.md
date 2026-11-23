@@ -26,6 +26,18 @@ CI smoke check it). Attachments are written to `<work dir>/attach/` after a sha2
 collected as artifacts.
 The runtime dependency set contains no torch and no yue2: the image installs `yue2-infer` explicitly.
 
+## The plan stage (DESK-P1)
+
+`stages/plan.py` runs yue2's planning phase alone (`YuE2Pipeline.plan`, no semantic or audio phase) for each seed of a `kind: plan`
+job, sequentially, and uploads one uncompressed tar per ok seed: `plan-NN.tar` holding `score.abc`, `plan.json` and (size permitting)
+`abc_tokens.npy`, `prefix.npy` and `plan_manifest.json`. `plan.json` has exactly the six keys `seed`, `cot`, `truncated`,
+`abc_tokens`, `seconds`, `yue2` (yue2's own `plan.json` is replaced: the server's ingester refuses any other key, and
+`plan_manifest.json` hashes the bundle's own members). Seed i starts only while `plan.s_per_seed` seconds remain before the generation
+deadline, else it reports `DEADLINE`; a running seed is cancelled at the deadline. Every seed failing is `PLANS_FAILED`. The stage
+registers the `plan` capability only when the installed yue2 exposes the staged API (probed from the source of `yue2/pipeline.py`,
+without importing torch); `contract/test_yue2_contract.py` (`test_plan_signature`, `test_symbolic_plan_surface`) pins that API.
+Rendering, the ears stage and `MODE=agent` are untouched.
+
 ## MODE=agent (pods, C397)
 
 The same image runs on a RunPod pod with `MODE=agent`: `agent.py` long-polls the app's signed link (`MM_POLL_URL`, schemas

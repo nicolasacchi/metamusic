@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from .. import env as envmod
 from ..errors import InitError
-from ..pipeline import Pipeline, Result, resolve_3b, resolve_vae
+from ..pipeline import Pipeline, Plan, Result, resolve_3b, resolve_vae
 
 if TYPE_CHECKING:
     from ..contract import TakeInput
@@ -36,6 +36,10 @@ class Adapter:
     def render(self, take: TakeInput, inputs: Mapping[str, Path], cancelled: Callable[[], bool], tmp: Path, *,
                params: dict[str, Any]) -> Result:
         return self._pipe(cancelled=cancelled, **params)
+
+    def plan(self, *, cancelled: Callable[[], bool], **kwargs: Any) -> Plan:
+        """The planning phase alone (DESK-P1)."""
+        return self._pipe.plan(cancelled=cancelled, **kwargs)
 
     def env_fingerprint(self, environ: Mapping[str, str]) -> dict[str, object]:
         return envmod.fingerprint(self.weights, environ)
@@ -86,3 +90,6 @@ class _Yue2Adapter:  # pragma: no cover - exercised by the contract job and the 
 
     def __call__(self, *, cancelled: Callable[[], bool], **kwargs: Any) -> Result:
         return self._pipe(cancelled=cancelled, **kwargs)
+
+    def plan(self, *, cancelled: Callable[[], bool], **kwargs: Any) -> Plan:
+        return self._pipe.plan(cancelled=cancelled, **kwargs)

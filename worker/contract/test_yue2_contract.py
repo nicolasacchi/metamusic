@@ -331,3 +331,40 @@ def test_min_tokens_suppresses_the_end_token_until_reached_and_is_bounded() -> N
     Sampling(min_tokens=MAX_MIN_AUDIO_S * SEMANTIC_TOKENS_PER_S)
     with pytest.raises(ValueError):
         Sampling(min_tokens=MAX_MIN_AUDIO_S * SEMANTIC_TOKENS_PER_S + 1)
+
+
+def test_plan_signature() -> None:
+    """DESK-P1: the planning phase alone is callable the way stages/plan.py calls it (request_kwargs minus semantic_sampling)."""
+    from yue2 import YuE2Pipeline
+
+    params = inspect.signature(YuE2Pipeline.plan).parameters
+    assert {"style", "lyrics", "abc_sampling", "cancelled"} <= set(params)
+    assert any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())  # cot, seed, id ... travel into SongRequest
+    assert "semantic_sampling" not in params  # so the stage must drop it (it would reach SongRequest)
+    # the stage registers `plan` only when this source-level probe passes against the installed yue2
+    from mmworker.stages import plan as plan_stage
+
+    assert plan_stage.staged_api_present()
+
+
+def test_symbolic_plan_surface(tmp_path: Path) -> None:
+    """DESK-P1: the plan's ABC text, token ids and truncated flag are what stages/plan.py reads, and save() writes names the bundle
+    can carry (the stage replaces plan.json with its own six keys and ships score.abc, abc_tokens.npy, prefix.npy)."""
+    from mmworker.stages import plan as plan_stage
+
+    plan = _song_result("full", tmp_path).semantic.plan
+    assert isinstance(plan.abc, str) and plan.abc
+    assert isinstance(plan.abc_ids, list) and all(isinstance(i, int) for i in plan.abc_ids)
+    assert isinstance(plan.truncated, bool)
+    out = tmp_path / "saved"
+    plan.save(out)
+    names = {p.name for p in out.iterdir()}
+    assert names <= {"score.abc", "plan.json", "abc_tokens.npy", "prefix.npy", "plan_manifest.json"}
+    assert {"score.abc", "abc_tokens.npy", "prefix.npy"} <= names
+    # and the bundle built from it is what the ingester accepts
+    import io
+    import tarfile
+
+    data = plan_stage.build_bundle(plan, {"cot": "full"}, 1, 0.5, "v", tmp_path / "scratch")
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:") as tar:
+        assert tar.getnames() == ["score.abc", "plan.json", "abc_tokens.npy", "prefix.npy", "plan_manifest.json"]

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import struct
 from collections.abc import Callable
@@ -17,6 +18,17 @@ class Result(Protocol):
     def save_artifacts(self, directory: str | Path) -> None: ...
 
 
+class Plan(Protocol):
+    """yue2's SymbolicPlan (the pinned commit's attribute names; contract-tested): the planning phase alone."""
+
+    abc: str | None  # the ABC score text; None with cot=off
+    abc_ids: list[int]
+    timing: dict[str, Any]
+    truncated: bool
+
+    def save(self, directory: str | Path) -> None: ...
+
+
 class Pipeline(Protocol):
     weights: dict[str, str]  # repo -> revision the pipeline was loaded with
 
@@ -24,6 +36,9 @@ class Pipeline(Protocol):
         """yue2's own validation; raises ValueError on rejection."""
 
     def __call__(self, *, cancelled: Callable[[], bool], **kwargs: Any) -> Result: ...
+
+    def plan(self, *, cancelled: Callable[[], bool], **kwargs: Any) -> Plan:
+        """The planning phase alone (DESK-P1): yue2's YuE2Pipeline.plan. `kwargs` are request_kwargs minus semantic_sampling."""
 
 
 SEMANTIC_TOKENS_PER_S = 25  # YuE2 semantic codec rate
@@ -127,19 +142,52 @@ class _FakeResult:
             (d / name).write_bytes(data)
 
 
+def _npy_bytes(values: list[int]) -> bytes:
+    """A numpy v1.0 .npy of int32 (what SymbolicPlan.save writes), without numpy."""
+    header = "{'descr': '<i4', 'fortran_order': False, 'shape': (%d,), }" % len(values)
+    pad = 64 - ((10 + len(header) + 1) % 64)
+    header = header + " " * (pad % 64) + "\n"
+    return b"\x93NUMPY\x01\x00" + struct.pack("<H", len(header)) + header.encode() + struct.pack(f"<{len(values)}i", *values)
+
+
+class _FakePlan:
+    """What the fake pipeline's plan() returns: yue2's SymbolicPlan surface and its save() file set."""
+
+    def __init__(self, abc: str | None, abc_ids: list[int], timing: dict[str, Any], truncated: bool) -> None:
+        self.abc, self.abc_ids, self.timing, self.truncated = abc, abc_ids, timing, truncated
+
+    def save(self, directory: str | Path) -> None:
+        d = Path(directory)
+        d.mkdir(parents=True, exist_ok=True)
+        files = {"abc_tokens.npy": _npy_bytes(self.abc_ids), "prefix.npy": _npy_bytes([1, 2, 3]),
+                 # yue2's own plan.json is a different, larger document than the bundle's six keys
+                 "plan.json": json.dumps({"request": {}, "timing": self.timing, "truncated": self.truncated,
+                                          "prefix": [1, 2, 3], "abc_ids": self.abc_ids, "abc": self.abc}).encode()}
+        if self.abc is not None:
+            files["score.abc"] = self.abc.encode()
+        for name, data in files.items():
+            (d / name).write_bytes(data)
+        (d / "plan_manifest.json").write_text(json.dumps({n: hashlib.sha256(b).hexdigest() for n, b in files.items()}))
+
+
 class FakePipeline:
-    """Deterministic stand-in. Options let tests inject truncation shapes, extra files, slow runs."""
+    """Deterministic stand-in. Options let tests inject truncation shapes, extra files, slow runs.
+    `plan_abc`, `plan_truncated` and `plan_error` shape plan(); `plan_calls` records its kwargs."""
 
     def __init__(self, *, weights: dict[str, str] | None = None, truncated: Any = None,
                  files: dict[str, bytes] | None = None, drop: tuple[str, ...] = (),
                  on_call: Callable[[dict[str, Any], Callable[[], bool]], None] | None = None,
-                 error: BaseException | None = None) -> None:
+                 error: BaseException | None = None, plan_abc: str | None = "X:1\nK:C\nCDEF|\n",
+                 plan_truncated: bool = False, plan_error: BaseException | None = None,
+                 on_plan: Callable[[dict[str, Any], Callable[[], bool]], None] | None = None) -> None:
         self.weights = dict(weights or {})
         self._truncated = {"abc": False, "semantic": False} if truncated is None else truncated
         self._files = files or {}
         self._drop = drop
         self._on_call = on_call
         self._error = error
+        self._plan = (plan_abc, plan_truncated, plan_error, on_plan)
+        self.plan_calls: list[dict[str, Any]] = []
         self.calls: list[dict[str, Any]] = []
 
     def request_kwargs(self, request: dict[str, Any]) -> dict[str, Any]:
@@ -151,6 +199,15 @@ class FakePipeline:
             if k not in request:
                 raise ValueError(f"missing {k}")
         return dict(request)
+
+    def plan(self, *, cancelled: Callable[[], bool], **kwargs: Any) -> _FakePlan:
+        abc, truncated, error, on_plan = self._plan
+        self.plan_calls.append(kwargs)
+        if on_plan is not None:
+            on_plan(kwargs, cancelled)
+        if error is not None:
+            raise error
+        return _FakePlan(abc, [] if abc is None else [5, 6, 7, 8], {"seconds": 0.5, "output_tokens": 4}, truncated)
 
     def __call__(self, *, cancelled: Callable[[], bool], **kwargs: Any) -> _FakeResult:
         self.calls.append(kwargs)
