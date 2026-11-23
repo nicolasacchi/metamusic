@@ -85,6 +85,8 @@ export const APP_ROUTES: Route[] = [
   { pattern: "/night-shift", name: "night-shift" }, // M6N-W1: status, authority, tonight's preview, last nights, Halt
   { pattern: "/human/night-shift", name: "human-night-shift" }, // the secure settings form
   { pattern: "/critics", name: "critics" }, // M6N-W1: the Critic Bench (Judge)
+  { pattern: "/morning", name: "morning" }, // M6N-W2: the Morning Crates (Judge): list, settings, build now
+  { pattern: "/morning/:id", name: "morning-crate" }, // the blind listening page and, after the reveal, the verdicts
 ];
 
 const SERVER_PREFIXES = ["/api", "/human/api", "/start", "/pair", "/auth", "/mcp", "/healthz", "/__e2e", "/.well-known", "/media", "/icons", "/manifest.webmanifest", "/sw.js", "/rest"];

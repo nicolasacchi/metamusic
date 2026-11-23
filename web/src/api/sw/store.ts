@@ -10,12 +10,15 @@ export interface FileMeta {
   bytes: number;
   chunks: number;
   complete: boolean;
+  /** Empty for a Morning Crate side (it belongs to no take; see `morning`). */
   track_id: string;
   title: string;
   album: string;
   duration_s: number;
   cover_key: string | null;
   downloaded_at: number;
+  /** A Morning Crate side: no `tracks` row, not part of the offline set, never evicted by its sync (C384.5). */
+  morning?: { id: string; side: number };
 }
 
 export interface TrackRow {

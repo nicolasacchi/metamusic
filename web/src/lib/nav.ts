@@ -47,6 +47,8 @@ const TAB_OF: Record<string, Tab> = {
   ladder: "judge",
   compare: "judge",
   critics: "judge",
+  morning: "judge",
+  "morning-crate": "judge",
   more: "more",
   // Make
   board: "more",
@@ -131,6 +133,7 @@ export const NAV_LINKS: NavLink[] = [
   { label: "Duels", path: "/duels", tab: "judge" },
   { label: "Ladder", path: "/ladder", tab: "judge" },
   { label: "Critics", path: "/critics", tab: "judge" },
+  { label: "Morning", path: "/morning", tab: "judge", testid: "nav-morning" },
   { label: "Board", path: "/board", tab: "more", group: "Make" },
   { label: "Backlog", path: "/backlog", tab: "more", group: "Make" },
   { label: "Jobs", path: "/jobs", tab: "more", group: "Make" },
@@ -190,6 +193,8 @@ export function subActive(l: NavLink, routeName: string | null | undefined): boo
       return routeName === "ladder" || routeName === "compare";
     case "/critics":
       return routeName === "critics";
+    case "/morning":
+      return routeName === "morning" || routeName === "morning-crate";
     default:
       return false;
   }
@@ -198,7 +203,7 @@ export function subActive(l: NavLink, routeName: string | null | undefined): boo
 /** Routes that are only reached from a page (an id, a form, query arguments), not from a tab. */
 export const CONTEXTUAL_ROUTES = new Set([
   "track", "muse", "song", "draft-new", "draft-upload", "draft", "playlist", "duel", "compare", "job", "batch", "lineage", "human-confirm",
-  "record", "crate", "human-record-publish", "callback", "patch", "plan", "mandate", "human-mandate-new", "human-night-shift",
+  "record", "crate", "human-record-publish", "callback", "patch", "plan", "mandate", "human-mandate-new", "human-night-shift", "morning-crate",
 ]);
 
 const TITLES: Record<string, string> = {
@@ -226,6 +231,8 @@ const TITLES: Record<string, string> = {
   ladder: "Ladder",
   compare: "Compare",
   critics: "Critics",
+  morning: "Morning crates",
+  "morning-crate": "Morning crate",
   mandates: "Mandates",
   mandate: "Mandate",
   "human-mandate-new": "New mandate",
@@ -275,7 +282,7 @@ export function titleFor(routeName: string | null | undefined): string {
 
 /** A route that is the root of its tab (no Back button on the phone top bar). */
 export function isTabRoot(routeName: string | null | undefined): boolean {
-  return !routeName || ["new", "home", "sounds", "atlas", "records", "crates", "playlists", "queue", "judge", "callbacks", "duels", "ladder", "critics", "more"].includes(routeName);
+  return !routeName || ["new", "home", "sounds", "atlas", "records", "crates", "playlists", "queue", "judge", "callbacks", "duels", "ladder", "critics", "morning", "more"].includes(routeName);
 }
 
 /**
@@ -307,6 +314,8 @@ export const ROUTE_OPS: Record<string, string | null> = {
   ladder: "get_ladder",
   compare: "compare_tracks",
   critics: "get_critic_bench",
+  morning: "list_morning_crates",
+  "morning-crate": "get_morning_crate",
   more: null,
   board: "get_muse_board",
   muse: "get_muse",

@@ -31,12 +31,25 @@ export interface MediaLink {
 }
 
 export interface TrackMeta {
-  track_id: string;
+  /** Absent for a Morning Crate side (`morning` is set instead). */
+  track_id?: string;
+  /** A side of a Morning Crate: the file is stored without a `tracks` row. Its title must stay blind ("Morning crate"). */
+  morning?: { id: string; side: number };
   title: string;
   album: string;
   duration_s: number;
   /** Signed 512 px cover URL (relative /media/<key>.png?...), if any. */
   cover_url?: string | null;
+}
+
+/** One side of a Morning Crate as `downloadMorning` takes it. */
+export interface MorningSideFile {
+  side: number;
+  label: string;
+  url: string;
+  sha256: string;
+  bytes: number;
+  duration_s: number;
 }
 
 export interface StorageLike {
@@ -113,7 +126,8 @@ export function createOfflineManager(deps: OfflineDeps) {
       if (total <= 0) throw new OfflineError("length", "Empty media file");
       const existing = await store.meta(sha, ext);
       if (existing?.complete) {
-        await mgr.attach(existing, meta, null);
+        if (meta.morning) await store.putMeta({ ...existing, morning: meta.morning });
+        else await mgr.attach(existing, meta as TrackMeta & { track_id: string }, null);
         return;
       }
       await mgr.checkQuota(total);
@@ -125,12 +139,13 @@ export function createOfflineManager(deps: OfflineDeps) {
         bytes: total,
         chunks: n,
         complete: false,
-        track_id: meta.track_id,
+        track_id: meta.track_id ?? "",
         title: meta.title,
         album: meta.album,
         duration_s: meta.duration_s,
         cover_key: null,
         downloaded_at: 0,
+        ...(meta.morning ? { morning: meta.morning } : {}),
       };
       await store.putMeta(m);
       const parts: Uint8Array[] = [];
@@ -206,12 +221,14 @@ export function createOfflineManager(deps: OfflineDeps) {
       }
       const full: FileMeta = { ...m, complete: true, downloaded_at: deps.now() };
       await store.putMeta(full);
-      const cover = await mgr.fetchCover(meta, signal);
-      await mgr.attach(full, meta, cover);
+      if (!meta.morning) {
+        const cover = await mgr.fetchCover(meta, signal);
+        await mgr.attach(full, meta as TrackMeta & { track_id: string }, cover);
+      }
       await mgr.persistOnce();
     },
 
-    async attach(file: FileMeta, meta: TrackMeta, cover: string | null) {
+    async attach(file: FileMeta, meta: TrackMeta & { track_id: string }, cover: string | null) {
       const { store } = deps;
       const prev = await store.getTrack(meta.track_id);
       const row = { track_id: meta.track_id, file: fileKey(file.sha, file.ext), cover: cover ?? prev?.cover ?? null };
@@ -253,7 +270,7 @@ export function createOfflineManager(deps: OfflineDeps) {
           bytes: data.length,
           chunks: 1,
           complete: true,
-          track_id: meta.track_id,
+          track_id: meta.track_id ?? "",
           title: meta.title,
           album: meta.album,
           duration_s: meta.duration_s,
@@ -340,6 +357,48 @@ export function createOfflineManager(deps: OfflineDeps) {
       for (const k of keys) await mgr.dropFile(k, trackId);
     },
 
+    /**
+     * Downloads the sides of a Morning Crate (C384.5): each file is stored without a `tracks` row under neutral names
+     * ("Morning crate" / "Side A"), so no private title is cached before the reveal. When every side is in, the sides of
+     * any other crate are evicted: the phone keeps the newest crate only. A failure keeps the previous crate.
+     */
+    async downloadMorning(crateId: string, sides: MorningSideFile[], onProgress?: (side: number, done: number, total: number) => void, signal?: AbortSignal): Promise<void> {
+      for (const s of sides) {
+        await mgr.downloadTrack(
+          { url: s.url, bytes: s.bytes, sha256: s.sha256, content_type: "audio/flac", ext: "flac" },
+          { morning: { id: crateId, side: s.side }, title: "Morning crate", album: s.label, duration_s: s.duration_s },
+          (d, t) => onProgress?.(s.side, d, t),
+          signal,
+        );
+      }
+      await mgr.evictMorningExcept(crateId);
+    },
+
+    /** Removes the sides of every Morning Crate except `keep` (all of them when `keep` is null). Returns the evicted crate ids. */
+    async evictMorningExcept(keep: string | null): Promise<string[]> {
+      const { store } = deps;
+      const gone = new Set<string>();
+      for (const f of await store.listFiles()) {
+        if (!f.morning || f.morning.id === keep) continue;
+        gone.add(f.morning.id);
+        await mgr.discard(f);
+      }
+      return [...gone].sort();
+    },
+
+    /** The complete local file of one side of a Morning Crate, or null. */
+    async morningSource(crateId: string, side: number): Promise<LocalSource | null> {
+      for (const f of await deps.store.listFiles()) {
+        if (f.complete && f.morning?.id === crateId && f.morning.side === side) return { src: `/media/${f.sha}.${f.ext}`, contentType: f.content_type, format: f.ext as Format, coverSrc: null };
+      }
+      return null;
+    },
+
+    /** Sides of one crate that are complete on this device. */
+    async morningSides(crateId: string): Promise<number[]> {
+      return (await deps.store.listFiles()).filter((f) => f.complete && f.morning?.id === crateId).map((f) => f.morning!.side).sort((a, b) => a - b);
+    },
+
     /** Downloads one track by id: links from get_media_links, device format (C115.3). */
     async downloadById(trackId: string, meta: Omit<TrackMeta, "track_id" | "cover_url">, onProgress?: (done: number, total: number) => void, signal?: AbortSignal) {
       const links = await deps.mediaLinks(trackId);
@@ -383,7 +442,7 @@ export function createOfflineManager(deps: OfflineDeps) {
       const keep = new Set(items.map((i) => i.track_id));
       const local = new Set<string>();
       for (const r of await deps.store.listTracks()) local.add(r.track_id);
-      for (const f of await deps.store.listFiles()) local.add(f.track_id);
+      for (const f of await deps.store.listFiles()) if (!f.morning) local.add(f.track_id);
       for (const id of [...local].sort()) {
         if (keep.has(id)) continue;
         await mgr.evict(id);

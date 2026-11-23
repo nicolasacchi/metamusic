@@ -21,7 +21,7 @@ const pending = (page: Page) =>
   page.evaluate(
     () =>
       new Promise<number>((resolve, reject) => {
-        const open = indexedDB.open("mm-outbox", 1);
+        const open = indexedDB.open("mm-outbox");
         open.onerror = () => reject(open.error);
         open.onsuccess = () => {
           const db = open.result;
