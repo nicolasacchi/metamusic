@@ -12,8 +12,6 @@ export const PENDING_UI: ReadonlySet<string> = new Set<string>([
   // DESK-W2 (lane desk-web) adds the audition player and the Audition button on /desk/plans/:id (m5b-desk C363); it removes these two.
   "create_plan_audition",
   "get_plan_audition",
-  // BULK-W1 (lane bulk-web) adds the Batch pod block and the Jobs live pods (m6-bulk C398.6, spec bulk-pods.spec.ts, // ops: ..., list_pods); it removes this one.
-  "list_pods",
 ]);
 
 /** Operation ids whose x-mm.ui is a route (not "none:<reason>"): the SPA must exercise them, except the PENDING_UI ones. */

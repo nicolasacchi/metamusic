@@ -31,6 +31,14 @@ export function freePort(): Promise<number> {
  */
 export const SPEC_ENV: Record<string, Record<string, string>> = {
   "t1-quota.spec.ts": { MM_TRANSFORM_HUMAN_DAILY_CPU_S: "0" },
+  // BULK-W1 (m6-bulk C398.6): the fake pod backend (`fake-pod`, MM_BACKEND=fake) is built, so the bulk option, the pod panel and list_pods have a backend to
+  // answer for. The image digest is a made-up one (no pod is ever created from it); the GPU type is a catalog name; the job TTL covers boot plus ten minutes.
+  "bulk-pods.spec.ts": {
+    MM_POD_BACKEND: "1",
+    MM_POD_IMAGE: `registry.example.com/mm-worker@sha256:${"ab".repeat(32)}`,
+    MM_POD_GPU_TYPES: "NVIDIA GeForce RTX 4090",
+    MM_JOB_TTL: "2h",
+  },
 };
 
 export const specEnv = (file: string): Record<string, string> => SPEC_ENV[file.split("/").pop() ?? ""] ?? {};
