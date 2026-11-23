@@ -38,6 +38,7 @@ func TestCanary_ArgsAndRecipes(t *testing.T) {
 		{runpod.CaseAnalyze, 8, "melody", 30},  // sung recipe: canary_ears_test.go
 		{runpod.CasePlan, 8, "full", 30},       // scoreless recipe: canary_desk_test.go
 		{runpod.CasePlanRender, 8, "full", 30}, // scoreless recipe: canary_desk_test.go
+		{runpod.CasePodSelfterm, 8, "melody", 30},
 	}
 	if len(runpod.CanaryCases) != len(rows) {
 		t.Fatalf("cases = %v", runpod.CanaryCases)
@@ -876,7 +877,7 @@ func TestParseCanaryCase_ErrorGenerated(t *testing.T) {
 	if err == nil {
 		t.Fatal("accepted")
 	}
-	want := "(want main, cot-full, terminate, timeout, kill-switch, v2-wire, fallback, tier-b, analyze, plan or plan-render)"
+	want := "(want main, cot-full, terminate, timeout, kill-switch, v2-wire, fallback, tier-b, analyze, plan, plan-render or pod-selfterm)"
 	if !strings.Contains(err.Error(), want) {
 		t.Errorf("error = %q, want it to contain %q", err, want)
 	}

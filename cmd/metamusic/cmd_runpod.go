@@ -34,6 +34,8 @@ import (
 const runpodUsage = `usage: metamusic runpod <command>
 
   probe [--schema] [--keys] [--out FILE]      compare the public API spec with the snapshot; classify the keys
+  probe --pods [--accept-broad-pod-key]       read-only check of the pod key (lists pods, catalog, billing, refused on serverless);
+                                              writes a probe row; a key that reads serverless is too_broad (exit 3 unless accepted)
   provision [--engine yue2|acestep15] [--admin-env FILE] [--image REF@sha256:...] [--activate [--max 1|2] | --deactivate]
             [--pools AMPERE_24[,ADA_24]] [--vae-source image|cached|volume:PATH] [--timeout-case] [--dry-run]
             [--tasks turbo[,base]] [--init-fail] [--verify-models]
@@ -43,9 +45,15 @@ const runpodUsage = `usage: metamusic runpod <command>
   arm [--engine E] --endpoint-name N --reason TEXT [--after-restore]   (N is mm-yue2 or mm-acestep, typed)
   disarm [--engine E] --reason TEXT
   reset-trip [--engine E] --reason TEXT
-` + contractUsage + `  canary --url URL [--max-usd 0.50] [--case main|cot-full|terminate|timeout|kill-switch|v2-wire|fallback|tier-b|analyze|plan|plan-render]
+  status|disarm|reset-trip --backend runpod-pod ...   the pod backend (operator-only; bulk windows)
+  arm --backend runpod-pod --reason TEXT [--accept-broad-pod-key]
+                                              arm the pod backend for one bulk window; refused without the pod key, the cached pod
+                                              quote and a probe row (ok, or too_broad with the flag)
+` + contractUsage + `  canary --url URL [--max-usd 0.50] [--case main|cot-full|terminate|timeout|kill-switch|v2-wire|fallback|tier-b|analyze|plan|plan-render|pod-selfterm]
          [--verify-billing BATCH] [--keep] [--start-timeout 12m] [--kill-switch-confirm]
                                               scripted agent over REST with MM_TOKEN (read + write + generate)
+  canary --url URL --case pod-selfterm --max-usd N   the pod self-termination canary: needs the pod backend armed, a probe row and the
+                                              Owner's approval of its batch on /human (the case waits for it); --max-usd is required
   canary --case tier-b|analyze --dry-run      prints the Ears cases' worst case and spends nothing; analyze takes [--source-track ID]
                                               (else it renders one main take first); both spend real money and need written approval
   canary --case plan|plan-render --dry-run    prints the Desk cases' worst case and spends nothing; plan needs capabilities plan,v2 open;
@@ -266,14 +274,25 @@ func cmdRunPodProbe(ctx context.Context, args []string, getenv func(string) stri
 	keys := fs.Bool("keys", false, "classify the keys from runpod.env (spend-free)")
 	out := fs.String("out", "", "write key-capabilities.json to `FILE` (default with --keys: "+defaultCapabilitiesPath+")")
 	specURL := fs.String("spec-url", runpod.PublicSpecURL, "the public OpenAPI document (tests)")
+	podsFlag := fs.Bool("pods", false, "probe the pod key instead (spend-free, read-only; writes a probe row)")
+	acceptBroad := fs.Bool("accept-broad-pod-key", false, "with --pods: accept a key that can read serverless endpoints (audited)")
 	if err := fs.Parse(args); err != nil {
 		return usageError(err.Error())
 	}
 	if fs.NArg() > 0 {
 		return usageError("runpod probe: unexpected argument " + fs.Arg(0))
 	}
+	if *podsFlag {
+		if *schema || *keys || *out != "" {
+			return usageError("runpod probe --pods stands alone (not with --schema, --keys or --out)")
+		}
+		return cmdRunPodProbePods(ctx, *acceptBroad, getenv, s)
+	}
+	if *acceptBroad {
+		return usageError("--accept-broad-pod-key applies to --pods and to arm --backend " + podBackendFlag)
+	}
 	if !*schema && !*keys {
-		return usageError("runpod probe: give --schema and/or --keys")
+		return usageError("runpod probe: give --schema and/or --keys (or --pods)")
 	}
 	var sr *runpod.SchemaReport
 	failed := false
@@ -526,6 +545,8 @@ type statusView struct {
 	// LivePods is always present: the pods this server created that are not terminated (any backend of the set). scripts/deploy-preflight.sh
 	// refuses a deploy while it is above zero (C396.6): a deploy restarts the app, and a pod outside it keeps billing.
 	LivePods int `json:"live_pods"`
+	// Pods is the pod key, probe and safety block of `--backend runpod-pod` (BULK-P7); absent for a serverless backend.
+	Pods *podStatusView `json:"pods,omitempty"`
 }
 
 type liveAttemptView struct {
@@ -582,6 +603,7 @@ func cmdRunPodStatus(ctx context.Context, args []string, getenv func(string) str
 	asJSON := fs.Bool("json", false, "print JSON")
 	jobID := fs.String("job", "", "also show the redacted events and attempt timings of job `ID`")
 	repoll := fs.Bool("repoll", false, "with --job: GET /status once more for each attempt and print the HTTP code and status")
+	backend := addBackendFlag(fs)
 	if err := fs.Parse(args); err != nil {
 		return usageError(err.Error())
 	}
@@ -591,9 +613,19 @@ func cmdRunPodStatus(ctx context.Context, args []string, getenv func(string) str
 	if *repoll && *jobID == "" {
 		return usageError("runpod status: --repoll needs --job")
 	}
-	g, err := parseEngine(*engineFlag)
+	g, err := parseTarget(*engineFlag, *backend)
 	if err != nil {
 		return err
+	}
+	if g.isPod() {
+		if *repoll {
+			return usageError("runpod status: --repoll does not apply to --backend " + podBackendFlag)
+		}
+		cfg, cerr := config.LoadOffline(getenv)
+		if cerr != nil {
+			return fatal(cerr)
+		}
+		return cmdRunPodStatusPod(ctx, cfg, g, *asJSON, *jobID, s)
 	}
 	e, err := loadRunPod(getenv)
 	if err != nil {
@@ -858,9 +890,11 @@ func parseReasonFlags(name string, args []string, s streams, extra func(*flag.Fl
 }
 
 func cmdRunPodArm(ctx context.Context, args []string, getenv func(string) string, s streams) error {
-	var name, engineFlag *string
-	var afterRestore *bool
+	var name, engineFlag, backend *string
+	var afterRestore, acceptBroad *bool
 	reason, _, err := parseReasonFlags("arm", args, s, func(fs *flag.FlagSet) {
+		backend = addBackendFlag(fs)
+		acceptBroad = fs.Bool("accept-broad-pod-key", false, "pod backend: arm although the probe found the key able to read serverless endpoints (audited)")
 		engineFlag = fs.String("engine", "yue2", "the engine whose backend to arm: yue2 or acestep15")
 		name = fs.String("endpoint-name", "", "the endpoint's name, typed to confirm (mm-yue2, or mm-acestep for acestep15)")
 		afterRestore = fs.Bool("after-restore", false, "acknowledge a restore when billing is not readable")
@@ -868,12 +902,25 @@ func cmdRunPodArm(ctx context.Context, args []string, getenv func(string) string
 	if err != nil {
 		return err
 	}
-	if *name == "" {
-		return usageError("runpod arm: --endpoint-name is required")
-	}
-	g, err := parseEngine(*engineFlag)
+	g, err := parseTarget(*engineFlag, *backend)
 	if err != nil {
 		return err
+	}
+	if err := podOnlyFlagCheck(g, *acceptBroad); err != nil {
+		return err
+	}
+	if g.isPod() {
+		if *name != "" || *afterRestore {
+			return usageError("runpod arm --backend " + podBackendFlag + ": --endpoint-name and --after-restore do not apply")
+		}
+		cfg, cerr := config.LoadOffline(getenv)
+		if cerr != nil {
+			return fatal(cerr)
+		}
+		return cmdRunPodArmPod(ctx, cfg, reason, *acceptBroad, s)
+	}
+	if *name == "" {
+		return usageError("runpod arm: --endpoint-name is required")
 	}
 	e, err := loadRunPod(getenv)
 	if err != nil {
@@ -988,14 +1035,15 @@ func setArmed(ctx context.Context, st *store.Store, backend string, armed bool, 
 }
 
 func cmdRunPodDisarm(ctx context.Context, args []string, getenv func(string) string, s streams) error {
-	var engineFlag *string
+	var engineFlag, backend *string
 	reason, _, err := parseReasonFlags("disarm", args, s, func(fs *flag.FlagSet) {
+		backend = addBackendFlag(fs)
 		engineFlag = fs.String("engine", "yue2", "the engine whose backend to disarm: yue2 or acestep15")
 	})
 	if err != nil {
 		return err
 	}
-	g, err := parseEngine(*engineFlag)
+	g, err := parseTarget(*engineFlag, *backend)
 	if err != nil {
 		return err
 	}
@@ -1012,6 +1060,9 @@ func cmdRunPodDisarm(ctx context.Context, args []string, getenv func(string) str
 	if g.isACE() {
 		details["engine"] = g.name
 	}
+	if g.isPod() {
+		details["backend"] = g.backend
+	}
 	if err := setArmed(ctx, st, g.backend, false, reason, details, time.Now()); err != nil {
 		return fatal(err)
 	}
@@ -1020,14 +1071,15 @@ func cmdRunPodDisarm(ctx context.Context, args []string, getenv func(string) str
 }
 
 func cmdRunPodResetTrip(ctx context.Context, args []string, getenv func(string) string, s streams) error {
-	var engineFlag *string
+	var engineFlag, backend *string
 	reason, _, err := parseReasonFlags("reset-trip", args, s, func(fs *flag.FlagSet) {
+		backend = addBackendFlag(fs)
 		engineFlag = fs.String("engine", "yue2", "the engine whose backend trip to reset: yue2 or acestep15")
 	})
 	if err != nil {
 		return err
 	}
-	g, err := parseEngine(*engineFlag)
+	g, err := parseTarget(*engineFlag, *backend)
 	if err != nil {
 		return err
 	}
@@ -1062,6 +1114,9 @@ func cmdRunPodResetTrip(ctx context.Context, args []string, getenv func(string) 
 	if g.isACE() {
 		details["engine"] = g.name
 	}
+	if g.isPod() {
+		details["backend"] = g.backend
+	}
 	e, err := audit.SystemEntry("cli:runpod-reset-trip", time.Now(), details, time.Since(started), 0, false)
 	if err != nil {
 		return fatal(err)
@@ -1082,7 +1137,7 @@ func cmdRunPodCanary(ctx context.Context, args []string, getenv func(string) str
 	fs := newFlags("runpod canary", s)
 	urlFlag := fs.String("url", "", "the server's base `URL`")
 	maxUSD := fs.String("max-usd", "0.50", "refuse when the estimate's ceiling exceeds this many dollars (required for --engine acestep15)")
-	cs := fs.String("case", "", "yue2: main|cot-full|terminate|timeout|kill-switch|v2-wire|fallback|tier-b|analyze|plan|plan-render (default main); acestep15: see the usage")
+	cs := fs.String("case", "", "yue2: main|cot-full|terminate|timeout|kill-switch|v2-wire|fallback|tier-b|analyze|plan|plan-render|pod-selfterm (default main); acestep15: see the usage")
 	verify := fs.String("verify-billing", "", "after MM_BILLING_LAG: check the billing of batch `BATCH`")
 	keep := fs.Bool("keep", false, "keep the canary takes (default: discard them)")
 	killConfirm := fs.Bool("kill-switch-confirm", false, "kill-switch case: an operator will run `provision --deactivate` while the job is generating")
@@ -1148,6 +1203,9 @@ func cmdRunPodCanary(ctx context.Context, args []string, getenv func(string) str
 	}
 	if *urlFlag == "" {
 		return usage("--url is required")
+	}
+	if *cs == string(runpod.CasePodSelfterm) && !given["max-usd"] {
+		return usage("--case pod-selfterm needs an explicit --max-usd (the Owner approves the pod's spend; the estimate ceiling is checked against it)")
 	}
 	limit, err := money.ParseUSD(*maxUSD)
 	if err != nil || limit <= 0 {

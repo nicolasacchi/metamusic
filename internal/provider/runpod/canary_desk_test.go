@@ -134,7 +134,7 @@ func TestParseCanaryCase_DeskNames(t *testing.T) {
 		}
 	}
 	_, err := runpod.ParseCanaryCase("bogus")
-	if err == nil || !strings.Contains(err.Error(), "plan or plan-render)") {
+	if err == nil || !strings.Contains(err.Error(), "plan, plan-render") {
 		t.Errorf("error %v", err)
 	}
 	if got := mustSpec(runpod.CasePlan).NeedCaps; len(got) != 2 || got[0] != "plan" || got[1] != "v2" {
