@@ -90,13 +90,13 @@ web/src/routes/Jobs.svelte	m3-jobs
 web/src/routes/Job.svelte	m3-jobs
 web/src/lib/components/Job*	m3-jobs
 web/src/lib/jobState.ts	m3-jobs
-web/src/routes/Batch.svelte	m3-batch editor-shell
+web/src/routes/Batch.svelte	m3-batch editor-shell desk-w2
 web/src/lib/components/BatchCard.svelte	m3-batch
-web/src/routes/HumanGenerate.svelte	m3-compose m3-variant e2-engine-picker e2-layout ears-check
+web/src/routes/HumanGenerate.svelte	m3-compose m3-variant e2-engine-picker e2-layout ears-check desk-w2
 web/src/lib/components/Generate*	m3-compose m3-variant
 web/src/lib/components/ModeForm.svelte	m3-compose
 web/src/lib/components/Estimate*	m3-compose e2-engine-picker ears-check
-web/src/lib/genIntent.ts	m3-compose m3-variant e2-engine-picker e2-repaint e2-reference ears-check
+web/src/lib/genIntent.ts	m3-compose m3-variant e2-engine-picker e2-repaint e2-reference ears-check desk-w2
 web/src/lib/components/ConfirmSpend.svelte	m3-approval ears-check
 web/src/routes/HumanSpend.svelte	m3-spend
 web/src/routes/HumanTokens.svelte	m3-spend m3-approval
@@ -248,7 +248,7 @@ web/src/lib/components/KeyBadge.svelte	l3-entry-points
 web/src/lib/components/EnergyBadge.svelte	l3-entry-points
 web/src/lib/components/SequencePanel.svelte	l2-records l3-sequence
 web/src/lib/sequenceView.ts	l2-records l3-sequence
-web/src/routes/New.svelte	ux-inbox ux-landing l3-next listener-shell
+web/src/routes/New.svelte	ux-inbox ux-landing l3-next listener-shell desk-w2
 internal/features/*	l3-entry-points l1-song
 internal/sequencer/*	l2-records l3-sequence
 internal/sequence/*	l2-records l3-sequence
@@ -312,13 +312,20 @@ internal/engineadopt/*	e2-engine-picker e2-engines
 #internal/enginetrial/*	e2-trial
 #internal/suites/*	e2-suite
 # END E2-I1
-# DESK-W1 (the Desk pages)
-web/src/routes/Desk.svelte	desk-w1
-web/src/routes/DeskPlan.svelte	desk-w1
-web/src/lib/components/ScoreView.svelte	desk-w1
+# DESK-W1 (the Desk pages), DESK-W2 (audition, render, keep, plan_seeds form)
+web/src/routes/Desk.svelte	desk-w1 desk-w2
+web/src/routes/DeskPlan.svelte	desk-w1 desk-w2
+web/src/lib/components/ScoreView.svelte	desk-w1 desk-w2
+web/src/lib/components/AuditionPlayer.svelte	desk-w2
+web/src/lib/components/KeepAsTake.svelte	desk-w2
+web/src/lib/components/PlanSeedsForm.svelte	desk-w2
+web/src/lib/auditionPlayer.ts	desk-w2
+web/src/lib/deskRender.ts	desk-w2
+web/src/lib/deskApi.ts	desk-w1 desk-w2
+web/e2e/soundfont.ts	desk-w2 desk-t4-score
 web/src/lib/components/BarEditor.svelte	desk-w1
 web/src/lib/components/OpenInDesk.svelte	desk-w1
-web/src/lib/abcRender.ts	desk-w1
+web/src/lib/abcRender.ts	desk-w1 desk-w2
 web/src/lib/desk*.ts	desk-w1
 # M6N-W1 (the night shift, mandates and Critic Bench pages)
 web/src/routes/Mandates.svelte	m6n-night

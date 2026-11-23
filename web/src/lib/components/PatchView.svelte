@@ -6,6 +6,7 @@
   import { PATCH_BOUNDS, renderIntent, type SongPR } from "../songPrApi";
   import { callbackTally, loadPatch, renderCount, UNAVAILABLE_TEXT, type Load } from "../songPrView";
   import { fetchViewer } from "../viewer";
+  import { barChangeLabel } from "../deskView";
 
   interface Props {
     id: string;
@@ -93,6 +94,13 @@
         <div class="change" data-testid="patch-line">
           <p class="before"><span aria-hidden="true">−</span><span class="sr">Before: </span>{l.before}</p>
           <p class="after"><span aria-hidden="true">+</span><span class="sr">After: </span>{l.after}</p>
+        </div>
+      {/each}
+      {#each p.diff.abc ?? [] as c (`${c.voice}:${c.bar_from}:${c.bar_to}`)}
+        <div class="change" data-testid="patch-bars">
+          <p class="muted meta">Score: {barChangeLabel(c)}</p>
+          <p class="before"><span aria-hidden="true">−</span><span class="sr">Before: </span><code>{c.before}</code></p>
+          <p class="after"><span aria-hidden="true">+</span><span class="sr">After: </span><code>{c.after}</code></p>
         </div>
       {/each}
       {#if st && st.before !== st.after}

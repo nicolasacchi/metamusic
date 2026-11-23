@@ -281,3 +281,10 @@ export const ownerVerdictOf = (p: { verdicts?: Loose<{ owner?: Loose<{ verdict: 
 export const criticVerdictOf = (p: { verdicts?: Loose<{ critic?: Loose<{ verdict: "liked" | "rejected" | null }> }>; critic_verdict?: "liked" | "rejected" | null }): "liked" | "rejected" | null =>
   p.verdicts?.critic?.verdict ?? p.critic_verdict ?? null;
 export const editRationaleOf = (p: { edit?: Loose<{ rationale: string | null }> }): string | null => p.edit?.rationale ?? null;
+
+/** Which bars a Song PR's score change touches, 1-based as the Desk's forms are ("voice 1, bar 3" or "voice 1, bars 3–5"; the wire is 0-based, bar_to inclusive). */
+export function barChangeLabel(c: { voice: string; bar_from: number; bar_to: number }): string {
+  const a = c.bar_from + 1;
+  const b = c.bar_to + 1;
+  return a === b ? `voice ${c.voice}, bar ${a}` : `voice ${c.voice}, bars ${a}–${b}`;
+}

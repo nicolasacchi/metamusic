@@ -41,7 +41,7 @@ describe("deskApi", () => {
   test("getPlan asks for the score, the bars and the display rewrite; 404 is NOT_FOUND", async () => {
     const { api, seen } = fake((req) => (req.url.includes("/missing") ? problem(404, "NOT_FOUND") : json(200, { id: "p1" })));
     expect((await getPlan(api, "p1")).ok).toBe(true);
-    expect(new URL(seen[0]!.url).searchParams.get("include")).toBe("abc,bars,display");
+    expect(new URL(seen[0]!.url).searchParams.get("include")).toBe("abc,bars,display,auditions,renders");
     const r = await getPlan(api, "missing");
     expect(r.ok === false && r.code).toBe("NOT_FOUND");
   });

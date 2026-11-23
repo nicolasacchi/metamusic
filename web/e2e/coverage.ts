@@ -9,9 +9,6 @@ type Doc = { paths: Record<string, Record<string, { operationId?: string; "x-mm"
  * entry is only ever added for a page that is still to come.
  */
 export const PENDING_UI: ReadonlySet<string> = new Set<string>([
-  // DESK-W2 (lane desk-web) adds the audition player and the Audition button on /desk/plans/:id (m5b-desk C363); it removes these two.
-  "create_plan_audition",
-  "get_plan_audition",
   // M6N-W2 (lane loop-web-b) adds the /morning and /morning/:id pages: the player's crate mode, blind rating, the reveal and the settings
   // (m6-night C384, spec m6n-morning.spec.ts); it removes these seven.
   "get_morning_crate_settings",

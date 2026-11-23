@@ -11,10 +11,12 @@
   interface Props {
     plan: Pick<Plan, "abc" | "bar_spans" | "display" | "score">;
     selected?: BarRef | null;
+    /** The bar an audition is sounding now (DESK-W2). */
+    playing?: BarRef | null;
     onselect?: (b: BarRef) => void;
     load?: AbcLoader;
   }
-  let { plan, selected = null, onselect, load }: Props = $props();
+  let { plan, selected = null, playing = null, onselect, load }: Props = $props();
 
   let host = $state<HTMLDivElement | null>(null);
   let failed = $state(false);
@@ -43,6 +45,10 @@
     void drawn;
     if (host) markBar(host, voices, selected);
   });
+  $effect(() => {
+    void drawn;
+    if (host) markBar(host, voices, playing, "mm-bar-playing");
+  });
 </script>
 
 {#if failed}
@@ -65,6 +71,10 @@
     max-width: 100%;
     height: auto;
     cursor: pointer;
+  }
+  .paper :global(.mm-bar-playing) {
+    fill: #0b6e4f;
+    stroke: #0b6e4f;
   }
   .paper :global(.mm-bar-selected) {
     fill: #b3261e;

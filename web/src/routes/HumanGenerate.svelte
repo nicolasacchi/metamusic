@@ -8,6 +8,7 @@
   import ModePanel from "../lib/components/ModePanel.svelte";
   import ProviderBanner from "../lib/components/ProviderBanner.svelte";
   import { estimateFailureText, hasListeningCheckChoice, tierBSummary } from "../lib/estimateTierB";
+  import { planSeedsRefusalText } from "../lib/deskRender";
   import { capsOf, engineLabel, fetchEngines, modeUnavailable, pickerChoices, type EnginesResult } from "../lib/engines";
   import {
     ACESTEP,
@@ -94,7 +95,10 @@
       if (r.data) {
         estimate = r.data;
         void priceWithout(i, r.data);
-      } else error = estimateFailureText(r.response.status, r.error?.code ?? "", r.error?.message ?? "", r.error?.details as Record<string, unknown> | undefined);
+      } else {
+        const why = i.mode === "plan_seeds" ? planSeedsRefusalText : estimateFailureText;
+        error = why(r.response.status, r.error?.code ?? "", r.error?.message ?? "", r.error?.details as Record<string, unknown> | undefined);
+      }
     } catch {
       if (mine === seq) error = "Network error while estimating.";
     } finally {
@@ -153,6 +157,8 @@
     {#if isVariantMode(intent.mode) && intent.parent_track_id}of <a href="/tracks/{intent.parent_track_id}">{intent.parent_track_id}</a>{/if}
     {#if intent.draft_ids}· {intent.draft_ids.length} draft{intent.draft_ids.length === 1 ? "" : "s"}{/if}
     {#if intent.mode === "from_template"}· {intent.parent_track_ids?.length ?? 0} tracks{/if}
+    {#if intent.mode === "render_plan"}· {intent.desk?.plan_ids?.length ?? 0} plan{intent.desk?.plan_ids?.length === 1 ? "" : "s"}{#if (intent.n_seeds ?? 1) > 1}, {intent.n_seeds} seeds each{/if}{/if}
+    {#if intent.mode === "plan_seeds"}· {intent.desk?.n_seeds ?? 8} new score seeds of <a href="/tracks/{intent.parent_track_id}">{intent.parent_track_id}</a>{/if}
     {#if intent.mode === "analyze"}· listening check of {intent.track_ids?.length ?? 0} take{intent.track_ids?.length === 1 ? "" : "s"}{/if}
   </p>
   <ProviderBanner provider={estimate?.provider ?? null} />
@@ -184,7 +190,9 @@
       <EstimateView {estimate} {without} skipTierB={intent.skip_tier_b === true} onskip={skipTierB} />
       <ConfirmSpend {estimate} onbatch={opened} onreestimate={reestimate} />
     {/if}
-    {#if intent.mode !== "analyze"}
+    {#if intent.mode === "render_plan" || intent.mode === "plan_seeds"}
+      <p><a href="/desk" data-testid="back-to-desk">Back to the Desk</a></p>
+    {:else if intent.mode !== "analyze"}
       <p><button type="button" onclick={() => (editing = true)} data-testid="change-options">Change options</button></p>
     {/if}
   {/if}

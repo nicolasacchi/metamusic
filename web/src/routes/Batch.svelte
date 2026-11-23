@@ -7,6 +7,8 @@
   import { pushToast } from "../lib/judge.svelte";
   import { pollDelayMs, type Viewer } from "../lib/jobState";
   import { player } from "../lib/player.svelte";
+  import { can } from "../lib/me.svelte";
+  import { planJobsHref } from "../lib/deskRender";
 
   type Batch = components["schemas"]["Batch"];
   interface Props {
@@ -87,6 +89,11 @@
   <BatchCard {batch} {viewer} {busy} onterminate={terminateBatch} />
   {#if batch.rationale}<p>Rationale: {batch.rationale}</p>{/if}
   {#if batch.approval.reasons.length > 0}<p class="muted">Approval notes: {batch.approval.reasons.join("; ")}</p>{/if}
+  {#each (batch.jobs ?? []).filter((j) => j.kind === "plan" && j.state === "completed") as j (j.id)}
+    {#if can("list_plans")}
+      <p data-testid="batch-plans"><a class="btn" href={planJobsHref(j.id)} data-testid="batch-plans-link">Open the plans from this job in the Desk</a></p>
+    {/if}
+  {/each}
   <h2>Takes</h2>
   <table data-testid="batch-jobs">
     <tbody>
