@@ -7,6 +7,7 @@ type Patch = components["schemas"]["Patch"];
 type VariantBody = components["schemas"]["EstimateVariantInBody"];
 type EditIn = components["schemas"]["EditIn"];
 type RefIn = components["schemas"]["RefIn"];
+type DeskItemIn = components["schemas"]["DeskItemIn"];
 
 export const INTENT_KEY = "mm.genIntent";
 /** D-M3-7: at most 50 takes per batch. */
@@ -27,7 +28,12 @@ export const MAX_COMPLETE_TRACKS = 4;
 /** The most stem names one item carries (EditIn.tracks maxItems). */
 export const MAX_STEM_TRACKS = 6;
 
-export type IntentMode = VariantMode | EngineMode | "from_draft" | "from_template" | "compose_new" | "song_pr" | "analyze";
+export type IntentMode = VariantMode | EngineMode | "from_draft" | "from_template" | "compose_new" | "song_pr" | "analyze" | "render_plan" | "plan_seeds";
+
+/** The Desk's limits (m5b-desk C360): a render covers 1..10 plans with at most 4 seeds each; a plan job asks for 1..16 seeds. */
+export const DESK_MAX_PLANS = 10;
+export const DESK_RENDER_SEEDS_MAX = 4;
+export const DESK_PLAN_SEEDS_MAX = 16;
 
 export function isEngineMode(m: string): m is EngineMode {
   return (ENGINE_MODES as readonly string[]).includes(m);
@@ -66,6 +72,8 @@ export interface GenerationIntent {
   reference?: RefIn;
   /** analyze (M5b): the takes to listen to; priced and confirmed like any generation item. */
   track_ids?: string[];
+  /** render_plan (plan_ids) and plan_seeds (n_seeds, cot): the Desk's own modes (DESK-W2). */
+  desk?: DeskItemIn;
   /** "Skip the listening check" on the estimate (options.tier_b false); never sent inside the item. */
   skip_tier_b?: boolean;
   /** "Run as one bulk pod batch" (m6-bulk C398.6): the pod backend to price on (options.backend); never sent inside the item. */
@@ -96,6 +104,8 @@ function takesOf(i: GenerationIntent): number {
   if (i.mode === "from_draft") return (i.draft_ids?.length ?? 0) * per;
   if (i.mode === "from_template") return (i.parent_track_ids?.length ?? 0) * per;
   if (i.mode === "analyze") return i.track_ids?.length ?? 0;
+  if (i.mode === "render_plan") return (i.desk?.plan_ids?.length ?? 0) * per;
+  if (i.mode === "plan_seeds") return 1; // one item; its jobs are split by the server
   return per;
 }
 
@@ -114,11 +124,32 @@ export function validateIntent(i: GenerationIntent): string | null {
     if (i.track_ids.length > MAX_TAKES) return `Too many takes: check at most ${MAX_TAKES} at a time.`;
     return null;
   }
+  if (i.mode === "render_plan") return validateRenderPlan(i);
+  if (i.mode === "plan_seeds") return validatePlanSeeds(i);
   if (isVariantMode(i.mode) && !i.parent_track_id) return "Pick a track to vary.";
   const engineBad = validateEngineIntent(i);
   if (engineBad) return engineBad;
   const n = takesOf(i);
   if (n > MAX_TAKES) return `That is ${n} takes: generate in batches of at most ${MAX_TAKES} (at most ${MAX_TAKES} takes per batch).`;
+  return null;
+}
+
+function validateRenderPlan(i: GenerationIntent): string | null {
+  const ids = i.desk?.plan_ids ?? [];
+  if (ids.length === 0) return "Pick at least one plan to render.";
+  if (ids.length > DESK_MAX_PLANS) return `Render at most ${DESK_MAX_PLANS} plans at a time.`;
+  if (new Set(ids).size !== ids.length) return "Each plan can appear once.";
+  const n = i.n_seeds ?? 1;
+  if (!Number.isInteger(n) || n < 1 || n > DESK_RENDER_SEEDS_MAX) return `Render at most ${DESK_RENDER_SEEDS_MAX} seeds of a plan.`;
+  const total = ids.length * n;
+  if (total > MAX_TAKES) return `That is ${total} takes: generate in batches of at most ${MAX_TAKES}.`;
+  return null;
+}
+
+function validatePlanSeeds(i: GenerationIntent): string | null {
+  if (!i.parent_track_id) return "Pick the take to plan scores for.";
+  const n = i.desk?.n_seeds ?? 8;
+  if (!Number.isInteger(n) || n < 1 || n > DESK_PLAN_SEEDS_MAX) return `Ask for 1 to ${DESK_PLAN_SEEDS_MAX} seeds.`;
   return null;
 }
 
@@ -176,6 +207,11 @@ function isIntent(v: unknown): v is GenerationIntent {
   if (isVariantMode(mode)) return typeof o.parent_track_id === "string";
   if (mode === "from_draft") return Array.isArray(o.draft_ids) && o.draft_ids.every((x) => typeof x === "string");
   if (mode === "from_template") return Array.isArray(o.parent_track_ids) && typeof o.template_mode === "string" && isVariantMode(o.template_mode);
+  if (mode === "render_plan") {
+    const d = o.desk as Record<string, unknown> | undefined;
+    return typeof d === "object" && d !== null && Array.isArray(d.plan_ids) && d.plan_ids.length > 0 && d.plan_ids.every((x) => typeof x === "string");
+  }
+  if (mode === "plan_seeds") return typeof o.parent_track_id === "string" && o.parent_track_id !== "";
   if (mode === "song_pr") return typeof o.patch_id === "string" && o.patch_id !== "";
   if (mode === "compose_new") return typeof o.recipe === "object" && o.recipe !== null;
   return false;

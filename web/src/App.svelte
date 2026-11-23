@@ -400,7 +400,7 @@
       {/key}
     {:else if $router.route?.name === "desk"}
       {#key JSON.stringify($router.query)}
-        <Desk query={$router.query} />
+        <Desk query={$router.query} navigate={router.navigate} />
       {/key}
     {:else if $router.route?.name === "plan"}
       {#key $router.params.id}

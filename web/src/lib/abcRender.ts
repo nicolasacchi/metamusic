@@ -89,10 +89,10 @@ export async function renderScore(target: HTMLElement, o: RenderOptions): Promis
  * Marks the selected bar in the drawn notation. With `add_classes` abcjs gives every note a class `abcjs-v<voice index>` and
  * `abcjs-mm<measure number>`; `voices` is the voice ids in score order, so the voice id maps to its index.
  */
-export function markBar(target: ParentNode, voices: readonly string[], sel: BarRef | null): void {
-  for (const el of Array.from(target.querySelectorAll(".mm-bar-selected"))) el.classList.remove("mm-bar-selected");
+export function markBar(target: ParentNode, voices: readonly string[], sel: BarRef | null, cls = "mm-bar-selected"): void {
+  for (const el of Array.from(target.querySelectorAll(`.${cls}`))) el.classList.remove(cls);
   if (!sel) return;
   const v = voices.indexOf(sel.voice);
   if (v < 0) return;
-  for (const el of Array.from(target.querySelectorAll(`.abcjs-v${v}.abcjs-mm${sel.bar}`))) el.classList.add("mm-bar-selected");
+  for (const el of Array.from(target.querySelectorAll(`.abcjs-v${v}.abcjs-mm${sel.bar}`))) el.classList.add(cls);
 }

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { PlanSummary } from "./deskApi";
-import { reportLines, barText, deskPlanHref, filtersFromQuery, filtersToQuery, groupByBase, noFilters, openRefusalText, planFacts, planLabel, sectionOf, spanText, verdictText, voiceIds } from "./deskView";
+import { barChangeLabel, reportLines, barText, deskPlanHref, filtersFromQuery, filtersToQuery, groupByBase, noFilters, openRefusalText, planFacts, planLabel, sectionOf, spanText, verdictText, voiceIds } from "./deskView";
 
 const plan = (id: string, o: Partial<PlanSummary> = {}): PlanSummary =>
   ({
@@ -117,5 +117,12 @@ describe("reportLines", () => {
     const r = reportLines({ ...base, ok: false, errors: [{ line: 1, col: 2, rule: "empty_score" }, { line: 4, col: 1, rule: "weird_rule" }] });
     expect(r).toEqual({ ok: false, lines: ["Line 1, column 2: the score has no notes", "Line 4, column 1: weird rule"] });
     expect(reportLines({ ...base, ok: false }).lines).toEqual(["The score does not read as ABC."]);
+  });
+});
+
+describe("barChangeLabel", () => {
+  test("1-based, inclusive end, one bar or a range", () => {
+    expect(barChangeLabel({ voice: "1", bar_from: 2, bar_to: 2 })).toBe("voice 1, bar 3");
+    expect(barChangeLabel({ voice: "V2", bar_from: 0, bar_to: 3 })).toBe("voice V2, bars 1–4");
   });
 });

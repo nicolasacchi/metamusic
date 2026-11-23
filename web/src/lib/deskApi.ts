@@ -11,6 +11,10 @@ export type Plan = S["Plan"];
 export type PlanSummary = S["PlanSummary"];
 export type PlanBarSpan = S["PlanBarSpan"];
 export type ScoreEditOp = S["ScoreEditOp"];
+export type PlanAudition = S["PlanAudition"];
+export type PlanAuditionDetail = S["PlanAuditionDetail"];
+export type PlanRender = S["PlanRender"];
+export type CreateAuditionBody = S["CreatePlanAuditionInBody"];
 export type ScoreReport = S["ScoreReport"];
 export type PlanQuery = NonNullable<operations["list_plans"]["parameters"]["query"]>;
 
@@ -45,8 +49,8 @@ export function listPlans(api: Api, query: PlanQuery = {}): Promise<Res<{ items:
   });
 }
 
-/** The page's read: the score text, the bar spans (for clicking and editing) and the display rewrite; no auditions or renders yet (DESK-W2). */
-export const PLAN_INCLUDE = "abc,bars,display";
+/** The page's read: the score text, the bar spans (for clicking, editing and following the audition), the display rewrite, the stored auditions and the render jobs. */
+export const PLAN_INCLUDE = "abc,bars,display,auditions,renders";
 export function getPlan(api: Api, id: string, include: string = PLAN_INCLUDE): Promise<Res<Plan>> {
   return guard("Could not load the plan", async () => {
     const r = await api.GET("/api/plans/{id}", { params: { path: { id }, query: { include } } });
@@ -88,5 +92,25 @@ export function setVerdict(api: Api, planId: string, verdict: "liked" | "rejecte
   return guard("Could not save the verdict", async () => {
     const r = await api.PUT("/api/plans/{id}/verdict", { params: { path: { id: planId } }, body: { verdict, ...(note ? { note } : {}) } });
     return r.data ? { ok: true, value: r.data } : fail(r, "Could not save the verdict");
+  });
+}
+
+/** create_plan_audition: a free CPU render of the plan's score. One user action: a retry reuses the Idempotency-Key. created is false for a cached one. */
+export function createAudition(api: Api, planId: string, body: CreateAuditionBody): () => Promise<Res<{ audition: PlanAuditionDetail; created: boolean }>> {
+  const send = idempotentAction((key) =>
+    api.POST("/api/plans/{id}/auditions", { params: { path: { id: planId }, header: { "Idempotency-Key": key } }, body }),
+  );
+  return () =>
+    guard("Could not make the audition", async () => {
+      const r = await send();
+      return r.data ? { ok: true, value: { audition: r.data, created: r.response.status === 201 } } : fail(r, "Could not make the audition");
+    });
+}
+
+/** get_plan_audition: one stored audition with a fresh signed link. */
+export function getAudition(api: Api, planId: string, auditionId: string): Promise<Res<PlanAuditionDetail>> {
+  return guard("Could not load the audition", async () => {
+    const r = await api.GET("/api/plans/{id}/auditions/{aid}", { params: { path: { id: planId, aid: auditionId } } });
+    return r.data ? { ok: true, value: r.data } : fail(r, "Could not load the audition");
   });
 }
