@@ -354,6 +354,7 @@ func TestAcceptance_DeskAuditionReal(t *testing.T) {
 	r := genRig(t, archivetest.SyntheticArchive(t, "acceptance"), o)
 	h := r.Human(t)
 	plan := r.DeskPlanFromFixture(t, scoreTake(t, r))
+	tracksBefore := count(t, r, `SELECT COUNT(*) FROM tracks`)
 	resp := deskPost(t, h, "/api/plans/"+plan+"/auditions", map[string]any{"soundfont": "gm", "tail_s": 1.0})
 	if resp.Status != 201 {
 		t.Fatalf("audition: %d %s", resp.Status, resp.Body)
@@ -369,8 +370,9 @@ func TestAcceptance_DeskAuditionReal(t *testing.T) {
 	if b := got.Body; !(string(b[:3]) == "ID3" || (b[0] == 0xff && b[1]&0xe0 == 0xe0)) {
 		t.Errorf("the audition is not an MP3: % x", b[:4])
 	}
-	if n := count(t, r, `SELECT COUNT(*) FROM tracks WHERE id IN (SELECT track_id FROM desk_auditions WHERE track_id IS NOT NULL)`); n != 0 {
-		t.Errorf("an audition became a take")
+	// an audition is a Desk file, never a take: the library has exactly the tracks it had before
+	if n := count(t, r, `SELECT COUNT(*) FROM tracks`); n != tracksBefore {
+		t.Errorf("an audition became a take: %d tracks, %d before", n, tracksBefore)
 	}
 }
 
