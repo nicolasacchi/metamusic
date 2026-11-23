@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/auth"
@@ -25,6 +26,7 @@ const (
 	ReasonEditorBatch   = "editor_batch" // D-U1-11: every Editor batch waits for the Owner
 	ReasonTakesOverLim  = "takes_over_limit"
 	ReasonCostOverLimit = "cost_over_limit"
+	ReasonPodCanary     = "pod_canary" // the self-termination canary of the pod backend always waits for the Owner (C398.1)
 
 	// ExpirySystem decides expired approvals.
 	ExpirySystem = "system:reconciler"
@@ -85,6 +87,16 @@ func NeedsApproval(p auth.Principal, via string, takes int, ceiling money.MicroU
 		n.Reasons = append(n.Reasons, ReasonCostOverLimit)
 	}
 	n.Needed = len(n.Reasons) > 0
+	return n
+}
+
+// PodCanaryNeed is the approval of a pod self-termination canary batch (C398.1): always needed, whoever asks, over whatever limits and
+// whatever mandate; the Owner approves it on /human. It keeps the reasons NeedsApproval already gave and drops any mandate.
+func PodCanaryNeed(n ApprovalNeed) ApprovalNeed {
+	n.Needed, n.Mandate = true, ""
+	if !slices.Contains(n.Reasons, ReasonPodCanary) {
+		n.Reasons = append(slices.Clone(n.Reasons), ReasonPodCanary)
+	}
 	return n
 }
 

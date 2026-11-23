@@ -222,6 +222,7 @@ var uiScript = map[string]func(s *uiState) map[string]any{
 	"get_spend":           func(*uiState) map[string]any { return nil },
 	"list_ledger":         func(*uiState) map[string]any { return map[string]any{"limit": 10} },
 	"get_provider_status": func(*uiState) map[string]any { return nil },
+	"list_pods":           func(*uiState) map[string]any { return map[string]any{"state": "all", "limit": 10} }, // BULK-P6: the rig has no pod backend, so the list is empty
 	"get_lineage":         func(s *uiState) map[string]any { return map[string]any{"id": s.mother} },
 
 	// M4a (C113): the three read ops and the five admin management ops (the scripted agent holds scope admin).
@@ -365,7 +366,7 @@ var uiOrder = []string{
 	"get_track_analysis", "get_track_tier_b", "get_track_diction", "set_diction_marks", "get_diction_lexicon", "update_lexicon_entry", "recover_recipe", "get_track_spectrogram", "compare_tracks",
 	// M3: estimate first, then create with the returned token, then read and cancel what it made
 	"estimate_variant", "create_variant", "estimate_generation", "list_batches", "get_batch", "list_jobs", "get_job", "wait_for_job",
-	"cancel_job", "cancel_batch", "get_budget", "get_spend", "list_ledger", "get_provider_status", "get_lineage",
+	"cancel_job", "cancel_batch", "get_budget", "get_spend", "list_ledger", "get_provider_status", "list_pods", "get_lineage",
 	// M4a
 	"get_offline_set", "get_download_link", "get_prompt", "list_connector_grants", "set_connector_grant",
 	// L1: ids first (list_songs, create_muse, list_sessions), then the reads and writes that use them

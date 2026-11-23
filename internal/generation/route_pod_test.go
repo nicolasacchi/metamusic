@@ -30,6 +30,22 @@ func (x *rigE2) withPodBackend(mode string, keys bool) {
 	}
 	x.backends, x.gates = set, gates
 	x.svc.UseEngines(set, gates, x.adoption, x.clipper)
+	x.svc.UsePods(testPodConfig())
+}
+
+// testPodConfig is the pod estimate configuration of the rigs: the defaults of C390.2, the simulated backend (no canary rule).
+func testPodConfig() generation.PodConfig {
+	return generation.PodConfig{MinTakes: 30, MaxTakes: 100, BootS: 1200, IdleS: 120, SlackS: 300, MaxRuntimeS: 6 * 3600, MaxRecreate: 1,
+		GPUTypes: []string{"gpu-a", "gpu-b"}}
+}
+
+// podItems is a pod-sized batch: n takes of the fixture's first take, ten seeds an item.
+func podItems(x *rigE2, n int) []generation.Item {
+	var out []generation.Item
+	for ; n > 0; n -= 10 {
+		out = append(out, newSeedItem(x.info.Takes["T1"], min(n, 10)))
+	}
+	return out
 }
 
 // gatesWithoutPod is the gate set of a process whose pod backend is gone.
@@ -86,7 +102,7 @@ func TestRouteGate_SecondYue2Backend(t *testing.T) {
 		t.Parallel()
 		x := newRigE2(t)
 		x.withPodBackend(provider.ModeFake, true)
-		e, err := x.estimateVia(provider.BackendFakePod, newSeedItem(x.info.Takes["T1"], 1))
+		e, err := x.estimateVia(provider.BackendFakePod, podItems(x, 30)...)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -106,7 +122,7 @@ func TestRouteGate_SecondYue2Backend(t *testing.T) {
 		x := newRigE2(t)
 		x.withPodBackend(provider.ModeRunPod, false) // no key
 		item := newSeedItem(x.info.Takes["T1"], 1)
-		_, err := x.estimateVia(provider.BackendFakePod, item)
+		_, err := x.estimateVia(provider.BackendFakePod, podItems(x, 30)...)
 		pe := wantProblem(t, err, 503, "GENERATION_DISABLED")
 		if pe.Details["reason"] != provider.ReasonKeysAbsent {
 			t.Errorf("details = %v", pe.Details)
@@ -127,16 +143,16 @@ func TestRouteGate_SecondYue2Backend(t *testing.T) {
 		if _, err := x.estimateVia("", v2Item()); err != nil {
 			t.Fatalf("serverless route: %v", err)
 		}
-		_, err := x.estimateVia(provider.BackendFakePod, v2Item())
+		_, err := x.estimateVia(provider.BackendFakePod, append(podItems(x, 29), v2Item())...)
 		pe := wantProblem(t, err, 503, "GENERATION_DISABLED")
 		if pe.Details["reason"] != generation.ReasonWorkerOutdated || pe.Details["backend"] != provider.BackendFakePod {
 			t.Errorf("details = %v", pe.Details)
 		}
 		if err := provider.AppendContract(context.Background(), x.st.W, provider.WorkerContractRow{Backend: provider.BackendFakePod, ImageDigest: "sha256:" + strings.Repeat("4", 64),
-			Caps: []string{"v2"}, Via: provider.ContractViaCLI, ChangedBy: "system:cli", ChangedAt: x.clk.Now(), Reason: "test"}); err != nil {
+			Caps: []string{"agent", "v2"}, Via: provider.ContractViaCLI, ChangedBy: "system:cli", ChangedAt: x.clk.Now(), Reason: "test"}); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := x.estimateVia(provider.BackendFakePod, v2Item()); err != nil {
+		if _, err := x.estimateVia(provider.BackendFakePod, append(podItems(x, 29), v2Item())...); err != nil {
 			t.Fatalf("opened: %v", err)
 		}
 	})
@@ -148,7 +164,7 @@ func TestCreate_PodRoute(t *testing.T) {
 	t.Parallel()
 	x := newRigE2(t)
 	x.withPodBackend(provider.ModeFake, true)
-	e, err := x.estimateVia(provider.BackendFakePod, newSeedItem(x.info.Takes["T1"], 1))
+	e, err := x.estimateVia(provider.BackendFakePod, podItems(x, 30)...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +180,7 @@ func TestCreate_PodRoute(t *testing.T) {
 		t.Errorf("batch backend %q", got)
 	}
 	// the pod backend leaves the set between estimate and create
-	e2, err := x.estimateVia(provider.BackendFakePod, newSeedItem(x.info.Takes["T1"], 1))
+	e2, err := x.estimateVia(provider.BackendFakePod, podItems(x, 30)...)
 	if err != nil {
 		t.Fatal(err)
 	}

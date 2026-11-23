@@ -2,12 +2,15 @@ package app
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
+	"github.com/nicolasacchi/metamusic/internal/api"
 	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
+	"github.com/nicolasacchi/metamusic/internal/generation"
 	"github.com/nicolasacchi/metamusic/internal/jobs"
 	"github.com/nicolasacchi/metamusic/internal/money"
 	"github.com/nicolasacchi/metamusic/internal/provider"
@@ -23,11 +26,11 @@ func init() {
 	audit.AddSystemOps(jobs.OpBulkDisarm, pods.OpPodCreate, pods.OpPodSettle, pods.OpPodCanary)
 }
 
-// podEstimatePriced says whether the estimate prices a pod batch with QuotePod (BULK-P6, C398). Until it does, an estimate routed to the
-// pod backend would be priced by the serverless path and under-state pod spend (P4's coupling note, review), so the real backend is built
-// but its gate stays closed (keys_absent): it cannot be armed, no estimate is created for it and the loop creates nothing. BULK-P6 flips
-// this constant in the commit that lands the pod quote. The fake pod backend is not affected.
-const podEstimatePriced = false
+// podEstimatePriced says whether the estimate prices a pod batch with QuotePod (BULK-P6, C398). It does since BULK-P6 (generation.UsePods is
+// called below), so the real backend's gate no longer holds it closed; the operator's own steps still do: a pod backend is disarmed until the
+// operator arms it, which needs a probe row, the pod key file and a verified canary before an ordinary batch. With MM_POD_BACKEND=0 nothing
+// of it is built.
+const podEstimatePriced = true
 
 // podWiring is what the pod constructor leaves for the build hook.
 type podWiring struct {
@@ -81,6 +84,11 @@ func podBackends(in e2Inputs) ([]e2Extra, error) {
 	}
 	w.backend = pods.NewBackend(bo)
 	m.pods = w
+	if m.Generation == nil {
+		return nil, errors.New("app: the pod backend needs the generation service built first")
+	}
+	m.Generation.UsePods(generation.PodConfig{MinTakes: cfg.PodMinTakes, MaxTakes: cfg.PodMaxTakes, BootS: cfg.PodBootS, IdleS: cfg.PodIdleS, SlackS: cfg.PodSlackS,
+		MaxRuntimeS: int(cfg.PodMaxRuntime / time.Second), MaxRecreate: 1, GPUTypes: cfg.PodGPUTypes, RequireCanary: !w.fake})
 	return []e2Extra{{Backend: w.backend, KeysLoaded: w.fake || podEstimatePriced, Expect: provider.WorkerExpect{Weights: yue2.Weights},
 		GateColdStartS: cfg.PodBootS, GateMaxRuntime: cfg.PodMaxRuntime, Meter: podMeter{}}}, nil
 }
@@ -106,6 +114,11 @@ func wirePods(env *BuildEnv) error {
 		log = slog.Default()
 	}
 	s.Provider.UseSystemAudit(systemAudit(s.Audit, env.Now))
+	info := &api.PodsInfo{ImageDigest: pods.ImageDigest(env.Cfg.PodImage), KeyPresent: w.keyPresent}
+	if !w.fake {
+		info.WindowMax = env.Cfg.PodWindowMax
+	}
+	s.Deps.Pods = info
 	signer := pods.NewSigner(env.Sec.PodPollKey())
 	var lc *pods.Lifecycle
 	if s.Runner != nil && rec != nil {
