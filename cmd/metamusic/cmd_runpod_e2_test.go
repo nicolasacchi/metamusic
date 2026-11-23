@@ -64,6 +64,7 @@ func TestCLI_EngineFlag_Table(t *testing.T) {
 		msg  string
 	}{
 		{[]string{"provision", "--engine", "bogus"}, 2, "--engine"},
+		{[]string{"canary", "--url", "http://127.0.0.1:1", "--engine", "acestep15", "--plan-id", "p"}, 2, "plan-render"},
 		{[]string{"provision", "--engine", "acestep15", "--vae-source", "image"}, 2, "yue2 flag"},
 		{[]string{"provision", "--engine", "yue2", "--tasks", "turbo"}, 2, "acestep15 flags"},
 		{[]string{"provision", "--tasks", "turbo"}, 2, "acestep15 flags"},

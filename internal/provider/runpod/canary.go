@@ -658,6 +658,11 @@ func (c *canary) run(ctx context.Context, spec CanarySpec) (*CanaryReport, error
 			return c.finish("refused", ExitRefused, "the stages' estimate ceilings so far (%s) exceed --max-usd %s", c.ceilSum.USD(), c.o.MaxUSD.USD()), nil
 		}
 	}
+	if est.RequiresHumanApproval {
+		// a render_plan batch from an agent always awaits the Owner (desk_render) unless a mandate covers it: refuse before a batch
+		// and its reservation exist
+		return c.finish("refused", ExitRefused, "the estimate requires human approval (a Desk render awaits the Owner unless a covering mandate exists); no batch was created and nothing was spent"), nil
+	}
 	var batch cBatch
 	err = c.do(ctx, http.MethodPost, "/api/generations", map[string]string{"Idempotency-Key": idempotencyKey(spec.RequestID, est.ConfirmationToken)},
 		map[string]any{"confirmation_token": est.ConfirmationToken, "rationale": "runpod canary: " + string(spec.Case)}, &batch)

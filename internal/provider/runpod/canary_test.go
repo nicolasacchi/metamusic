@@ -127,6 +127,7 @@ type restStub struct {
 	terminalSeen        bool
 	settled             int64 // the batch's settled micro-USD (default 100_000)
 	estimates           int
+	needApproval        bool              // the estimate answers requires_human_approval
 	genBodies           map[string]string // Idempotency-Key -> body, as the real server binds them
 }
 
@@ -200,7 +201,7 @@ func (s *restStub) serve(w http.ResponseWriter, r *http.Request) {
 	case "POST /api/generations/estimate":
 		s.estimate = body
 		s.estimates++ // every estimate yields a new confirmation token, as the real server does
-		out(200, map[string]any{"confirmation_token": "mmc_" + strings.Repeat(string(rune('a'+s.estimates%26)), 52), "takes": 1, "requires_human_approval": false,
+		out(200, map[string]any{"confirmation_token": "mmc_" + strings.Repeat(string(rune('a'+s.estimates%26)), 52), "takes": 1, "requires_human_approval": s.needApproval,
 			"cost": map[string]any{"ceiling_micro_usd": s.ceiling}})
 	case "POST /api/generations":
 		k := r.Header.Get("Idempotency-Key")

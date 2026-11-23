@@ -1114,6 +1114,9 @@ func cmdRunPodCanary(ctx context.Context, args []string, getenv func(string) str
 	}
 	given := map[string]bool{}
 	fs.Visit(func(f *flag.Flag) { given[f.Name] = true })
+	if g.isACE() && given["plan-id"] {
+		return usage("--plan-id belongs to --case plan-render, which is a yue2 case")
+	}
 	if g.isACE() {
 		return cmdCanaryACEStep(ctx, getenv, s, aceCanaryFlags{url: *urlFlag, maxUSD: *maxUSD, maxUSDGiven: given["max-usd"], cs: *cs, verify: *verify,
 			keep: *keep, killConfirm: *killConfirm, startTimeout: *startTimeout, all: *all, dry: *dry, part: *partFlag, source: *source,

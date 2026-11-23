@@ -152,19 +152,32 @@ type cTrackRow struct {
 	RecordedAt string `json:"recorded_at"`
 }
 
-// newestCotFullTake finds the newest kept cot-full canary take with a score, or "".
+// newestCotFullTake finds the newest kept cot-full canary take with a score, or "". It pages through the scored job takes until a
+// match is found or the results run out (at most deskTakePages pages), so later takes do not hide the canary take.
 func (c *canary) newestCotFullTake(ctx context.Context) (string, error) {
-	var page struct {
-		Items []cTrackRow `json:"items"`
-	}
-	if err := c.do(ctx, http.MethodGet, "/api/tracks?origin=job&has_score=true&limit=100", nil, nil, &page); err != nil {
-		return "", err
-	}
 	var hits []cTrackRow
-	for _, t := range page.Items {
-		if strings.HasPrefix(t.RequestID, "mm-canary-") && strings.Contains(t.RequestID, "-"+string(CaseCotFull)+"-") {
-			hits = append(hits, t)
+	cursor := ""
+	for range deskTakePages {
+		var page struct {
+			Items      []cTrackRow `json:"items"`
+			NextCursor *string     `json:"next_cursor"`
 		}
+		path := "/api/tracks?origin=job&has_score=true&limit=100"
+		if cursor != "" {
+			path += "&cursor=" + url.QueryEscape(cursor)
+		}
+		if err := c.do(ctx, http.MethodGet, path, nil, nil, &page); err != nil {
+			return "", err
+		}
+		for _, t := range page.Items {
+			if strings.HasPrefix(t.RequestID, "mm-canary-") && strings.Contains(t.RequestID, "-"+string(CaseCotFull)+"-") {
+				hits = append(hits, t)
+			}
+		}
+		if len(hits) > 0 || page.NextCursor == nil || *page.NextCursor == "" {
+			break
+		}
+		cursor = *page.NextCursor
 	}
 	if len(hits) == 0 {
 		return "", nil
@@ -172,6 +185,9 @@ func (c *canary) newestCotFullTake(ctx context.Context) (string, error) {
 	sort.SliceStable(hits, func(i, j int) bool { return hits[i].RecordedAt > hits[j].RecordedAt })
 	return hits[0].ID, nil
 }
+
+// deskTakePages bounds the take search of newestCotFullTake.
+const deskTakePages = 20
 
 // preparePlanRender finds or makes the plan to render. Everything here is read-only or free (create_plan_from_take costs nothing); the
 // only spend is the estimate that follows, bounded by --max-usd.

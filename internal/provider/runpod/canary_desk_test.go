@@ -3,6 +3,7 @@ package runpod_test
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -14,11 +15,13 @@ import (
 // real server.
 type deskStub struct {
 	*earsStub
-	plans     []map[string]any // get_plan bodies, by id; the first is also listed for job-1
-	tracks    []map[string]any // search_tracks rows
-	operator  string           // the rendered take's lineage operator
-	renderedT string           // the track the plan lists among its renders
-	made      []string         // create_plan_from_take calls
+	plans        []map[string]any   // get_plan bodies, by id; the first is also listed for job-1
+	tracks       []map[string]any   // search_tracks rows
+	operator     string             // the rendered take's lineage operator
+	renderedT    string             // the track the plan lists among its renders
+	made         []string           // create_plan_from_take calls
+	pages        [][]map[string]any // paged search_tracks rows (cursor = page index), newest first
+	trackQueries []string
 }
 
 func deskPlanDoc(id string, over map[string]any) map[string]any {
@@ -67,6 +70,16 @@ func newDeskStub(t *testing.T, caps []string, jobs ...map[string]any) *deskStub 
 			d.plans = append(d.plans, made)
 			_ = enc.Encode(made)
 		case r.Method == http.MethodGet && p == "/api/tracks":
+			d.trackQueries = append(d.trackQueries, r.URL.RawQuery)
+			if d.pages != nil {
+				i, _ := strconv.Atoi(r.URL.Query().Get("cursor"))
+				var next any
+				if i+1 < len(d.pages) {
+					next = strconv.Itoa(i + 1)
+				}
+				_ = enc.Encode(map[string]any{"items": d.pages[i], "next_cursor": next})
+				return
+			}
 			_ = enc.Encode(map[string]any{"items": d.tracks})
 		case r.Method == http.MethodGet && strings.HasPrefix(p, "/api/tracks/trk-"):
 			_ = enc.Encode(map[string]any{"id": "trk-1", "lineage": map[string]any{"operator": d.operator}})
@@ -283,6 +296,29 @@ func TestCanary_PlanRenderCase(t *testing.T) {
 			t.Errorf("rep %+v", rep)
 		}
 		noSpend(t, s.earsStub)
+	})
+	t.Run("approval needed is refused before a batch exists", func(t *testing.T) {
+		t.Parallel()
+		s := newDeskStub(t, nil, renderJob()...)
+		s.needApproval = true
+		rep := runEars(t, s.earsStub, runpod.CasePlanRender, func(o *runpod.CanaryOptions) { o.PlanID = "plan-1" })
+		if rep.Exit != runpod.ExitRefused || !strings.Contains(rep.Reason, "requires human approval") || s.count("POST /api/generations") != 0 {
+			t.Errorf("rep %+v", rep)
+		}
+	})
+	t.Run("the take is found on a later page; the search stops at the first page with a match", func(t *testing.T) {
+		t.Parallel()
+		s := newDeskStub(t, nil, renderJob()...)
+		s.pages = [][]map[string]any{
+			{{"id": "trk-song", "request_id": "alice-song", "recorded_at": "2026-10-13T10:00:00Z"}},
+			{{"id": "trk-old", "request_id": "mm-canary-20261001-cot-full-1", "recorded_at": "2026-10-01T10:00:00Z"},
+				{"id": "trk-1", "request_id": "mm-canary-20261010-cot-full-1", "recorded_at": "2026-10-10T10:00:00Z"}},
+			{{"id": "trk-late", "request_id": "mm-canary-20261020-cot-full-1", "recorded_at": "2026-10-20T10:00:00Z"}},
+		}
+		rep := runEars(t, s.earsStub, runpod.CasePlanRender, nil)
+		if rep.Exit != runpod.ExitPass || len(s.made) != 1 || !strings.Contains(s.made[0], "trk-1") || len(s.trackQueries) != 2 {
+			t.Errorf("rep %+v made %v queries %v", rep, s.made, s.trackQueries)
+		}
 	})
 	t.Run("a take that is not a render_plan, or not listed by the plan, fails", func(t *testing.T) {
 		t.Parallel()
