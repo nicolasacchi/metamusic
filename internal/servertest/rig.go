@@ -92,6 +92,10 @@ type Options struct {
 	// app its HTTP client, so the upload fallback is built exactly as production builds it. Rig.ObjStore is the bucket. Capability
 	// `fallback` is still closed until the test opens it (Rig.OpenCaps).
 	ObjStore bool
+	// Pods (BULK-S1, C399.13) builds the fake pod backend `fake-pod` over a fake.PodSim: the real pods.Backend, poll route and lifecycle
+	// loop, with simulated agents that poll the rig's own poll handler and upload through its own upload handlers. It needs Backend "fake".
+	// Rig.Pods is the simulation; PodRound drives one deterministic round of the runner, the lifecycle and the agents.
+	Pods *PodsOptions
 	// MorningBuilder replaces the Morning Crate's side builder (M6N-X1: morningtest.Fake, so a crate builds without a media tool run);
 	// nil => the production builder.
 	MorningBuilder morning.SideBuilder
@@ -206,7 +210,9 @@ type Rig struct {
 	// M3 (C86.1). Fake is the in-process backend when Options.Backend is "fake"; Runner and Reconciler are
 	// built whenever a backend exists (started only with Options.Runner).
 	// ObjStore is the bucket of an Options.ObjStore rig (nil otherwise).
-	ObjStore   *objstoretest.Server
+	ObjStore *objstoretest.Server
+	// Pods is the pod simulation of an Options.Pods rig (nil otherwise).
+	Pods       *fake.PodSim
 	Fake       *fake.Backend
 	Backend    provider.Backend
 	Runner     *jobs.Runner
@@ -515,6 +521,9 @@ func New(tb testing.TB, o Options) *Rig {
 		}
 		ao.FallbackHTTP, r.ObjStore = bkt.HTTPClient(), bkt
 	}
+	if o.Pods != nil {
+		r.Pods = configurePods(tb, o, &cfg, &ao, st, clock)
+	}
 	if ao.SlotCoin == nil {
 		ao.SlotCoin = Alternating()
 	}
@@ -546,6 +555,9 @@ func New(tb testing.TB, o Options) *Rig {
 		svc.Server.Duels, svc.Server.Ears, svc.Server.Clips = svc.Duels, svc.Ears, svc.Clips
 	}
 	r.Services = svc
+	if r.Pods != nil {
+		attachPods(tb, o.Pods, r.Pods, svc, clock)
+	}
 	if svc.OIDC != nil { // C105 eager fetch: logs error codes only, never blocks or fails the rig
 		pctx, cancel := context.WithCancel(ctx)
 		done := make(chan struct{})

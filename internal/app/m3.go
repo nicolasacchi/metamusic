@@ -66,6 +66,9 @@ type M3Options struct {
 	// PodAPI replaces the RunPod pod client of the pod backend and its lifecycle loop (BULK-P5 test seam; the fake pod backend's simulated API,
 	// BULK-S1, plugs in here too). nil => the real client under MM_BACKEND=runpod, none under fake.
 	PodAPI pods.API
+	// PodHold is how long the pod poll handler holds an idle poll (0 = the production 20 s, negative = not at all). The simulated pod agents
+	// of a rig poll synchronously from PodSim.Tick, so a rig sets it negative (BULK-S1).
+	PodHold time.Duration
 	// Live marks a process that serves real traffic (serve, dev): the runner gets the claim preflight (D-M3-33)
 	// and the fake backend gets a simulated worker that talks to the upload handlers in process. Rigs leave it
 	// false and drive the runner and the fake worker themselves.

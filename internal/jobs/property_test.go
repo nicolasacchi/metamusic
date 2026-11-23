@@ -265,6 +265,10 @@ func (e *propEnv) newReconciler() *Reconciler {
 		if e.bname == provider.BackendRunPod {
 			o.GateCfg.Mode = provider.ModeRunPod
 		}
+		if e.bname == provider.BackendFakePod { // the pod backend (BULK-S1): a scoped reconciler with no cold start
+			o.Scoped, o.ColdStartS, o.MaxRuntime = true, 0, 6*time.Hour
+			o.GateCfg = provider.GateConfig{Mode: provider.ModeFake, Backend: provider.BackendFakePod, KeysLoaded: true, MaxRuntime: 6 * time.Hour}
+		}
 		o.Owner = fmt.Sprintf("runner-%d", e.owners)
 	})
 }

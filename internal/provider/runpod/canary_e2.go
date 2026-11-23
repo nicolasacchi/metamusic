@@ -199,7 +199,8 @@ func (c *canary) estimateBody(spec CanarySpec) map[string]any {
 
 type cBackend struct {
 	cProvider
-	Engine string `json:"engine"`
+	Engine  string `json:"engine"`
+	Backend string `json:"backend"`
 }
 
 type cProviderAll struct {
@@ -221,6 +222,14 @@ func (c *canary) readProvider(ctx context.Context) (cProvider, error) {
 	var all cProviderAll
 	if err := c.do(ctx, http.MethodGet, "/api/provider", nil, nil, &all); err != nil {
 		return cProvider{}, err
+	}
+	if c.o.Case == CasePodSelfterm { // the pod canary reads the pod backend's own entry (arming, trips, caps and the pods block)
+		for _, b := range all.Backends {
+			if b.Backend == "runpod-pod" {
+				return b.cProvider, nil
+			}
+		}
+		return cProvider{}, errors.New("canary: the server shows no runpod-pod backend (MM_POD_BACKEND=1 and the pod key are needed)")
 	}
 	if c.o.Engine != EngineACEStep {
 		return all.cProvider, nil
