@@ -170,8 +170,11 @@ func TestChaos_PodKeyRemovedMidRun(t *testing.T) {
 	if got := e.r.count(`SELECT COUNT(*) FROM ledger WHERE batch_id = ? AND kind = 'settle' AND reason = 'excess'`, b.Batch); got > 1 {
 		t.Errorf("%d excess rows: a batch settles once", got)
 	}
-	billed, settled := int64(w.sim.Billed()), int64(0)
-	settled, _ = settledAll(e.r.st.R)
+	if got := e.r.count(`SELECT COUNT(*) FROM provider_trips WHERE reason = 'pod_overrun'`); got != 1 {
+		t.Errorf("%d pod_overrun trips after the heal, want exactly 1 (the pod's end was never confirmed within the grace)", got)
+	}
+	billed := int64(w.sim.Billed())
+	settled, _ := settledAll(e.r.st.R)
 	if billed > settled+int64(len(ps))*2*int64(podSimCost)/60 {
 		t.Errorf("the pod billed %d but %d was settled", billed, settled)
 	}

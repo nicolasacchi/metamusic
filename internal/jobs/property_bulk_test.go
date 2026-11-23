@@ -293,7 +293,7 @@ func (w *podWorld) checkReality() {
 		return
 	}
 	slack := int64(len(w.sim.Pods())) * int64(money.ForSeconds(120, podSimCost))
-	if billed > settled+out+slack && (e.profile == "within" || e.r.count(`SELECT COUNT(*) FROM provider_trips WHERE backend = 'fake-pod'`) == 0) {
+	if billed > settled+out+slack && (e.profile == "within" || e.r.count(`SELECT COUNT(*) FROM provider_trips WHERE backend = 'fake-pod' AND reset_at IS NULL`) == 0) {
 		e.failf("reality check: the pods billed %d, covered by settled %d + outstanding %d + %d", billed, settled, out, slack)
 	}
 }
