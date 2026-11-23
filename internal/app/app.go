@@ -60,6 +60,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/provenance"
 	"github.com/nicolasacchi/metamusic/internal/provider"
 	"github.com/nicolasacchi/metamusic/internal/provider/fake"
+	"github.com/nicolasacchi/metamusic/internal/provider/runpod/pods"
 	"github.com/nicolasacchi/metamusic/internal/ratelimit"
 	"github.com/nicolasacchi/metamusic/internal/records"
 	"github.com/nicolasacchi/metamusic/internal/recordview"
@@ -213,6 +214,8 @@ type Services struct {
 	// pods is the pod backend's wiring (bulk.go); nil with MM_POD_BACKEND=0. podHandler serves /worker/v1/pods/ (nil: not mounted).
 	pods       *podWiring
 	podHandler http.Handler
+	// PodLifecycle is the pod lifecycle loop (nil without the pod backend or without a runner); rigs drive it with Tick instead of its loop.
+	PodLifecycle *pods.Lifecycle
 }
 
 // Build constructs the services over st and data. Every store and service
