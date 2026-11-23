@@ -2,6 +2,8 @@ package runpod
 
 import (
 	"context"
+	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -99,4 +101,203 @@ func orDefault(s, d string) string {
 		return d
 	}
 	return s
+}
+
+// CasePodSelfterm is the self-termination canary of the pod backend (BULK-P7, C399.10 client side): an estimate with options
+// {backend: "runpod-pod", pod_canary: "self_terminate"} and one synthetic take. The server creates one canary pod whose poll link
+// every poll refuses, so the agent's dead-man must fire. The batch always waits for the Owner's approval on /human: the case prints
+// that and waits. It passes iff the canary pod is gone, no pod is left live, the latest safety verdict for the configured image
+// digest is `verified` and the batch settled within its reserve. It needs the pod backend armed, the pod key present, a probe row and
+// capability agent open; it spends only what the Owner approves (--max-usd is required: the estimate ceiling is checked against it).
+const CasePodSelfterm CanaryCase = "pod-selfterm"
+
+const (
+	defaultPodApprovalWait = 30 * time.Minute
+	defaultPodWait         = 90 * time.Minute
+	podVerdictGrace        = 2 * time.Minute
+)
+
+func podSelftermSpec(spec CanarySpec) CanarySpec {
+	spec.Options = map[string]any{"backend": "runpod-pod", "pod_canary": "self_terminate"}
+	spec.NeedCaps = []string{"agent"}
+	spec.driver = podSelftermDriver
+	return spec
+}
+
+// podRefusal says why the pod case cannot start (empty: it can). The generic gates (enabled, armed, trip, capabilities) have run on
+// the pod backend's own entry; this adds the pod facts.
+func podRefusal(p cProvider) string {
+	switch {
+	case p.Pods == nil:
+		return "the server shows no pods block for the runpod-pod backend (MM_POD_BACKEND=1 is needed)"
+	case !p.Pods.KeyPresent:
+		return "the pod key is absent on the server (place runpod-pod.env in the secrets directory)"
+	case p.Pods.Probe != "ok" && p.Pods.Probe != "too_broad":
+		return "the pod key has no usable probe row (run `metamusic runpod probe --pods`)"
+	}
+	return ""
+}
+
+// podView is the part of a pod summary (list_pods) the case reads.
+type podView struct {
+	Kind      string  `json:"kind"`
+	State     string  `json:"state"`
+	LifetimeS *int    `json:"lifetime_s"`
+	ErrorCode *string `json:"error_code"`
+}
+
+func (c *canary) listBatchPods(ctx context.Context) ([]podView, error) {
+	var out struct {
+		Items []podView `json:"items"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/api/pods?state=all&batch_id="+url.QueryEscape(c.rep.BatchID), nil, nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Items, nil
+}
+
+func (c *canary) batchState(ctx context.Context) (string, error) {
+	var b cBatch
+	err := c.do(ctx, http.MethodGet, "/api/batches/"+url.PathEscape(c.rep.BatchID), nil, nil, &b)
+	return b.State, err
+}
+
+// cancelBatch cancels with a fresh context so that an interrupted run still stops the batch.
+func (c *canary) cancelBatch() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	return c.do(ctx, http.MethodPost, "/api/batches/"+url.PathEscape(c.rep.BatchID)+"/cancel", nil, map[string]any{"reason": "runpod canary"}, nil)
+}
+
+// podSelftermDriver replaces the job wait loop: approval, the pod's life, the verdict.
+func podSelftermDriver(ctx context.Context, c *canary, spec CanarySpec, prov cProvider) *CanaryReport {
+	approvalWait, podWait := c.o.PodApprovalWait, c.o.PodWait
+	if approvalWait <= 0 {
+		approvalWait = defaultPodApprovalWait
+	}
+	if podWait <= 0 {
+		podWait = defaultPodWait
+	}
+	before := ""
+	if prov.Pods != nil {
+		before = prov.Pods.Safety
+	}
+	meas := map[string]any{"safety_before": before}
+	c.rep.Measured = meas
+	c.logf("the batch awaits the Owner's approval on /human (it spends the pod's lifetime, at most the estimate ceiling); waiting up to %s", approvalWait)
+	// 1. approval
+	approved := false
+	deadline := c.o.Clock.Now().Add(approvalWait)
+	for {
+		if err := ctx.Err(); err != nil {
+			_ = c.cancelBatch()
+			return c.finish("aborted", ExitAborted, "interrupted; the batch was cancelled")
+		}
+		st, err := c.batchState(ctx)
+		if err != nil {
+			_ = c.cancelBatch()
+			return c.finish("fail", ExitFail, "reading the batch failed (%v); the batch was cancelled", err)
+		}
+		if st == "rejected" || st == "expired" {
+			return c.finish("aborted", ExitAborted, "the batch was %s without running: nothing was spent", st)
+		}
+		if st != "awaiting_confirmation" {
+			approved = true
+			break
+		}
+		if !c.o.Clock.Now().Before(deadline) {
+			break
+		}
+		if c.sleep(ctx, c.o.SweepEvery) != nil {
+			continue
+		}
+	}
+	if !approved {
+		_ = c.cancelBatch()
+		return c.finish("aborted", ExitAborted, "the Owner did not approve the batch within %s: it was cancelled and nothing was spent (no approval, no pod)", approvalWait)
+	}
+	c.logf("approved; the canary pod boots, loses its poll link and must delete itself")
+	// 2. the pod's life
+	var pod *podView
+	deadline = c.o.Clock.Now().Add(podWait)
+	for {
+		if err := ctx.Err(); err != nil {
+			_ = c.cancelBatch()
+			return c.finish("aborted", ExitAborted, "interrupted; the batch was cancelled")
+		}
+		items, err := c.listBatchPods(ctx)
+		if err != nil {
+			_ = c.cancelBatch()
+			return c.finish("fail", ExitFail, "listing the pods failed (%v); the batch was cancelled", err)
+		}
+		pod = nil
+		for i := range items {
+			if items[i].Kind == "canary" {
+				pod = &items[i]
+			}
+		}
+		if pod != nil && pod.State == "terminated" {
+			break
+		}
+		if !c.o.Clock.Now().Before(deadline) {
+			_ = c.cancelBatch() // the server then stops and deletes every live pod of the batch
+			break
+		}
+		if c.sleep(ctx, c.o.SweepEvery) != nil {
+			continue
+		}
+	}
+	c.check("pod_created", pod != nil, "%s", map[bool]string{true: "a canary pod was created for the batch", false: "no canary pod was listed for the batch"}[pod != nil])
+	gone := pod != nil && pod.State == "terminated"
+	c.check("pod_terminated", gone, "%s", map[bool]string{true: "the canary pod is gone", false: "the canary pod was still listed when the wait ended; the batch was cancelled"}[gone])
+	if pod != nil {
+		meas["pod_state"] = pod.State
+		if pod.LifetimeS != nil {
+			meas["pod_lifetime_s"] = *pod.LifetimeS
+		}
+		if pod.ErrorCode != nil {
+			meas["pod_error_code"] = *pod.ErrorCode
+		}
+	}
+	// 3. the verdict: the loop writes it when the pod is confirmed gone; wait a little for it to show
+	after, matches, live := c.readSafety(ctx, before, gone)
+	meas["safety_after"], meas["live_pods_after"] = after, live
+	c.check("verdict_verified", after == "verified" && matches, "latest safety verdict %q for the configured image digest (digest matches: %v; before the run: %q)", after, matches, before)
+	c.check("no_live_pods", live == 0, "%d pods still live", live)
+	var job struct {
+		State     string  `json:"state"`
+		ErrorCode *string `json:"error_code"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/api/jobs/"+url.PathEscape(c.rep.JobID), nil, nil, &job); err == nil {
+		meas["take_final_state"] = job.State // the canary take is never handed out; it ends never-ran
+		c.rep.FinalState = job.State
+		if job.ErrorCode != nil {
+			c.rep.ErrorCode = *job.ErrorCode
+		}
+	}
+	c.checkSettled(ctx, meas)
+	for _, ck := range c.rep.Checks {
+		if !ck.OK {
+			return c.finish("fail", ExitFail, "check failed: %s (%s)", ck.Name, ck.Note)
+		}
+	}
+	return c.finish("pass", ExitPass, "")
+}
+
+// readSafety reads the pod backend's safety verdict and live pod count. When the pod is gone it waits up to podVerdictGrace for the
+// verdict to change from `before` (the loop writes it a step after the pod is confirmed gone).
+func (c *canary) readSafety(ctx context.Context, before string, gone bool) (verdict string, digestMatches bool, live int) {
+	deadline := c.o.Clock.Now().Add(podVerdictGrace)
+	for {
+		p, err := c.readProvider(ctx)
+		if err == nil && p.Pods != nil {
+			verdict, digestMatches, live = p.Pods.Safety, p.Pods.SafetyDigestMatches, len(p.Pods.Live)
+			if !gone || verdict != before {
+				return
+			}
+		}
+		if !c.o.Clock.Now().Before(deadline) || c.sleep(ctx, c.o.SweepEvery) != nil {
+			return
+		}
+	}
 }
