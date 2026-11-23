@@ -35,7 +35,8 @@ test("the score page: Render when the synthesizer is there, a plain notice when 
   }
 
   await expect(page.getByTestId("score-form")).toBeVisible();
-  expect(await smallTargets(page)).toEqual([]);
+  // the global player bar (shown once a take has played) is the documented exception, as in desk-w1/desk-w2
+  expect((await smallTargets(page)).filter((s) => !/Previous|Play|Next|Seek|Now playing/.test(s.what))).toEqual([]);
   await expect(page.getByTestId("score-render")).toBeDisabled();
   const before = new Set((await listTransforms(request, "&kind=score_render")).map((t) => t.id));
   await page.getByTestId("score-abc").fill(ABC);
