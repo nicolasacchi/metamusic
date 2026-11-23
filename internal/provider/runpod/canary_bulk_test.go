@@ -191,6 +191,8 @@ type podStub struct {
 	settled      int64
 	batchPolls   int
 	cancelled    bool
+	forceState   string // when set, the batch always answers this state
+	cancelFails  bool
 	estimateBody string
 	genCalls     int
 }
@@ -246,11 +248,18 @@ func (s *podStub) serve(w http.ResponseWriter, r *http.Request) {
 		} else if s.goneNow() {
 			st = "finished"
 		}
+		if s.forceState != "" {
+			st = s.forceState
+		}
 		s.batchPolls++
 		out(200, map[string]any{"id": "batch-1", "state": st, "jobs": []any{},
 			"cost": map[string]any{"reserved_micro_usd": 300_000, "settled_micro_usd": s.settled, "reconciled": st == "finished"}})
 	case "POST /api/batches/batch-1/cancel":
 		s.cancelled = true
+		if s.cancelFails {
+			out(500, map[string]any{"code": "INTERNAL"})
+			return
+		}
 		out(200, map[string]any{"id": "batch-1", "state": "finished", "jobs": []any{}, "cost": map[string]any{}})
 	case "GET /api/pods":
 		if r.URL.Query().Get("batch_id") != "batch-1" || r.URL.Query().Get("state") != "all" {
@@ -351,6 +360,27 @@ func TestCanary_PodSelftermCase(t *testing.T) {
 		}
 		if !s.cancelled {
 			t.Error("the unapproved batch was left standing")
+		}
+	})
+	for _, st := range []string{"cancelled", "failed"} {
+		t.Run("a "+st+" batch is aborted, not approved", func(t *testing.T) {
+			t.Parallel()
+			s := newPodStub(t)
+			s.forceState = st
+			rep := podRun(t, s, nil)
+			if rep.Exit != runpod.ExitAborted || !strings.Contains(rep.Reason, st) {
+				t.Fatalf("rep %+v", rep)
+			}
+		})
+	}
+	t.Run("a failed cancel is reported", func(t *testing.T) {
+		t.Parallel()
+		s := newPodStub(t)
+		s.approveAfter = -1
+		s.cancelFails = true
+		rep := podRun(t, s, func(o *runpod.CanaryOptions) { o.PodApprovalWait = 50 * time.Millisecond })
+		if rep.Exit == runpod.ExitPass || !strings.Contains(rep.Reason, "cancel FAILED") {
+			t.Fatalf("rep %+v", rep)
 		}
 	})
 	t.Run("the pod never goes away: failed and the batch is cancelled", func(t *testing.T) {

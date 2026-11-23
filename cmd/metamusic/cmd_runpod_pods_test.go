@@ -245,6 +245,19 @@ func TestCLI_PodsArmRefusedWithoutProbe(t *testing.T) {
 			t.Fatalf("%d %s", code, errs)
 		}
 	})
+	t.Run("an unreset trip", func(t *testing.T) {
+		t.Parallel()
+		r := newPodRig(t)
+		r.seedPodQuote(t, nil)
+		r.probeRow(t, "ok")
+		r.exec(t, `INSERT INTO provider_trips(id, backend, reason, tripped_at, details_json, actions_json) VALUES ('t2', ?, 'pod_overrun', ?, '{}', '[]')`, provider.BackendRunPodPod, store.FormatTime(time.Now()))
+		if code, errs := arm(r); code != 3 || !strings.Contains(errs, "unreset trip") {
+			t.Fatalf("%d %s", code, errs)
+		}
+		if a, _, _, _ := r.podState(t); a != 0 {
+			t.Error("a refused arm armed the backend")
+		}
+	})
 	t.Run("too_broad needs the flag", func(t *testing.T) {
 		t.Parallel()
 		r := newPodRig(t)

@@ -198,7 +198,7 @@ func podSelftermDriver(ctx context.Context, c *canary, spec CanarySpec, prov cPr
 			_ = c.cancelBatch()
 			return c.finish("fail", ExitFail, "reading the batch failed (%v); the batch was cancelled", err)
 		}
-		if st == "rejected" || st == "expired" {
+		if st == "rejected" || st == "expired" || st == "cancelled" || st == "failed" {
 			return c.finish("aborted", ExitAborted, "the batch was %s without running: nothing was spent", st)
 		}
 		if st != "awaiting_confirmation" {
@@ -213,12 +213,15 @@ func podSelftermDriver(ctx context.Context, c *canary, spec CanarySpec, prov cPr
 		}
 	}
 	if !approved {
-		_ = c.cancelBatch()
+		if err := c.cancelBatch(); err != nil {
+			return c.finish("aborted", ExitAborted, "the Owner did not approve the batch within %s and cancel FAILED (%v): cancel the batch by hand", approvalWait, err)
+		}
 		return c.finish("aborted", ExitAborted, "the Owner did not approve the batch within %s: it was cancelled and nothing was spent (no approval, no pod)", approvalWait)
 	}
 	c.logf("approved; the canary pod boots, loses its poll link and must delete itself")
 	// 2. the pod's life
 	var pod *podView
+	var cancelErr error
 	deadline = c.o.Clock.Now().Add(podWait)
 	for {
 		if err := ctx.Err(); err != nil {
@@ -240,7 +243,7 @@ func podSelftermDriver(ctx context.Context, c *canary, spec CanarySpec, prov cPr
 			break
 		}
 		if !c.o.Clock.Now().Before(deadline) {
-			_ = c.cancelBatch() // the server then stops and deletes every live pod of the batch
+			cancelErr = c.cancelBatch() // the server then stops and deletes every live pod of the batch
 			break
 		}
 		if c.sleep(ctx, c.o.SweepEvery) != nil {
@@ -250,6 +253,9 @@ func podSelftermDriver(ctx context.Context, c *canary, spec CanarySpec, prov cPr
 	c.check("pod_created", pod != nil, "%s", map[bool]string{true: "a canary pod was created for the batch", false: "no canary pod was listed for the batch"}[pod != nil])
 	gone := pod != nil && pod.State == "terminated"
 	c.check("pod_terminated", gone, "%s", map[bool]string{true: "the canary pod is gone", false: "the canary pod was still listed when the wait ended; the batch was cancelled"}[gone])
+	if cancelErr != nil {
+		c.check("batch_cancelled", false, "the cancel FAILED (%v): cancel the batch by hand", cancelErr)
+	}
 	if pod != nil {
 		meas["pod_state"] = pod.State
 		if pod.LifetimeS != nil {

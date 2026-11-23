@@ -75,10 +75,10 @@ func (a *ProviderAdmin) SystemDisarm(ctx context.Context, backend, reason string
 // ReasonPodProbeMissing is the disabled reason of arming runpod-pod without a usable probe row (C390.1).
 const ReasonPodProbeMissing = "pod_probe_missing"
 
-// checkArmPod is the pod rule of CheckArm (C396.6): arming runpod-pod needs the latest probe row of pod_safety_log to be `ok`, or
+// CheckArmPod is the pod rule of CheckArm (C396.6): arming runpod-pod needs the latest probe row of pod_safety_log to be `ok`, or
 // `too_broad` with the operator's explicit acknowledgment (`--accept-broad-pod-key`). Any other backend, including `fake-pod`,
 // passes. The refusal is a GenerationDisabledError with reason pod_probe_missing.
-func checkArmPod(ctx context.Context, x Querier, backend string, acceptBroad bool) error {
+func CheckArmPod(ctx context.Context, x Querier, backend string, acceptBroad bool) error {
 	if backend != provider.BackendRunPodPod {
 		return nil
 	}

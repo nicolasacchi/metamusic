@@ -11,6 +11,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/audit"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/generation"
+	"github.com/nicolasacchi/metamusic/internal/jobs"
 	"github.com/nicolasacchi/metamusic/internal/provider"
 	"github.com/nicolasacchi/metamusic/internal/provider/runpod/pods"
 	"github.com/nicolasacchi/metamusic/internal/redact"
@@ -268,13 +269,22 @@ func cmdRunPodArmPod(ctx context.Context, cfg config.Config, reason string, acce
 	case err != nil:
 		return fatal(err)
 	}
-	switch {
-	case verdict == pods.ProbeOK:
-	case verdict == pods.ProbeTooBroad && accept:
-	case verdict == pods.ProbeTooBroad:
-		return refuseArm("pod_probe_missing: the latest probe found the pod key too broad (it reads serverless endpoints); replace the key, or arm with --accept-broad-pod-key")
-	default:
+	// the decision is the REST arm's own rule (jobs.CheckArmPod); the verdict only picks the words
+	var gde *jobs.GenerationDisabledError
+	if err := jobs.CheckArmPod(ctx, st.R, podBackendFlag, accept); errors.As(err, &gde) {
+		if verdict == pods.ProbeTooBroad {
+			return refuseArm("pod_probe_missing: the latest probe found the pod key too broad (it reads serverless endpoints); replace the key, or arm with --accept-broad-pod-key")
+		}
 		return refuseArm("pod_probe_missing: the latest probe %s; run `metamusic runpod probe --pods` again", verdict)
+	} else if err != nil {
+		return fatal(err)
+	}
+	var trips int
+	if err := st.R.QueryRowContext(ctx, `SELECT COUNT(*) FROM provider_trips WHERE backend = ? AND reset_at IS NULL`, podBackendFlag).Scan(&trips); err != nil {
+		return fatal(err)
+	}
+	if trips > 0 {
+		return refuseArm("the backend has an unreset trip: run `metamusic runpod reset-trip --backend runpod-pod` first")
 	}
 	started := time.Now()
 	details := map[string]any{"armed": true, "reason": reason, "backend": podBackendFlag, "probe": verdict, "accept_broad_pod_key": accept && verdict == pods.ProbeTooBroad,
