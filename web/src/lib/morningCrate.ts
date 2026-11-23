@@ -367,3 +367,15 @@ export function savePreset(p: HeadsetPreset, storage: Pick<Storage, "setItem"> |
     /* the preset then lasts for this page only */
   }
 }
+
+/** The server answered a batch of this crate: reload the page only when it revealed a crate the page still shows blind. */
+export function shouldReloadAfterAnswer(answer: { crate_id: string; revealed?: boolean }, id: string, local: Pick<MorningCrate, "revealed"> | null | undefined): boolean {
+  return answer.crate_id === id && answer.revealed === true && local?.revealed === false;
+}
+
+/** Before the reveal call: a marker still inside its window is committed, then every queued event is sent and settled. */
+export async function settleBeforeReveal(session: { flush(): void } | null | undefined, outbox: { flush(): Promise<void>; idle(): Promise<void> }): Promise<void> {
+  session?.flush();
+  await outbox.flush();
+  await outbox.idle();
+}

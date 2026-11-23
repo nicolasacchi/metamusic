@@ -10,6 +10,8 @@ import {
   offlineSides,
   parseMorningItem,
   rateEvent,
+  settleBeforeReveal,
+  shouldReloadAfterAnswer,
   sideLabel,
   sideUrl,
   unratedCount,
@@ -328,5 +330,40 @@ describe("headset preset storage", () => {
     s.setPreset("next_marks");
     s.press("previoustrack");
     expect(out).toEqual(["skip"]);
+  });
+});
+
+describe("shouldReloadAfterAnswer", () => {
+  test("revealed answer, local still blind: reload", () => {
+    expect(shouldReloadAfterAnswer({ crate_id: "c1", revealed: true }, "c1", { revealed: false })).toBe(true);
+  });
+  test("revealed answer, local already revealed: no reload", () => {
+    expect(shouldReloadAfterAnswer({ crate_id: "c1", revealed: true }, "c1", { revealed: true })).toBe(false);
+  });
+  test("unrevealed answer: no reload", () => {
+    expect(shouldReloadAfterAnswer({ crate_id: "c1", revealed: false }, "c1", { revealed: false })).toBe(false);
+  });
+  test("answer for another crate, or no local crate: no reload", () => {
+    expect(shouldReloadAfterAnswer({ crate_id: "c2", revealed: true }, "c1", { revealed: false })).toBe(false);
+    expect(shouldReloadAfterAnswer({ crate_id: "c1", revealed: true }, "c1", null)).toBe(false);
+  });
+});
+
+describe("settleBeforeReveal", () => {
+  test("commits the buffered marker, then flushes, then waits for idle", async () => {
+    const calls: string[] = [];
+    await settleBeforeReveal(
+      { flush: () => void calls.push("marker") },
+      {
+        flush: async () => void calls.push("flush"),
+        idle: async () => void calls.push("idle"),
+      },
+    );
+    expect(calls).toEqual(["marker", "flush", "idle"]);
+  });
+  test("works without a player crate", async () => {
+    const calls: string[] = [];
+    await settleBeforeReveal(undefined, { flush: async () => void calls.push("flush"), idle: async () => void calls.push("idle") });
+    expect(calls).toEqual(["flush", "idle"]);
   });
 });

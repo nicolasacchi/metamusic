@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { components } from "./schema";
 import { createApi } from "./client";
-import { createOutbox, memoryStore, morningBatches, morningBeaconUrl, onMorningResult, postMorning, type MorningOutEvent, type PostResult } from "./outbox";
+import { createOutbox, memoryStore, morningBatches, morningBeaconUrl, onBeforeHide, onMorningResult, postMorning, startOutbox, type MorningOutEvent, type PostResult } from "./outbox";
 
 type Ev = components["schemas"]["ListenEventIn"];
 
@@ -331,5 +331,74 @@ describe("postMorning", () => {
       fetch: async () => (++call === 1 ? new Response(JSON.stringify({ accepted: 1, duplicates: 0, rejected: [], revealed: false }), { status: 200, headers: { "Content-Type": "application/json" } }) : new Response("{}", { status: 503 })),
     });
     expect(await postMorning([e, { ...e, crate_id: "b", id: "i2" }], client)).toEqual({ kind: "retry" });
+  });
+});
+
+describe("onBeforeHide (hide hooks run before the beacon)", () => {
+  type G = { window?: unknown; document?: unknown };
+  const g = globalThis as unknown as G;
+  const saved = { window: g.window, document: g.document };
+  function env() {
+    const win = new EventTarget();
+    const doc = Object.assign(new EventTarget(), { visibilityState: "visible" });
+    g.window = win;
+    g.document = doc;
+    const order: string[] = [];
+    const box = { flush: async () => {}, onHide: async () => void order.push("beacon") } as unknown as Parameters<typeof startOutbox>[0];
+    const stop = startOutbox(box, []);
+    return { win, doc, order, stop };
+  }
+  const restore = () => {
+    g.window = saved.window;
+    g.document = saved.document;
+  };
+
+  test("pagehide and visibilitychange hidden run the hook before the beacon", () => {
+    const { win, doc, order, stop } = env();
+    const off = onBeforeHide(() => void order.push("hook"));
+    try {
+      win.dispatchEvent(new Event("pagehide"));
+      expect(order).toEqual(["hook", "beacon"]);
+      order.length = 0;
+      doc.visibilityState = "visible";
+      doc.dispatchEvent(new Event("visibilitychange"));
+      expect(order).toEqual([]);
+      doc.visibilityState = "hidden";
+      doc.dispatchEvent(new Event("visibilitychange"));
+      expect(order).toEqual(["hook", "beacon"]);
+    } finally {
+      off();
+      stop();
+      restore();
+    }
+  });
+
+  test("a throwing hook does not stop the other hooks or the beacon", () => {
+    const { win, order, stop } = env();
+    const off1 = onBeforeHide(() => {
+      throw new Error("boom");
+    });
+    const off2 = onBeforeHide(() => void order.push("second"));
+    try {
+      win.dispatchEvent(new Event("pagehide"));
+      expect(order).toEqual(["second", "beacon"]);
+    } finally {
+      off1();
+      off2();
+      stop();
+      restore();
+    }
+  });
+
+  test("an unregistered hook no longer runs", () => {
+    const { win, order, stop } = env();
+    onBeforeHide(() => void order.push("hook"))();
+    try {
+      win.dispatchEvent(new Event("pagehide"));
+      expect(order).toEqual(["beacon"]);
+    } finally {
+      stop();
+      restore();
+    }
   });
 });

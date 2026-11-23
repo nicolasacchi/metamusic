@@ -12,7 +12,7 @@
   import { offline } from "../lib/offline.svelte";
   import { player } from "../lib/player.svelte";
   import { uuidv7 } from "../lib/id";
-  import { crateName, rateEvent, type MorningCrate } from "../lib/morningCrate";
+  import { crateName, rateEvent, settleBeforeReveal, shouldReloadAfterAnswer, type MorningCrate } from "../lib/morningCrate";
 
   interface Props {
     id: string;
@@ -57,7 +57,7 @@
 
   // the server answered a batch of this crate: it may have revealed it (every chapter rated)
   const off = onMorningResult((r) => {
-    if (r.crate_id === id && r.revealed && crate?.revealed === false) void load();
+    if (shouldReloadAfterAnswer(r, id, crate)) void load();
   });
   onDestroy(off);
 
@@ -74,9 +74,7 @@
     revealing = true;
     revealError = "";
     try {
-      player.crate?.flush(); // a marker still inside its window is committed first
-      await morningOutbox.flush();
-      await morningOutbox.idle();
+      await settleBeforeReveal(player.crate, morningOutbox);
       const r = await api.POST("/api/morning-crates/{id}/reveal", { params: { path: { id } } });
       if (r.data) {
         crate = r.data;
