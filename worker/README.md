@@ -38,6 +38,11 @@ loads and `boot.weights_ready` is reported. `watchdog.py` holds the absolute dea
 A take that overruns `timeout_s + 60 s` exits 4. The poll URL and the key are never logged. `agent` is advertised in
 `io.metamusic.caps`; `MODE=selftest` runs the agent against a local fake app that answers `stop`.
 
+Operating it is the operator's job and is off by default: pods need a pod key, an environment switch and a probe, and the capability `agent` is opened on
+`runpod-pod` only right before its canary (`docs/runbook.md`, "Bulk pods and the upload fallback: operating"). The same image also carries the upload
+fallback channel (`fallback` in the label): the worker switches to the presigned bucket URL of an attempt after `fallback_after_s` of primary transport
+failures, and only when the server sent one, which it does only for a backend where the operator opened `fallback`.
+
 ## Contract job and image
 
 `contract/` holds the worker-contract job (`test_yue2_contract.py`): it runs against the commit pinned in

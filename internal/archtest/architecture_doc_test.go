@@ -58,6 +58,7 @@ func TestArchitectureDoc_Sections(t *testing.T) {
 		"Transforms (T1)":       {"render child", "GOAMD64=v1", "FinishStream", "never spends money"},
 		"Closing the loop (M5)": {"Song PR", "callbacks", "rewind", "voice"},
 		"Ears Tier B, Recover and the Diction Lab (M5b)": {"mm.ears-b/1", "Recover never spends", "draft_recoveries", "TierBSweep", "HumanLabelledLines"},
+		"Bulk pods and the upload fallback (BULK)":       {"runpod-pod", "/worker/v1/pods/", "pod_overhead", "pod_safety_log", "upload_drills", "fallback_objects", "off in production", "TestImportGraph_Bulk"},
 	} {
 		sec := docSection(t, heading)
 		for _, want := range wants {
@@ -86,6 +87,34 @@ func TestPublicPlanCopies_E2T1M5(t *testing.T) {
 		}
 		if !strings.Contains(doc, "\n## Revision log\n") {
 			t.Errorf("%s has no revision log", name)
+		}
+	}
+}
+
+// TestRunbook_BulkOperatingSections pins the operator rules of the bulk sections of docs/runbook.md: what is off until the
+// operator acts, how a window ends, how a live pod is stopped, the retention bound and the naming warning.
+func TestRunbook_BulkOperatingSections(t *testing.T) {
+	t.Parallel()
+	b, err := os.ReadFile(filepath.Join(repoRoot(t), "docs", "runbook.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := string(b)
+	for _, want := range []string{
+		"## Bulk pods and the upload fallback: operating (BULK)",
+		"are off until the operator sets them up",
+		"Disarming does not stop a live pod",
+		"window_ended",
+		"at most 7 days",
+		"written spend approval",
+		"--max-usd",
+		"Never create a pod named `mm-`",
+		"upload fallback check",
+		"probe --pods",
+		"Key rotation",
+	} {
+		if !strings.Contains(doc, want) {
+			t.Errorf("runbook lost %q", want)
 		}
 	}
 }
