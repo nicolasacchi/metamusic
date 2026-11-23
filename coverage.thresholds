@@ -79,3 +79,12 @@ internal/ears/tierb     90
 # internal/mandates measured 92.9 (plan 95) and internal/morning 87.3 (plan 90): both are below the plan's floor, so neither has a row
 # (internal/... applies); the plan's revision log records the shortfall and the lanes that own the packages raise them.
 internal/criticbench    95
+# M5b Desk (DESK-X0): the plan (C350-C364) names no per-package floor, so each is the unit coverage measured on main 2026-11-23 (go test,
+# no -short, no fluidsynth on the measuring host: CI, which has it, measures a little more) minus one point, rounded down, the T1-I1
+# convention: desk 88.1, score/abc 88.6, score 93.2, score/smf 98.8, score/synth 94.3. internal/desk and internal/score/abc are below
+# the 90 the plan's lanes aimed at; the revision log records the shortfall, and the lanes that own them raise the floors with tests.
+internal/desk           87
+internal/score/abc      87
+internal/score          92
+internal/score/smf      97
+internal/score/synth    93

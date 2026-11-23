@@ -404,6 +404,52 @@ lane built). G1 adds seams only; no track feature is built here, and nothing in 
 - **Spend rules unchanged.** Every new GPU feature is a new item mode or option of the existing estimate and create pair, so caps, the
   Editor approval rule and parity apply as before. ACE-Step was rejected on 2026-11-20; no new package may depend on it (archtest).
 
+## The Composer's Desk and the score renderer (M5b Desk, T1b)
+
+Plan: [plans/2026-11-20-m5b-desk.md](plans/2026-11-20-m5b-desk.md) (contracts C350 to C364; each lane's "as built" note records what the
+code does). All build lanes are merged and deployed. The Desk is **plan, audition, render**: compose and hear a score before paying for
+audio. A **plan** is a candidate score on the Desk, never a Take (it has no track row and never enters a library view, a Crate or a Record).
+
+- **One ABC toolkit.** `internal/score/abc` parses YuE2's dialect and standard ABC into a syntax tree with the byte span of every bar and into
+  note events (`internal/score`), checks structural invariants (`Check`, `CheckInvariants`) and applies three bar-level edits (`Edit`:
+  `replace_bars`, `transpose_bars`, `set_tempo`). Bars are 0-based and inclusive. Nothing under it imports the transform, desk or API packages.
+- **Plans.** `internal/desk` and migration `0026_desk` store immutable plans in four tables (`desk_plans`, `desk_plan_files`,
+  `desk_plan_verdicts`, `desk_auditions`; update and delete are refused by trigger). A plan has one of three sources: `job` (a plan job's
+  seed), `take` (an existing take's `score.abc`, opened with `create_plan_from_take`; free) and `edit` (bar edits of another plan with
+  `edit_plan`; free). Editing never changes a plan: it creates a child that names its parent. Score text of job and edit plans is a file under
+  `plans/<id>/` (mode 0444, directory 0755) and a `desk_plan_files` row, so the backup carries it; a take plan reads the take's own file.
+  Verdicts are per rater: the Owner's for a person, the critic's for an agent; only the Owner (or an Owner's device) writes the first.
+- **Audition (free).** `create_plan_audition` renders the plan's score on the server through the T1b pipeline (below) with a General MIDI
+  soundfont, synchronously (at most 90 s, 600 s of audio), under the transform runner's one render slot, and stores a content-addressed MP3
+  under `derived/auditions/` keyed by everything that determines its PCM. An audition is a preview, not a Take: no track row, no spend, not
+  backed up (rebuilt on request), served through the media resolver chain by its own hash with a link signed for the caller. 200 means a cached
+  audition, 201 a new one; 200 new auditions per principal per local day.
+- **Score renderer (T1b).** The transform kind `score_render` turns an ABC score into a Take with no GPU: the parent parses the score, writes a
+  Standard MIDI File (`internal/score/smf`), runs fluidsynth (`internal/score/synth`, a separate LGPL process through `internal/mediatool`)
+  with the operator's soundfont, decodes its float output exactly and hands it to T1's render child, whose only job is T1's safety finish, so the
+  result obeys T1's determinism contract (`pcm_sha256`; `transform verify` checks it). The Take is rootless (engine `dsp`, no parent), carries
+  `score.abc`, `score.mid` and `transform.json`, and is ingested by the ordinary pipeline. The kind is available only when `MM_SOUNDFONTS` names a
+  soundfont and fluidsynth runs; otherwise estimate and create answer 503 `UNAVAILABLE` naming the missing component.
+- **Render and plan on the GPU.** Two item modes of the existing estimate and create pair. `render_plan` renders the plan's **score text**
+  through YuE2 as a plain `mm.worker/1` job (no capability, no attachment; D-DESK-2): the take's recipe is the plan's base request with its `abc`,
+  `cot` and seed, the job's operator is `render_plan` and `params.plan_id` names the plan; up to four seeds of the same score. `plan_seeds` makes
+  jobs of kind `plan` (needs `[plan, v2]`, at most `seedsPerJob` seeds per job); the worker stage writes `plan-NN.tar` per seed and
+  `desk.IngestPlans` verifies each bundle (`internal/desk/bundle.go`: allow-listed regular members, size limits, a strict `plan.json`, a score
+  that parses) before it becomes a plan; a refused seed is lost alone (`plan_bundle_invalid` job event), and a job that stores no plan fails
+  `PLANS_FAILED`. Plan jobs write no track, recipe-of-a-take, mutation or master. The fake backend's simulated worker answers `plan` jobs.
+- **Money and approval.** Auditions, edits and plans from takes are free and spend-free (`TestAcceptance_DeskSpendFree`). Every GPU job of the
+  Desk is an ordinary estimate whose ceiling any cap compares against; a `render_plan` batch is never auto-approved (approval reason
+  `desk_render`): only the Owner's own confirmation on the human page, or a covering mandate, starts it. An Editor plans, edits and auditions but
+  never spends: the Editor's batch waits for the Owner (`TestAcceptance_DeskEditorFlow`). Listeners reach no Desk operation.
+- **The SPA.** `/desk` (plans grouped by base take, filters, the `plan_seeds` form, a score check) and `/desk/plans/:id` (abcjs notation only,
+  a bar editor, verdicts, the audition player on the shared `AudioContext`, Render through the estimate page, Keep as Take through
+  `create_transform`); `/transforms/score` is the T1b form. The SPA has no second synthesizer.
+- **Tests.** The acceptance tests run on the fake backend (no GPU spend) with the Desk's audition pipeline on a test double where audio is not
+  the point; the real fluidsynth path (`TestAcceptance_DeskAuditionReal`, `TestAcceptance_ScoreRenderTake`, the go-media tests of
+  `internal/transform` and `internal/score/synth`) uses a generated test soundfont (`tools/sf2gen`, `dsptest.WriteSF2`; never committed) and skips
+  cleanly without fluidsynth unless `MM_REQUIRE_FLUIDSYNTH=1` (CI). Every rendered take's ingest state is asserted (master 0444, loudness and
+  spectrum stored and finite): a score render ends in exact digital silence, which once failed ingest with NaN momentary loudness unnoticed.
+
 ## Ears Tier B, Recover and the Diction Lab (M5b)
 
 Plan: [plans/2026-11-20-m5b-ears.md](plans/2026-11-20-m5b-ears.md) (contracts C330 to C349; each lane's "as built" note records what the

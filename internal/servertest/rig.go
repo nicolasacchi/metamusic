@@ -147,6 +147,10 @@ type Options struct {
 	// T1 injects the transform service's test seams (child runner, media, ingest, resampler, fault points). The zero value is the
 	// production wiring: the render child is the exec supervisor over os.Executable.
 	T1 app.T1Options
+	// Soundfonts and FluidsynthPath configure T1b (MM_SOUNDFONTS, MM_FLUIDSYNTH): set by Options.WithSoundfont, empty means score_render
+	// and Desk auditions are unavailable, as on a server without a soundfont.
+	Soundfonts     []config.Soundfont
+	FluidsynthPath string
 }
 
 // RunPodOptions wires a rig to a runpodtest server. Create the server with the same Clock as Options.Clock
@@ -307,6 +311,7 @@ func New(tb testing.TB, o Options) *Rig {
 		TransformAgentDailyCPUS: 1800, TransformHumanDailyCPUS: 14400,
 		// M5 default (C250): the agent callback backlog gate is on, as config.Load leaves it
 		CallbackBacklogMax: 6,
+		Soundfonts:         o.Soundfonts, FluidsynthPath: o.FluidsynthPath,
 	}
 	if o.CallbackBacklogMax != nil {
 		cfg.CallbackBacklogMax = *o.CallbackBacklogMax
