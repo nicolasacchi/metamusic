@@ -264,6 +264,8 @@ func TestIngestPlans_BundleRefusals_Table(t *testing.T) {
 		{"absolute name", tarOf(t, reg("/etc/x", "x"), reg("score.abc", planScoreText), reg("plan.json", meta)), desk.RuleBundleName},
 		{"nested name", tarOf(t, reg("sub/score.abc", planScoreText), reg("plan.json", meta)), desk.RuleBundleName},
 		{"duplicate", tarOf(t, reg("score.abc", planScoreText), reg("score.abc", planScoreText), reg("plan.json", meta)), desk.RuleBundleDup},
+		{"duplicate after five members", tarOf(t, reg("score.abc", planScoreText), reg("plan.json", meta), reg("prefix.npy", "\x93NUMPY"), reg("abc_tokens.npy", "\x93NUMPY"), reg("plan_manifest.json", "{}"), reg("score.abc", planScoreText)), desk.RuleBundleDup},
+		{"sixth member a symlink", tarOf(t, reg("score.abc", planScoreText), reg("plan.json", meta), reg("prefix.npy", "\x93NUMPY"), reg("abc_tokens.npy", "\x93NUMPY"), reg("plan_manifest.json", "{}"), member{name: "x", typ: tar.TypeSymlink, link: "/etc/passwd"}), desk.RuleBundleType},
 		{"oversize score", tarOf(t, reg("score.abc", big), reg("plan.json", meta)), desk.RuleBundleSize},
 		{"oversize npy", tarOf(t, reg("score.abc", planScoreText), reg("plan.json", meta), reg("prefix.npy", "\x93NUMPY"+strings.Repeat("0", 1<<20))), desk.RuleBundleSize},
 		{"missing score", tarOf(t, reg("plan.json", meta)), desk.RuleBundleMissing},
@@ -359,6 +361,9 @@ func TestIngestPlans_AllFailedIsPlansFailed(t *testing.T) {
 	j = e.planJob(11)
 	_, _, err = e.ingest(j, []bundleIn{{raw: tarOf(t, reg("plan.json", metaJSON(11, "full", false)))}})
 	violation(t, err, desk.CodePlansFailed)
+	if !strings.Contains(err.Error(), "0:"+desk.RuleBundleMissing) {
+		t.Errorf("the failed job must keep the refused rule: %v", err)
+	}
 	if n := e.scalar(`SELECT COUNT(*) FROM desk_plans`); n != "0" {
 		t.Errorf("%s plans", n)
 	}
@@ -488,6 +493,9 @@ func TestIngestPlans_UploadMustMatchItsReport(t *testing.T) {
 			var cv *jobs.ContractViolation
 			if !errors.As(err, &cv) {
 				t.Fatalf("error %v is not a contract violation", err)
+			}
+			if name == "bundle not named" && cv.Code != "WORKER_CONTRACT" {
+				t.Errorf("%s: code %s", name, cv.Code)
 			}
 			if n := e.scalar(`SELECT COUNT(*) FROM desk_plans`); n != "0" || len(e.planDirs()) != 0 {
 				t.Errorf("stored something: %s %v", n, e.planDirs())

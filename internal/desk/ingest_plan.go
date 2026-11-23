@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/nicolasacchi/metamusic/internal/engine/yue2"
@@ -75,6 +76,7 @@ func (s *Service) IngestKind(ctx context.Context, tx *sql.Tx, in jobs.KindIngest
 		byName[f.Artifact] = f
 	}
 	stored, truncated := 0, false
+	var refused []string
 	for i, po := range in.Output.Plans {
 		if po.Index != i || po.Seed != seeds[i] {
 			return nil, "", &jobs.ContractViolation{Code: "WORKER_CONTRACT", Text: "the plan results do not match the job's seeds"}
@@ -84,7 +86,10 @@ func (s *Service) IngestKind(ctx context.Context, tx *sql.Tx, in jobs.KindIngest
 		}
 		name := provider.PlanBundleName(i)
 		file, ok := byName[name]
-		if !ok || po.Bundle != name {
+		if po.Bundle != name {
+			return nil, "", &jobs.ContractViolation{Code: "WORKER_CONTRACT", Text: "plan " + strconv.Itoa(i) + " names bundle " + strconv.Quote(safeName(po.Bundle)) + ", not " + name}
+		}
+		if !ok {
 			return nil, "", &jobs.ContractViolation{Code: "ARTIFACT_MISSING", Text: name + " was not received"}
 		}
 		raw, rerr := s.readUpload(file, in.Output)
@@ -98,6 +103,7 @@ func (s *Service) IngestKind(ctx context.Context, tx *sql.Tx, in jobs.KindIngest
 			if err := s.recordInvalid(ctx, tx, in, i, seeds[i], be.rule); err != nil {
 				return nil, "", err
 			}
+			refused = append(refused, strconv.Itoa(i)+":"+be.rule)
 			continue
 		case perr != nil:
 			if id != "" {
@@ -110,7 +116,7 @@ func (s *Service) IngestKind(ctx context.Context, tx *sql.Tx, in jobs.KindIngest
 		truncated = truncated || trunc
 	}
 	if stored == 0 {
-		return nil, "", &jobs.ContractViolation{Code: CodePlansFailed, Text: "no plan seed produced a valid bundle"}
+		return nil, "", &jobs.ContractViolation{Code: CodePlansFailed, Text: "no plan seed produced a valid bundle" + refusedText(refused)}
 	}
 	s.mu.Lock()
 	s.placed[in.Job.ID] = placed
@@ -299,4 +305,13 @@ func (s *Service) recordInvalid(ctx context.Context, tx *sql.Tx, in jobs.KindIng
 		return store.ErrLeaseLost
 	}
 	return nil
+}
+
+// refusedText lists the refused seeds as index:rule pairs: the per-seed events roll back with the failed take, so the failed job
+// keeps its reason here.
+func refusedText(refused []string) string {
+	if len(refused) == 0 {
+		return ""
+	}
+	return " (refused " + strings.Join(refused, ", ") + ")"
 }

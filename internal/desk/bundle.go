@@ -102,9 +102,6 @@ func readBundle(raw []byte, declared int64) (*bundle, error) {
 		if err != nil {
 			return nil, bad(RuleBundleTar, "the archive is malformed")
 		}
-		if len(b.files) >= maxBundleFiles {
-			return nil, bad(RuleBundleName, "more members than the allowlist has")
-		}
 		if hdr.Typeflag != tar.TypeReg {
 			return nil, bad(RuleBundleType, "member %q is not a regular file", safeName(hdr.Name))
 		}
@@ -117,6 +114,9 @@ func readBundle(raw []byte, declared int64) (*bundle, error) {
 		}
 		if hdr.Size < 0 || hdr.Size > limit {
 			return nil, bad(RuleBundleSize, "member %q is %d bytes, at most %d", hdr.Name, hdr.Size, limit)
+		}
+		if len(b.files) >= maxBundleFiles {
+			return nil, bad(RuleBundleName, "more members than the allowlist has")
 		}
 		body, err := io.ReadAll(io.LimitReader(tr, hdr.Size+1))
 		if err != nil || int64(len(body)) != hdr.Size {
