@@ -9,12 +9,14 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/nicolasacchi/metamusic/internal/app"
 	"github.com/nicolasacchi/metamusic/internal/archivetest"
+	"github.com/nicolasacchi/metamusic/internal/auth"
 	"github.com/nicolasacchi/metamusic/internal/config"
 	"github.com/nicolasacchi/metamusic/internal/servertest"
 	"github.com/nicolasacchi/metamusic/internal/transform"
@@ -90,9 +92,20 @@ func assertIngested(t *testing.T, r *servertest.Rig, track string) {
 		if strings.Contains(strings.ToLower(m), "nan") {
 			t.Errorf("take %s: %s metrics carry NaN: %s", track, an, m)
 		}
+		// a NaN or Inf metric is not valid JSON: it is stored as null (or dropped), so a null is the NaN regression
 		for k, v := range doc {
+			if v == nil {
+				t.Errorf("take %s: %s.%s is null (a NaN or Inf metric)", track, an, k)
+			}
 			if f, ok := v.(float64); ok && (math.IsNaN(f) || math.IsInf(f, 0)) {
 				t.Errorf("take %s: %s.%s = %v", track, an, k, f)
+			}
+		}
+		if an == "loudness" {
+			for _, k := range []string{"integrated_lufs", "true_peak_dbtp"} {
+				if _, ok := doc[k].(float64); !ok {
+					t.Errorf("take %s: loudness.%s = %v, want a finite number", track, k, doc[k])
+				}
 			}
 		}
 	}
@@ -150,6 +163,9 @@ func TestAcceptance_DeskSpendFree(t *testing.T) {
 	// one or two rows: under desktest's double both plans render the same PCM, so their MP3 is one stored file; the repeat is a cache hit
 	if n := count(t, r, `SELECT COUNT(*) FROM desk_auditions`); n < 1 || n > 2 {
 		t.Errorf("%d auditions, want 1 or 2 (the repeat is a cache hit)", n)
+	}
+	if n := count(t, r, `SELECT COUNT(*) FROM desk_auditions WHERE plan_id NOT IN (?, ?)`, plan, e2["id"].(string)); n != 0 {
+		t.Errorf("%d auditions belong to a plan that was not auditioned", n)
 	}
 }
 
@@ -271,6 +287,9 @@ func TestAcceptance_DeskEditorFlow(t *testing.T) {
 	if est["requires_human_approval"] != true {
 		t.Errorf("an Editor's render does not require approval: %v", est["approval_reasons"])
 	}
+	if !slices.Contains(anyStrings(est["approval_reasons"]), "editor_batch") {
+		t.Errorf("an Editor's approval reasons = %v, want editor_batch", est["approval_reasons"])
+	}
 	if st != 201 && st != 200 {
 		t.Fatalf("editor create: %d %v", st, created)
 	}
@@ -313,6 +332,16 @@ func TestAcceptance_DeskEditorFlow(t *testing.T) {
 		t.Fatalf("no take after the approval: %v", err)
 	}
 	assertIngested(t, r, *track)
+
+	// an agent's render of a Desk plan never auto-runs either: it waits for the Owner (desk_render)
+	agent, _ := r.Agent(t, auth.ScopeRead, auth.ScopeWrite, auth.ScopeGenerate)
+	aest, acreated, ast := renderPlans(t, agent, "/api/generations", "desk-agent-render", child)
+	if !slices.Contains(anyStrings(aest["approval_reasons"]), "desk_render") {
+		t.Errorf("an agent's approval reasons = %v, want desk_render", aest["approval_reasons"])
+	}
+	if (ast != 201 && ast != 200) || acreated["state"] != "awaiting_confirmation" {
+		t.Errorf("agent render: %d state %v, want awaiting_confirmation", ast, acreated["state"])
+	}
 }
 
 // TestAcceptance_DeskAuditionReal (media tier): the real fluidsynth, the generated soundfont, the real child and ffmpeg make an
