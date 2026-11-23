@@ -66,6 +66,9 @@ type SimWorkerOptions struct {
 	// Fallback is the worker's second upload channel (BULK-R3/R4, C399.7): it carries an artifact to the fallback URL of its upload
 	// target when the primary route is unreachable. Nil is a worker image without the `fallback` capability.
 	Fallback FallbackPutter
+	// DistinctAudio gives every rendered take its own tone variant, in the order the takes are rendered, instead of the hash of its attempt
+	// id: the hash space is 1000 tones, so a 30-take batch collides (DUPLICATE_AUDIO at ingest) about a third of the time (BULK-S1).
+	DistinctAudio bool
 }
 
 // SimWorker simulates the worker handler of C83.2: it validates the input, announces itself through the
@@ -74,6 +77,7 @@ type SimWorkerOptions struct {
 type SimWorker struct {
 	o     SimWorkerOptions
 	synth atomic.Int64 // milliseconds of audio rendered by ACE-Step takes
+	tones atomic.Int64 // takes rendered so far (DistinctAudio)
 }
 
 // NewSimWorker builds the simulated worker.
@@ -586,6 +590,9 @@ func (s *Session) render(ctx context.Context) ([]artifact, float64, error) {
 		variant := 0 // the fixed tone of fake:same_audio; attempts use 1..1000
 		if !s.mk.sameAudio {
 			variant = int(id%1000) + 1
+			if s.w.o.DistinctAudio {
+				variant = int((s.w.tones.Add(1)-1)%1000) + 1
+			}
 		}
 		path := filepath.Join(dir, "audio.flac")
 		tone := synth.Tone{Seconds: secs, BPM: 120, Variant: variant}
