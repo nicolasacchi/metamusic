@@ -76,9 +76,13 @@ internal/nightshift     90
 # measured 88.7, below the plan's 90, so it has no row (the plan records it; internal/... 85 applies).
 internal/ears/tierb     90
 # M6N-X1 (C389.4): unit coverage measured 2026-11-23 (go test, no -short): internal/criticbench 96.1, so the plan's floor of 95 is added.
-# internal/mandates measured 92.9 (plan 95) and internal/morning 87.3 (plan 90): both are below the plan's floor, so neither has a row
+# internal/mandates measured 92.9 (plan 95) and internal/morning 87.3 (plan 90): both were below the plan's floor, so they had no row until M6N-X4
 # (internal/... applies); the plan's revision log records the shortfall and the lanes that own the packages raise them.
 internal/criticbench    95
+# M6N-X4: the follow-up lifts both packages with behavioural tests (stored-row faults, closed-store faults, refusals, the night wait,
+# builder checks). Unit coverage measured 2026-11-23 (go test, no -short): internal/mandates 96.3, internal/morning 90.5; the plan's floors.
+internal/mandates       95
+internal/morning        90
 # M5b Desk (DESK-X0): the plan (C350-C364) names no per-package floor, so each is the unit coverage measured on main 2026-11-23 (go test,
 # no -short, no fluidsynth on the measuring host: CI, which has it, measures a little more) minus one point, rounded down, the T1-I1
 # convention: desk 88.1, score/abc 88.6, score 93.2, score/smf 98.8, score/synth 94.3. internal/desk and internal/score/abc are below

@@ -248,3 +248,175 @@ func TestProperty_RevokeRacingCreate(t *testing.T) {
 		})
 	}
 }
+
+// grantWith creates a night mandate of the given budget (in whole ceilings plus half) and batches per day.
+func (e *mandateEnv) grantWith(fits, perDay int, scope func(*mandates.Scope)) (mandates.Mandate, money.MicroUSD) {
+	e.t.Helper()
+	pv, err := e.gen.Preview(e.t.Context(), e.night, generation.EstimateIn{Items: []generation.Item{e.item(1)}, Via: spend.ViaAPI})
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	c := pv.Cost.Ceiling
+	sc := mandates.Scope{Modes: []string{"new_seed"}, Engines: []string{"yue2"}, MinStars: 3, MaxTakesPerLineage: 50,
+		MaxTakesPerBatch: 1, MaxBatchCeilingMicroUSD: c, MaxBatchesPerDay: perDay, TierB: true}
+	if scope != nil {
+		scope(&sc)
+	}
+	m, err := e.ms.Create(e.t.Context(), e.owner, mandates.CreateInput{Holder: mandates.HolderNightShift, Title: "Night shift",
+		Budget: money.MicroUSD(fits)*c + c/2, ValidUntil: lt.FixedNow.Add(24 * time.Hour), Scope: sc})
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	return m, c
+}
+
+func isCapRefusal(err error) bool {
+	var pe *problem.Error
+	return errors.As(err, &pe) && pe.Status == 402 && pe.Code == "BUDGET_EXCEEDED"
+}
+
+// TestProperty_MandateNeverExceeded (M6N-X4): over fixed-seed random nights (mandate budget, batches per day, a global monthly cap
+// of a random size, a random number of racing creates, an optional revoke in the middle) the committed spend of a mandate never
+// exceeds its budget, never exceeds the global monthly cap and never exceeds the batches-per-day limit; every refusal is the
+// mandate's 409 or the cap's 402; money is integer micro-USD throughout.
+func TestProperty_MandateNeverExceeded(t *testing.T) {
+	t.Parallel()
+	for seed := uint64(1); seed <= 8; seed++ {
+		t.Run(fmt.Sprintf("seed%d", seed), func(t *testing.T) {
+			t.Parallel()
+			rng := rand.New(rand.NewPCG(seed, 2026))
+			e := newMandateEnv(t)
+			fits := 1 + rng.IntN(5)
+			perDay := 1 + rng.IntN(mandates.MaxBatchesPerDay)
+			capFits := 1 + rng.IntN(6)
+			m, c := e.grantWith(fits, perDay, nil)
+			monthly := money.MicroUSD(capFits)*c + c/3
+			if _, err := e.st.W.Exec(`UPDATE spend_caps SET monthly_micro_usd = ?, batch_micro_usd = ?, human_daily_micro_usd = ?, agent_daily_micro_usd = ?,
+				updated_by = 'system:test', updated_at = ? WHERE id = 1`, int64(monthly), int64(c)*2, int64(monthly)*2, int64(monthly)*2, store.FormatTime(lt.FixedNow)); err != nil {
+				t.Fatal(err)
+			}
+			workers := 3 + rng.IntN(8)
+			revoke := rng.IntN(3) == 0
+			start := make(chan struct{})
+			var wg sync.WaitGroup
+			errc := make(chan error, workers+1)
+			for w := range workers {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					<-start
+					if _, err := e.attempt(m.ID, int64(7000+w)); err != nil && !isMandateRefusal(err) && !isCapRefusal(err) {
+						errc <- fmt.Errorf("worker %d: %w", w, err)
+					}
+				}()
+			}
+			if revoke {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					<-start
+					time.Sleep(time.Duration(rng.IntN(30)) * time.Millisecond)
+					if _, err := e.ms.Revoke(context.Background(), e.owner, m.ID, "random night"); err != nil {
+						errc <- fmt.Errorf("revoke: %w", err)
+					}
+				}()
+			}
+			close(start)
+			wg.Wait()
+			close(errc)
+			for err := range errc {
+				t.Error(err)
+			}
+			var committed, batches int64
+			if err := e.st.R.QueryRow(`SELECT COALESCE(SUM(ceiling_micro_usd), 0), COUNT(*) FROM batches WHERE mandate_id = ?`, m.ID).Scan(&committed, &batches); err != nil {
+				t.Fatal(err)
+			}
+			if committed > int64(m.Budget) {
+				t.Errorf("committed %d exceeds the mandate budget %d", committed, m.Budget)
+			}
+			if committed > int64(monthly) {
+				t.Errorf("committed %d exceeds the global monthly cap %d", committed, monthly)
+			}
+			if int(batches) > perDay || int(batches) > min(fits, capFits, workers) {
+				t.Errorf("%d batches with room for fits=%d cap=%d perDay=%d workers=%d", batches, fits, capFits, perDay, workers)
+			}
+			if committed != batches*int64(c) {
+				t.Errorf("committed %d is not %d whole ceilings of %d", committed, batches, c)
+			}
+			u, err := e.ms.Usage(t.Context(), m.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if int64(u.Committed) != committed || u.Committed > m.Budget {
+				t.Errorf("usage %+v differs from the batches (%d) or the budget %d", u, committed, m.Budget)
+			}
+			if !revoke && int(batches) != min(fits, capFits, perDay, workers) {
+				t.Errorf("%d batches, want %d (a refusal below the limits means a lost create)", batches, min(fits, capFits, perDay, workers))
+			}
+		})
+	}
+}
+
+// TestMandate_NeverRaisesCaps (M6N-X4): a mandate cannot raise or bypass any spend cap. A budget far above the global caps still
+// refuses at the monthly cap, the per-batch cap and the agent daily cap with the cap's 402, writes no batch and consumes no token,
+// and creating, using and revoking a mandate leaves the spend_caps row byte-identical.
+func TestMandate_NeverRaisesCaps(t *testing.T) {
+	t.Parallel()
+	capsRow := func(e *mandateEnv) string {
+		var s string
+		if err := e.st.R.QueryRow(`SELECT monthly_micro_usd||'|'||batch_micro_usd||'|'||human_daily_micro_usd||'|'||agent_daily_micro_usd||'|'||
+			auto_approve_takes||'|'||auto_approve_micro_usd||'|'||updated_by||'|'||updated_at FROM spend_caps WHERE id = 1`).Scan(&s); err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	for _, tc := range []struct{ name, set string }{
+		{"monthly", `monthly_micro_usd = ?`},
+		{"agent daily", `agent_daily_micro_usd = ?`},
+		{"batch", `batch_micro_usd = ?`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			e := newMandateEnv(t)
+			// the mandate's budget is 50 batches; every cap is set to a tenth of one batch's ceiling
+			m, c := e.grantWith(50, 4, nil)
+			if _, err := e.st.W.Exec(`UPDATE spend_caps SET `+tc.set+`, updated_by = 'system:test', updated_at = ? WHERE id = 1`, int64(c)/10, store.FormatTime(lt.FixedNow)); err != nil {
+				t.Fatal(err)
+			}
+			before := capsRow(e)
+			created, err := e.attempt(m.ID, 8001)
+			if created || !isCapRefusal(err) {
+				t.Fatalf("create over the %s cap: created=%v err=%v", tc.name, created, err)
+			}
+			if n := e.count(`SELECT COUNT(*) FROM batches WHERE mandate_id IS NOT NULL`); n != 0 {
+				t.Errorf("%d batches written over the %s cap", n, tc.name)
+			}
+			if n := e.count(`SELECT COUNT(*) FROM estimates WHERE consumed_at IS NOT NULL AND mandate_id IS NOT NULL`); n != 0 {
+				t.Errorf("%d tokens consumed by a refused create", n)
+			}
+			if _, err := e.ms.Revoke(t.Context(), e.owner, m.ID, "done"); err != nil {
+				t.Fatal(err)
+			}
+			if after := capsRow(e); after != before {
+				t.Errorf("a mandate changed the caps:\n before %s\n after  %s", before, after)
+			}
+		})
+	}
+	t.Run("a mandate batch counts against the global monthly cap", func(t *testing.T) {
+		t.Parallel()
+		e := newMandateEnv(t)
+		m, c := e.grantWith(50, 4, nil)
+		if _, err := e.st.W.Exec(`UPDATE spend_caps SET monthly_micro_usd = ?, updated_by = 'system:test', updated_at = ? WHERE id = 1`, int64(c)+int64(c)/2, store.FormatTime(lt.FixedNow)); err != nil {
+			t.Fatal(err)
+		}
+		if created, err := e.attempt(m.ID, 8101); !created {
+			t.Fatalf("first batch: %v", err)
+		}
+		if created, err := e.attempt(m.ID, 8102); created || !isCapRefusal(err) {
+			t.Fatalf("second batch past the monthly cap: created=%v err=%v", created, err)
+		}
+		if n := e.count(`SELECT COUNT(*) FROM batches WHERE mandate_id = ?`, m.ID); n != 1 {
+			t.Errorf("%d batches, want 1", n)
+		}
+	})
+}
