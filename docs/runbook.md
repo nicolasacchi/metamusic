@@ -840,6 +840,62 @@ Owner), and it needs the `analyze`, `ears` and `v2` capabilities, so with the ca
 analysed once (`already_analyzed`), at most 600 s long (`audio_too_long`), and only one analyze job per take runs at a time
 (409 `ANALYSIS_IN_PROGRESS`). A reference or a lossy master is allowed (warnings `lossy_master`, `no_lyrics`).
 
+### Production status: listening checks are off
+
+**Listening checks are off in production** until worker wave W2 (EARS-X3) opens the `v2`, `ears` and `analyze` capabilities, which needs an
+attended provision of the new image and a canary that carries the operator's written spend approval ("Wave W2" above). Until then:
+every estimate of a lyric render carries the warning `tier_b_unavailable` and is quoted and created as before, an explicit
+`options.tier_b: true` and every analyze item are refused 503 `GENERATION_DISABLED` (`worker_outdated`), and no Tier B document exists.
+**Analyze is an ordinary approved spend** (priced in the estimate, approved by the Owner like a render, capped like any other job).
+**Recover never spends**: it only reads a stored document and writes a draft, so it works on any document already attached to a track, but a
+reference track gets a document only through an analyze job, i.e. after W2. Nothing in the server starts GPU work for the check on its own.
+
+### Troubleshooting a listening check
+
+Start with `get_track_tier_b` (or the panel on the Track page) and `get_provider_status` (`worker.caps` per backend).
+
+| Symptom | Meaning and action |
+|---|---|
+| Estimate warning `tier_b_unavailable` | The routed backend has not got `v2` and `ears` open for the current image digest. Expected until W2; after W2 check `metamusic runpod contract status`. A new image digest starts closed. |
+| 503 `GENERATION_DISABLED` `worker_outdated` | Same cause, for an explicit `true` or an analyze item; the missing capabilities are in `details`. Only the operator CLI opens them. |
+| Warning `tier_b_exceeds_runtime` | The check would pass `MM_JOB_MAX_RUNTIME`; the render goes without it (auto) or is refused 422 (`true`). Raise the cap or shorten the take. |
+| `tier_b_no_lyrics`, `tier_b_engine` | No lyric lines, or an ACE-Step batch: no check by design. |
+| `get_track_tier_b` 409 `ANALYSIS_UNAVAILABLE`, state `pending` | A document is stored or an analyze job is live and the rows are not computed yet; the sweep runs every 30 minutes and an ingest computes at once. |
+| State `missing` | A completed render needed a check but no document arrived. Check the job events; the stage fails closed with a `status: error` document, so a missing one means the worker image lacks the stage. |
+| State `error` or `skipped` | The document says the recogniser did not run (`code` names why: `OOM`, `DEADLINE`, `MODELS_MISSING`, `SUBPROCESS_FAILED`, `INPUT_DECODE`). The flag `listening_check_failed` shows it. A stored error document is terminal, an analyze item answers `already_analyzed`; make a new take to listen again. |
+| `analysis_duplicate` job event | An analyze job returned a second document for a take that already had one; it was stored as the next `analysis-N.json` and not computed again. |
+| Flag `alignment_failed` | The heard words did not match the lyric (under 40 % aligned): no measured sections, lines of basis `asr` have no times. Usually a wrong language or an instrumental take. |
+| A worker answer `KIND_UNAVAILABLE`, `BAD_INPUT` or `CONTRACT_VERSION` | The gate closed itself with a critical notification. Find the cause (usually a wrong image) before `contract open`. |
+| Stuck queued analyze or check jobs after `contract close` | They fail `WORKER_OUTDATED` after one hour and release their reservations. |
+
+The listening-check rows are recomputable: after a definition change the sweep recomputes them from the stored artifact, and a document that
+no longer matches its stored sha256 is `ErrBadTierBDocument` (nothing is written). `metamusic library verify` must stay clean.
+
+### Recover: a draft from a reference's transcript
+
+Use it when a reference track (imported without a recipe) has a stored, `ok` listening check and you want its words as a starting draft.
+
+1. Estimate and approve an analyze item for the reference (`estimate_generation` with `{mode: "analyze", track_ids: [id]}`; see "Analyzing
+   chosen takes"). That is the only spend; skip it when the track already has a document.
+2. Call `recover_recipe` for the track (Track page: "Create draft from transcript"; REST and MCP: `recover_recipe`, with an `Idempotency-Key`),
+   optionally with a style line. It answers 201 with the draft, the cleaned transcript summary, the Tier A evidence it used and where the
+   style came from. No job, estimate or ledger row is created.
+3. Open the draft (Backlog, origin `recovered`), correct the lyrics (the recogniser's text is a transcription, often wrong) and the
+   placeholder style (for example `italian vocals, 104 BPM, A minor`), and run the lint.
+4. Optionally render the draft through the ordinary estimate. The take is a new root with operator `recover`; a mother override is refused
+   (422 `INVALID_ITEM`, rule `recovered_draft_parent`). The reference is never modified.
+
+Refusals: 409 `ANALYSIS_UNAVAILABLE` (no `ok` check yet; the hint says what to do), 422 `TRANSCRIPT_EMPTY` (no sung line was heard), 422
+`RECIPE_KNOWN` (the track has a recipe; Recover is for references only), 422 `LINT_FAILED` (nothing is created).
+
+### Diction Lab
+
+The Diction Lab reads the stored checks; it never spends. The karaoke view on a Track page (a take with a stored `ok` check, or a plan score)
+lets the Owner mark each line `clear` or `unclear` (a second press withdraws the mark); `/diction` lists the words the recogniser mangled
+per language with their rates, and the Owner (or an agent with write scope) can ignore a word or add a note; an Editor or Listener cannot. An agent's marks are stored as `critic` and do not count toward the calibration set. Discarded takes are not in the lexicon. Marked lines are the calibration set of the Critic Bench
+(target: 60 lines across 6 takes before the thresholds are tuned; a numbers-only change to `DefaultThresholds`). A risky word of the lexicon
+appears as a warning in the draft lint and the estimate, never as an error.
+
 ## Migrations 0013 to 0016
 
 Applied in order at startup (the loader refuses gaps; numbers follow merge order, not plan order):

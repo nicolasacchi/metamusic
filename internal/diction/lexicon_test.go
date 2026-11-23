@@ -226,3 +226,25 @@ func TestLexicon_RewriteOlderMarkWithFrozenClock(t *testing.T) {
 		t.Errorf("after rewriting the older mark: attempts = %d, want 5", c.Attempts)
 	}
 }
+
+// TestLexicon_ExcludesDiscardedTakes: a discarded take does not exist for an Editor, and the lexicon is one shared aggregate, so a
+// discarded take contributes no attempts and no examples (once the rebuild window has passed).
+func TestLexicon_ExcludesDiscardedTakes(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	ids := e.sixTakes()
+	if c, _ := entry(t, e, "chiave"); c.Attempts != 6 {
+		t.Fatalf("attempts = %d", c.Attempts)
+	}
+	e.exec(`UPDATE tracks SET status = 'discarded' WHERE id = ?`, ids[0])
+	e.advance(6 * time.Second) // the rebuild window
+	c, _ := entry(t, e, "chiave")
+	if c.Attempts != 5 {
+		t.Errorf("after discarding: attempts = %d, want 5", c.Attempts)
+	}
+	for _, ex := range c.Examples {
+		if ex.TrackID == ids[0] {
+			t.Errorf("example from the discarded take: %+v", ex)
+		}
+	}
+}

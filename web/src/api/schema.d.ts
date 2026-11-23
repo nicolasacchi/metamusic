@@ -7263,7 +7263,7 @@ export interface components {
                 max_usd: string;
                 /** Format: int64 */
                 takes: number;
-                /** @description Not reported yet: M6N-N4 makes the listening checks explicit; always false until then */
+                /** @description Whether some planned take has a listening check (Tier B); false when listening checks are off, the mandate does not allow them, or the worker capability is closed */
                 tier_b: boolean;
             } | null;
             /** @description Decimal; the same seed and library give the same plan */
