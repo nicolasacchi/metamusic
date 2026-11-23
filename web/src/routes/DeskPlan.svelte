@@ -198,6 +198,11 @@
   .crumb {
     margin: 0;
   }
+  .crumb a {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--hit);
+  }
   .sections {
     list-style: none;
     padding: 0;
