@@ -442,7 +442,7 @@ func (a *ProviderAdmin) Update(ctx context.Context, p auth.Principal, in UpdateI
 				if err := CheckArm(ctx, tx, st.Backend, in.AfterRestore); err != nil {
 					return err
 				}
-				if err := checkArmPod(ctx, tx, st.Backend, in.AcceptBroadPodKey); err != nil {
+				if err := CheckArmPod(ctx, tx, st.Backend, in.AcceptBroadPodKey); err != nil {
 					return err
 				}
 			}

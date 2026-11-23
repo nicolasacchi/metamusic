@@ -52,7 +52,7 @@ const (
 )
 
 // CanaryCases lists them in documentation order.
-var CanaryCases = []CanaryCase{CaseMain, CaseCotFull, CaseTerminate, CaseTimeout, CaseKillSwitch, CaseV2Wire, CaseFallback, CaseTierB, CaseAnalyze}
+var CanaryCases = []CanaryCase{CaseMain, CaseCotFull, CaseTerminate, CaseTimeout, CaseKillSwitch, CaseV2Wire, CaseFallback, CaseTierB, CaseAnalyze, CasePlan, CasePlanRender, CasePodSelfterm}
 
 // ParseCanaryCase validates a --case value.
 func ParseCanaryCase(s string) (CanaryCase, error) {
@@ -78,7 +78,7 @@ func canaryCaseList() string {
 
 // canaryBars is the length of each case's score: YuE2 has no duration control, so the explicit ABC score
 // bounds the render (two seconds per bar at the fixed tempo).
-var canaryBars = map[CanaryCase]int{CaseMain: 8, CaseCotFull: 8, CaseTerminate: 32, CaseTimeout: 64, CaseKillSwitch: 64, CaseV2Wire: 8, CaseFallback: 8, CaseTierB: 8, CaseAnalyze: 8}
+var canaryBars = map[CanaryCase]int{CaseMain: 8, CaseCotFull: 8, CaseTerminate: 32, CaseTimeout: 64, CaseKillSwitch: 64, CaseV2Wire: 8, CaseFallback: 8, CaseTierB: 8, CaseAnalyze: 8, CasePlan: 8, CasePlanRender: 8, CasePodSelfterm: 8}
 
 // CanarySpec is one case's synthetic take.
 type CanarySpec struct {
@@ -132,6 +132,9 @@ func NewCanarySpec(c CanaryCase, day time.Time, n int) (CanarySpec, error) {
 	if isEarsCase(c) {
 		return newEarsSpec(c, day, n, bars)
 	}
+	if isDeskCase(c) {
+		return newDeskSpec(c, day, n, bars)
+	}
 	cot := "melody"
 	if c == CaseCotFull {
 		cot = "full"
@@ -147,7 +150,11 @@ func NewCanarySpec(c CanaryCase, day time.Time, n int) (CanarySpec, error) {
 	if err != nil {
 		return CanarySpec{}, err
 	}
-	return CanarySpec{Case: c, RequestID: id, Recipe: raw, Bars: bars, Cot: cot, ExpectedAudioS: secs}, nil
+	spec := CanarySpec{Case: c, RequestID: id, Recipe: raw, Bars: bars, Cot: cot, ExpectedAudioS: secs}
+	if c == CasePodSelfterm {
+		spec = podSelftermSpec(spec)
+	}
+	return spec, nil
 }
 
 // CeilingAllowed reports whether an estimate's ceiling (the "spend up to" amount, not the expected cost)
@@ -208,8 +215,16 @@ type CanaryOptions struct {
 	// InitFailConfirm: the operator has provisioned the endpoint with `provision --engine acestep15 --init-fail`.
 	InitFailConfirm bool
 
+	// PlanID is the Desk plan the plan-render case renders (DESK-C1); empty makes the plan of the newest kept cot-full canary take.
+	PlanID string
+
 	// Fallback is the host-side half of the fallback case (canary_bulk.go); nil refuses that case before any spend.
 	Fallback FallbackHooks
+
+	// PodApprovalWait is how long the pod-selfterm case waits for the Owner to approve its batch on /human (default 30 minutes); PodWait
+	// is how long it then waits for the canary pod to be gone (default 90 minutes: the boot allowance plus the dead-man). Both end by
+	// cancelling the batch.
+	PodApprovalWait, PodWait time.Duration
 }
 
 // ErrMaxUSDRequired reports that an ACE-Step canary case spends real money and has no default ceiling.
@@ -291,6 +306,14 @@ type cProvider struct {
 	Worker *struct {
 		Caps []string `json:"caps"`
 	} `json:"worker"`
+	// Pods is the pod block of the runpod-pod backend's entry (BULK-P6); nil on every other backend.
+	Pods *struct {
+		KeyPresent          bool              `json:"key_present"`
+		Probe               string            `json:"probe"`
+		Safety              string            `json:"safety"`
+		SafetyDigestMatches bool              `json:"safety_digest_matches"`
+		Live                []json.RawMessage `json:"live"`
+	} `json:"pods"`
 }
 
 // hasCap reports whether the provider status lists capability c as open.
@@ -620,6 +643,8 @@ func (c *canary) run(ctx context.Context, spec CanarySpec) (*CanaryReport, error
 		return c.finish("refused", ExitRefused, "capability v2 is not open for this backend's image (open it with `metamusic runpod contract open --caps v2` right before this case)"), nil
 	case earsRefusal(spec, prov) != "":
 		return c.finish("refused", ExitRefused, "%s", earsRefusal(spec, prov)), nil
+	case spec.Case == CasePodSelfterm && podRefusal(prov) != "":
+		return c.finish("refused", ExitRefused, "%s", podRefusal(prov)), nil
 	case spec.Case == CaseFallback && c.fallbackRefusal(prov) != "":
 		return c.finish("refused", ExitRefused, "%s", c.fallbackRefusal(prov)), nil
 	case spec.Case == CaseTimeout && prov.MaxRuntimeS != 30:
@@ -641,6 +666,9 @@ func (c *canary) run(ctx context.Context, spec CanarySpec) (*CanaryReport, error
 	if est.Takes != 1 {
 		return c.finish("refused", ExitRefused, "the estimate has %d takes, want 1", est.Takes), nil
 	}
+	if spec.Case == CasePodSelfterm && !est.RequiresHumanApproval {
+		return c.finish("refused", ExitRefused, "the pod canary estimate does not wait for the Owner's approval: refusing to create a batch that would spend without it"), nil
+	}
 	if !CeilingAllowed(money.MicroUSD(est.Cost.CeilingMicroUSD), c.o.MaxUSD) {
 		return c.finish("refused", ExitRefused, "the estimate ceiling %s exceeds --max-usd %s",
 			money.MicroUSD(est.Cost.CeilingMicroUSD).USD(), c.o.MaxUSD.USD()), nil
@@ -652,6 +680,12 @@ func (c *canary) run(ctx context.Context, spec CanarySpec) (*CanaryReport, error
 			return c.finish("refused", ExitRefused, "the stages' estimate ceilings so far (%s) exceed --max-usd %s", c.ceilSum.USD(), c.o.MaxUSD.USD()), nil
 		}
 	}
+	if est.RequiresHumanApproval && spec.Case != CasePodSelfterm {
+		// a render_plan batch from an agent always awaits the Owner (desk_render) unless a mandate covers it: refuse before a batch
+		// and its reservation exist. The pod canary is the exception: it must await the Owner's approval (checked above) and the run
+		// waits for it.
+		return c.finish("refused", ExitRefused, "the estimate requires human approval (a Desk render awaits the Owner unless a covering mandate exists); no batch was created and nothing was spent"), nil
+	}
 	var batch cBatch
 	err = c.do(ctx, http.MethodPost, "/api/generations", map[string]string{"Idempotency-Key": idempotencyKey(spec.RequestID, est.ConfirmationToken)},
 		map[string]any{"confirmation_token": est.ConfirmationToken, "rationale": "runpod canary: " + string(spec.Case)}, &batch)
@@ -662,7 +696,7 @@ func (c *canary) run(ctx context.Context, spec CanarySpec) (*CanaryReport, error
 		return c.finish("fail", ExitFail, "the batch has %d jobs, want 1", len(batch.Jobs)), nil
 	}
 	c.rep.BatchID, c.rep.JobID = batch.ID, batch.Jobs[0].ID
-	if batch.State == "awaiting_confirmation" {
+	if batch.State == "awaiting_confirmation" && spec.Case != CasePodSelfterm { // the pod canary always waits for the Owner (its driver)
 		return c.finish("refused", ExitRefused, "the batch awaits a human confirmation; nothing was submitted"), nil
 	}
 	c.logf("batch %s created for case %s (ceiling %s)", batch.ID, spec.Case, money.MicroUSD(est.Cost.CeilingMicroUSD).USD())

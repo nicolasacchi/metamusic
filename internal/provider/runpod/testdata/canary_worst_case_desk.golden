@@ -1,0 +1,5 @@
+Desk canary worst case (illustrative price USD 0.69 per hour; the real estimate is checked against --max-usd before any spend)
+case plan        ceiling USD 0.128036  expected 34 s  timeout 119 s  needs plan,v2  stage: plan job of 2 seeds
+case plan-render ceiling USD 0.218886  expected 182 s  timeout 356 s  needs none  stage: render_plan take of a kept cot-full take's plan, unless --plan-id
+sum of both cases USD 0.346922; default per-case --max-usd USD 0.5
+These canaries spend real money: run them only with the operator's written approval (case list and --max-usd per case).

@@ -64,6 +64,7 @@ func TestCLI_EngineFlag_Table(t *testing.T) {
 		msg  string
 	}{
 		{[]string{"provision", "--engine", "bogus"}, 2, "--engine"},
+		{[]string{"canary", "--url", "http://127.0.0.1:1", "--engine", "acestep15", "--plan-id", "p"}, 2, "plan-render"},
 		{[]string{"provision", "--engine", "acestep15", "--vae-source", "image"}, 2, "yue2 flag"},
 		{[]string{"provision", "--engine", "yue2", "--tasks", "turbo"}, 2, "acestep15 flags"},
 		{[]string{"provision", "--tasks", "turbo"}, 2, "acestep15 flags"},
@@ -87,6 +88,8 @@ func TestCLI_EngineFlag_Table(t *testing.T) {
 		{[]string{"canary", "--url", "http://127.0.0.1:1", "--all"}, 2, "acestep15 flag"},
 		{[]string{"canary", "--url", "http://127.0.0.1:1", "--dry-run"}, 2, "acestep15 flag"},
 		{[]string{"canary", "--url", "http://127.0.0.1:1", "--case", "tier-b", "--source-track", "t"}, 2, "acestep15 flag"},
+		{[]string{"canary", "--url", "http://127.0.0.1:1", "--case", "plan", "--plan-id", "p"}, 2, "plan-render"},
+		{[]string{"canary", "--url", "http://127.0.0.1:1", "--case", "plan", "--source-track", "t"}, 2, "acestep15 flag"},
 		{[]string{"canary", "--dry-run", "--engine", "acestep15"}, 2, "--all"},
 		{[]string{"canary", "--dry-run", "--engine", "acestep15", "--all", "--case", "t2m"}, 2, "exclude"},
 		{[]string{"canary", "--dry-run", "--engine", "acestep15", "--all", "--part", "c"}, 2, "--part"},
@@ -258,6 +261,17 @@ func TestCLI_CanaryEarsDryRun(t *testing.T) {
 	for _, c := range []string{"tier-b", "analyze"} {
 		code, out, errs := rp(t, map[string]string{}, "canary", "--case", c, "--dry-run")
 		if code != 0 || !strings.Contains(out, "tier-b") || !strings.Contains(out, "analyze") || !strings.Contains(out, "written approval") {
+			t.Errorf("%s: exit %d %s %s", c, code, out, errs)
+		}
+	}
+}
+
+// M5b Desk (C361.6): the two Desk cases print their worst case without a URL or a token and spend nothing.
+func TestCLI_CanaryDeskDryRun(t *testing.T) {
+	t.Parallel()
+	for _, c := range []string{"plan", "plan-render"} {
+		code, out, errs := rp(t, map[string]string{}, "canary", "--case", c, "--dry-run")
+		if code != 0 || !strings.Contains(out, "case plan ") || !strings.Contains(out, "case plan-render") || !strings.Contains(out, "written approval") {
 			t.Errorf("%s: exit %d %s %s", c, code, out, errs)
 		}
 	}
