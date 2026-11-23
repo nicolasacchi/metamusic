@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { intentToEstimate, loadIntent, saveIntent, validateIntent } from "./genIntent";
 import {
-  buildPlanSeeds, planSeedsGate, renderIntent, renderRows, renderStateText, RENDER_SEEDS_MAX, SEEDS_DEFAULT, SEEDS_MAX, planJobsHref, renderGate, planSeedsRefusalText, keepRequest,
+  buildPlanSeeds, planSeedsGate, renderIntent, renderRows, renderStateText, RENDER_SEEDS_MAX, SEEDS_DEFAULT, SEEDS_MAX, planJobsHref, planJobLabel, renderGate, planSeedsRefusalText, keepRequest,
 } from "./deskRender";
 
 describe("renderIntent", () => {
@@ -116,6 +116,16 @@ describe("renders on a plan", () => {
   });
   test("plan jobs link to the Desk scoped by the job", () => {
     expect(planJobsHref("j 1")).toBe("/desk?job_id=j%201");
+  });
+  test("one completed plan job gets the plain label", () => {
+    expect(planJobLabel(0, 1)).toBe("this job");
+  });
+  test("several completed plan jobs are numbered i of n", () => {
+    expect([0, 1, 2].map((i) => planJobLabel(i, 3))).toEqual(["plan job 1 of 3", "plan job 2 of 3", "plan job 3 of 3"]);
+  });
+  test("no completed plan jobs: the template's each renders no link, so no label is asked for", () => {
+    expect([].map((_, i) => planJobLabel(i, 0))).toEqual([]);
+    expect(planJobLabel(0, 0)).toBe("this job");
   });
   test("a closed plan capability in an estimate refusal is said plainly", () => {
     expect(planSeedsRefusalText(503, "GENERATION_DISABLED", "x", { reason: "worker_outdated", missing: ["plan", "v2"] })).toMatch(/not available.*plan, v2/i);

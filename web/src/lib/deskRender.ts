@@ -107,6 +107,9 @@ export function renderRows(renders: readonly PlanRender[] | undefined): RenderRo
 /** A plan job's batch links here: the plans that job made. */
 export const planJobsHref = (jobId: string): string => `/desk?job_id=${encodeURIComponent(jobId)}`;
 
+/** Which plan job a Desk link opens: "this job" when one completed, else "plan job i of n" (index is 0-based). */
+export const planJobLabel = (index: number, total: number): string => (total > 1 ? `plan job ${index + 1} of ${total}` : "this job");
+
 /**
  * "Keep as Take": an explicit score_render transform of the plan's own score text (CPU, no money). It is the only way a plan
  * becomes a Take without a GPU render. Null when the plan carries no score text.

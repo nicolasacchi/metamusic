@@ -8,7 +8,7 @@
   import { pollDelayMs, type Viewer } from "../lib/jobState";
   import { player } from "../lib/player.svelte";
   import { can } from "../lib/me.svelte";
-  import { planJobsHref } from "../lib/deskRender";
+  import { planJobLabel, planJobsHref } from "../lib/deskRender";
 
   type Batch = components["schemas"]["Batch"];
   interface Props {
@@ -92,7 +92,7 @@
   {@const planJobs = (batch.jobs ?? []).filter((j) => j.kind === "plan" && j.state === "completed")}
   {#each planJobs as j, i (j.id)}
     {#if can("list_plans")}
-      <p data-testid="batch-plans"><a class="btn" href={planJobsHref(j.id)} data-testid="batch-plans-link">Open the plans from {planJobs.length > 1 ? `plan job ${i + 1} of ${planJobs.length}` : "this job"} in the Desk</a></p>
+      <p data-testid="batch-plans"><a class="btn" href={planJobsHref(j.id)} data-testid="batch-plans-link">Open the plans from {planJobLabel(i, planJobs.length)} in the Desk</a></p>
     {/if}
   {/each}
   <h2>Takes</h2>
