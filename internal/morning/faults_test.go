@@ -275,7 +275,7 @@ func TestMorning_BuildFaultsStoreTheCode(t *testing.T) {
 	r.exec(`ALTER TABLE analyses RENAME TO analyses_gone`) // the candidate query reads loudness from here
 	c, err := r.svc.Build(ctx, owner, BuildIn{})
 	if err != nil {
-		t.Skipf("the build is refused before it runs: %v", err)
+		t.Fatalf("the build must start so the failure code is stored: %v", err)
 	}
 	c = r.built(c)
 	if c.State != StateFailed || c.ErrorCode == nil || *c.ErrorCode != CodeToolFailed {
