@@ -359,9 +359,14 @@ type newPlan struct {
 	edit                                                           *EditInfo
 	title                                                          string
 	by                                                             auth.Principal
+	// raw, when set, holds the principal columns as stored (a plan job's plans carry the batch's requester, who is not a session).
+	raw *rawPrincipal
 	// files lists the desk_plan_files rows to write with the plan (name, sha, bytes, path).
 	files []fileRow
 }
+
+// rawPrincipal is a principal as the principal_* columns hold it.
+type rawPrincipal struct{ id, kind, name string }
 
 type fileRow struct {
 	name, sha, path string
@@ -413,6 +418,10 @@ func (s *Service) insert(ctx context.Context, tx *sql.Tx, n newPlan) error {
 	if n.prof.spb != nil {
 		spb = *n.prof.spb
 	}
+	pid, pkind, pname := n.by.Key(), string(n.by.Kind), n.by.Name
+	if n.raw != nil {
+		pid, pkind, pname = n.raw.id, n.raw.kind, n.raw.name
+	}
 	al := 0
 	if n.aligned {
 		al = 1
@@ -423,7 +432,7 @@ func (s *Service) insert(ctx context.Context, tx *sql.Tx, n newPlan) error {
 		VALUES (?,?,?,?,?,?,?,?, 'yue2',?,?,?,?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?)`,
 		n.id, n.source, nullStr(n.jobID), nullInt(n.seedIndex), nullStr(n.trackID), nullStr(n.parentID), nullStr(n.baseTrackID), nullStr(n.baseDraftID),
 		n.requestJSON, n.seed, n.cot, n.scorePath, n.sha, len(n.score), n.dialect, n.prof.bars, n.prof.meter, q, spb, al, string(secs),
-		n.prof.audioS, nullInt(n.abcTokens), nullBool(n.truncated), editJSON, n.title, n.by.Key(), string(n.by.Kind), n.by.Name, s.now()); err != nil {
+		n.prof.audioS, nullInt(n.abcTokens), nullBool(n.truncated), editJSON, n.title, pid, pkind, pname, s.now()); err != nil {
 		return err
 	}
 	for _, f := range n.files {
