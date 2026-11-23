@@ -1,5 +1,5 @@
 // Media Session glue (C22.2): lock-screen metadata, transport handlers, position state.
-import { isTapeItem } from "./recordMedia";
+import { isNonTakeItem } from "./recordMedia";
 import { artworkList, type CoverSet } from "./coverLinks";
 
 export interface MSPlayer {
@@ -10,6 +10,10 @@ export interface MSPlayer {
   state: { trackId: string; endOfQueue?: boolean; pendingPlay?: boolean };
   /** A next track exists (undefined: assume yes). */
   hasNext?: boolean;
+  /** Lock-screen artist line (default "metamusic"); the Morning Crate shows its own name. */
+  artist?: string;
+  /** A Morning Crate is playing: previoustrack/nexttrack are the headset grammar, not transport. */
+  crate?: { press(a: "previoustrack" | "nexttrack"): void } | null;
   /** The user wants playback (survives the element being paused during a src swap). */
   playIntent?: boolean;
   /** Audio focus lease owner's transport (a duel): while set, play/pause control it and prev/next do nothing. */
@@ -65,10 +69,14 @@ export function installMediaSession(player: MSPlayer, el: HTMLAudioElement, env:
     set("play", () => (player.leaseHandlers ? player.leaseHandlers.play() : player.resume()));
     set("pause", () => (player.leaseHandlers ? player.leaseHandlers.pause() : player.pause()));
     set("previoustrack", () => {
-      if (!player.leaseHandlers) player.prev();
+      if (player.leaseHandlers) return;
+      if (player.crate) player.crate.press("previoustrack");
+      else player.prev();
     });
     set("nexttrack", player.hasNext === false ? null : () => {
-      if (!player.leaseHandlers) player.next();
+      if (player.leaseHandlers) return;
+      if (player.crate) player.crate.press("nexttrack");
+      else player.next();
     });
     set("seekto", (d) => {
       if (typeof d.seekTime === "number") player.seek(d.seekTime);
@@ -82,7 +90,7 @@ export function installMediaSession(player: MSPlayer, el: HTMLAudioElement, env:
   let asked = "";
   const wantArt = () => {
     const id = player.state.trackId;
-    if (!env.cover || !id || isTapeItem(id) || asked === id || player.mask) return;
+    if (!env.cover || !id || isNonTakeItem(id) || asked === id || player.mask) return;
     asked = id;
     void env
       .cover(id)
@@ -103,7 +111,7 @@ export function installMediaSession(player: MSPlayer, el: HTMLAudioElement, env:
     const masked = player.mask ?? null;
     ms.metadata = new env.MediaMetadata({
       title: masked ?? player.title,
-      artist: "metamusic",
+      artist: player.artist ?? "metamusic",
       album: masked !== null ? "" : player.album,
       artwork: masked === null && art && art.id === player.state.trackId ? art.list : artworkList(null),
     });

@@ -11,7 +11,7 @@ web/src/lib/device.svelte.ts	user-switch
 web/src/lib/ratingView.ts	ratings-per-user
 web/src/lib/components/RatingPanel.svelte	ratings-per-user
 web/src/lib/shell.ts	listener-shell editor-shell
-web/src/lib/nav.ts	listener-shell editor-shell ux-shell
+web/src/lib/nav.ts	listener-shell editor-shell ux-shell m6n-morning
 web/src/lib/components/NoAccess.svelte	listener-shell editor-shell
 web/e2e/u1Api.ts	listener-shell editor-shell ratings-per-user user-switch device-pairing
 web/src/*.test.ts	-
@@ -30,9 +30,9 @@ web/src/lib/components/Track*	m1-track
 web/src/lib/components/Player*	m1-player
 web/src/lib/components/Waveform.svelte	m1-player
 web/src/lib/components/Spectrogram.svelte	m1-player
-web/src/lib/player*	m1-player m3-autoadvance
+web/src/lib/player*	m1-player m3-autoadvance m6n-morning
 web/src/lib/queue*	m1-player m3-autoadvance
-web/src/lib/listen*	m2a-listen
+web/src/lib/listen*	m2a-listen m6n-morning
 web/src/lib/components/ABPlayer.svelte	m2b-compare
 web/src/routes/Compare.svelte	m2b-compare
 web/src/lib/compareView.ts	m2b-compare
@@ -141,14 +141,14 @@ web/src/lib/components/FilterBuilder.svelte	l2-crates
 web/src/lib/components/CrateMembers.svelte	l2-crates
 web/src/lib/crateFilter.ts	l2-crates
 web/src/lib/crateApi.ts	l2-crates
-web/src/lib/recordMedia.ts	l2-tape
+web/src/lib/recordMedia.ts	l2-tape m6n-morning
 web/src/lib/curationView.ts	l2-curation
 web/src/lib/components/CurationToggles.svelte	l2-curation
 web/src/lib/components/ChapterList.svelte	l2-tape
 web/src/api/sw/*	m4a-offline
 web/src/api/swRegister.ts	m4a-offline
-web/src/api/offline.ts	m4a-offline
-web/src/lib/offline*	m4a-offline
+web/src/api/offline.ts	m4a-offline m6n-morning
+web/src/lib/offline*	m4a-offline m6n-morning
 web/src/routes/Offline.svelte	m4a-offline
 web/src/lib/components/OfflineButton.svelte	m4a-offline m4a-track
 web/src/lib/components/CoverArt.svelte	m4a-track
@@ -248,7 +248,7 @@ web/src/lib/components/KeyBadge.svelte	l3-entry-points
 web/src/lib/components/EnergyBadge.svelte	l3-entry-points
 web/src/lib/components/SequencePanel.svelte	l2-records l3-sequence
 web/src/lib/sequenceView.ts	l2-records l3-sequence
-web/src/routes/New.svelte	ux-inbox ux-landing l3-next listener-shell
+web/src/routes/New.svelte	ux-inbox ux-landing l3-next listener-shell m6n-morning
 internal/features/*	l3-entry-points l1-song
 internal/sequencer/*	l2-records l3-sequence
 internal/sequence/*	l2-records l3-sequence
@@ -332,3 +332,14 @@ web/src/lib/nightView.ts	m6n-night
 web/src/routes/Critics.svelte	m6n-critics
 web/src/lib/components/WilsonBar.svelte	m6n-critics
 web/src/lib/benchView.ts	m6n-critics
+# M6N-W2 (the Morning Crate pages, headset grammar, crate mode of the player, morning outbox channel and offline sides)
+web/src/routes/MorningCrates.svelte	m6n-morning
+web/src/routes/MorningCrate.svelte	m6n-morning
+web/src/lib/components/MorningPlayer.svelte	m6n-morning
+web/src/lib/components/MorningReveal.svelte	m6n-morning
+web/src/lib/components/MorningCard.svelte	m6n-morning
+web/src/lib/headset.ts	m6n-morning
+web/src/lib/morningCrate.ts	m6n-morning
+web/src/lib/morningMedia.ts	m6n-morning
+web/src/lib/mediaSession.ts	m6n-morning m1-player
+web/src/api/outbox.ts	m6n-morning m2a-listen

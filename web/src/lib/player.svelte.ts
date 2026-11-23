@@ -1,10 +1,14 @@
 // Global player store (C22.1). The single audio element lives in App.svelte's footer and is
 // handed over by attach(); it is never re-created on navigation.
 import { playerInUse } from "./playerUse";
-import { dbToGain, fetchRecordGains, isTapeItem, recordIdOfHref, tapeMediaLinks, tapeMeta } from "./recordMedia";
+import { dbToGain, fetchRecordGains, isNonTakeItem, isTapeItem, recordIdOfHref, tapeMediaLinks, tapeMeta } from "./recordMedia";
+import { CrateSession, loadPreset, chapterAt, chapterTitle, isMorningItem, morningItem, sideLabel, type MorningCrate, type MorningOutEvent } from "./morningCrate";
+import { morningLinks, morningMeta, rememberCrate } from "./morningMedia";
+import { uuidv7 } from "./id";
 import { getAudioContext } from "./audioContext";
 import { api } from "../api/client";
 import { session } from "../api/session";
+import { morningOutbox } from "../api/outbox";
 import { offline } from "./offline.svelte";
 import type { LocalSource } from "../api/offline";
 import type { components } from "../api/schema";
@@ -87,6 +91,8 @@ export interface PlayerDeps {
   audioContext?(): AudioContext;
   /** The plan gains of the Record behind a restored queue's source href (`/records/:id`); absent: no rebuild. */
   rebuildGains?(href: string): Promise<Record<string, number> | null>;
+  /** Queues a Morning Crate event (the morning outbox channel); absent: crate playback records nothing. */
+  submitMorning?(e: MorningOutEvent): void;
 }
 
 export interface PlayOptions {
@@ -187,6 +193,8 @@ export class Player {
     restored: null as number | null,
     /** A duel (audio focus lease) paused the player and gave the output back outside a gesture: "Resume <title>". */
     held: false,
+    /** `crate`: the queue is the sides of a Morning Crate (the headset grammar and the blind labels apply). */
+    mode: "track" as "track" | "crate",
   });
 
   /* Non-reactive bookkeeping: nothing renders from these collections. */
@@ -213,6 +221,10 @@ export class Player {
   private abortReloads = new Map<string, number>();
   /* eslint-enable svelte/prefer-svelte-reactivity */
   private cleanup: (() => void) | null = null;
+  /** The Morning Crate being listened to (crate mode), or null. Plain field: the lock screen reads it, no view renders from it. */
+  crate: CrateSession | null = null;
+  private crateMeta = { title: "", album: "" };
+  private flashTimer: ReturnType<typeof setTimeout> | null = null;
   /** expires_at (ms) of the link currently applied to the element. */
   private appliedExp = 0;
   /** Track whose source on the element is its local file (a media error then re-mints a signed link). */
@@ -481,7 +493,95 @@ export class Player {
   }
 
   get hasNext(): boolean {
-    return this.state.index + 1 < this.state.queue.length;
+    return this.state.mode === "crate" || this.state.index + 1 < this.state.queue.length;
+  }
+
+  /** Lock-screen artist: the crate never shows the app name next to a blind chapter. */
+  get artist(): string {
+    return this.state.mode === "crate" ? "Morning crate" : "metamusic";
+  }
+
+  /**
+   * Play side `side` of a Morning Crate from `atMs` (crate mode, C384.2). The queue is the crate's sides, so the next
+   * side starts by itself when one ends, through the same single element.
+   */
+  playCrate(view: MorningCrate, side: number, atMs = 0) {
+    const sides = view.sides.filter((s) => !s.removed && s.url).map((s) => morningItem(view.id, s.side));
+    const item = morningItem(view.id, side);
+    if (!sides.includes(item)) return;
+    this.deps.device.onGesture?.();
+    rememberCrate(view);
+    if (this.crate && this.crate.crateId === view.id) this.crate.update(view);
+    else {
+      this.crate?.dispose();
+      this.crate = new CrateSession(view, this.crateDeps());
+    }
+    const c = chapterAt(view, side, atMs);
+    this.start(item, sides, {
+      title: c ? chapterTitle(view, c) : "Morning crate",
+      album: sideLabel(view, side),
+      startAt: atMs / 1000,
+      source: { label: "Morning crate", href: `/morning/${view.id}` },
+    });
+  }
+
+  /** The page re-read the crate (a reveal, new links): the session and the lock screen follow. */
+  updateCrate(view: MorningCrate) {
+    rememberCrate(view);
+    if (this.crate && this.crate.crateId === view.id) {
+      this.crate.update(view);
+      this.crate.tick();
+    }
+  }
+
+  private crateDeps() {
+    return {
+      position: () => (this.el && this.appliedTrack === this.state.trackId ? { trackId: this.state.trackId, sec: this.el.currentTime || 0 } : null),
+      submit: (e: MorningOutEvent) => this.deps.submitMorning?.(e),
+      seek: (sec: number) => this.seek(sec),
+      playSide: (side: number, ms: number) => {
+        const view = this.crate?.view;
+        if (!view) return;
+        const c = chapterAt(view, side, ms);
+        this.start(morningItem(view.id, side), this.state.queue, { title: c ? chapterTitle(view, c) : "Morning crate", album: sideLabel(view, side), startAt: ms / 1000, autoplay: true }, true);
+      },
+      finish: () => {
+        const d = this.el?.duration;
+        if (d !== undefined && Number.isFinite(d) && d > 0) this.seek(d);
+      },
+      setTimer: (fn: () => void, ms: number) => setTimeout(fn, ms),
+      clearTimer: (h: unknown) => clearTimeout(h as ReturnType<typeof setTimeout>),
+      describe: (title: string, album: string) => {
+        this.crateMeta = { title, album };
+        if (!this.flashTimer) this.setMeta(title, album);
+      },
+      flash: (text: string) => this.flash(text),
+      vibrate: () => {
+        try {
+          navigator.vibrate?.(40);
+        } catch {
+          /* optional API */
+        }
+      },
+      id: uuidv7,
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity -- a timestamp for an event, nothing renders from it
+      now: () => new Date(this.deps.now()),
+      preset: loadPreset(),
+    };
+  }
+
+  /** "Marker 3 @ 1:12" on the lock screen for 2 s, then the chapter's label again. */
+  private flash(text: string) {
+    if (this.flashTimer) clearTimeout(this.flashTimer);
+    this.title = text;
+    this.announce();
+    this.flashTimer = setTimeout(() => {
+      this.flashTimer = null;
+      if (this.state.mode !== "crate") return;
+      this.title = this.crateMeta.title;
+      this.album = this.crateMeta.album;
+      this.announce();
+    }, 2000);
   }
 
   /** Insert a track right after the current one (after earlier "play next" entries). */
@@ -679,12 +779,14 @@ export class Player {
     const max = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : Infinity;
     const t = Math.min(Math.max(0, s), max);
     this.unrecovered = null; // a deliberate move: the clock estimate of prematureEnd no longer holds
+    this.crate?.jumped();
     this.goodPos = { id: this.state.trackId, t };
     el.currentTime = t;
     this.state.current = t;
   }
 
   next(startAt?: number) {
+    if (this.crate && this.state.mode === "crate") return this.crate.skip();
     const s = this.state;
     if (s.index + 1 < s.queue.length) {
       if (this.queuedNext > 0) this.queuedNext--;
@@ -693,6 +795,7 @@ export class Player {
   }
 
   prev() {
+    if (this.crate && this.state.mode === "crate") return this.crate.back();
     const s = this.state;
     if (s.current > 3 || s.index <= 0) this.seek(0);
     else this.goto(s.index - 1);
@@ -801,6 +904,14 @@ export class Player {
     this.wakeStage();
     s.held = false;
     s.restored = null;
+    s.mode = isMorningItem(trackId) ? "crate" : "track";
+    if (s.mode === "track" && this.crate) {
+      // Leaving crate mode: a buffered marker is committed, the lock screen gets the track handlers back.
+      this.crate.dispose();
+      this.crate = null;
+      if (this.flashTimer) clearTimeout(this.flashTimer);
+      this.flashTimer = null;
+    }
     s.queue = q;
     s.index = q.indexOf(trackId);
     s.trackId = trackId;
@@ -1001,7 +1112,7 @@ export class Player {
   }
 
   private formatFor(trackId: string): Format {
-    if (isTapeItem(trackId)) return "flac";
+    if (isNonTakeItem(trackId)) return "flac";
     if (this.forceMp3.has(trackId)) return "mp3";
     return formatFor(this.deps.device.quality(), this.deps.device.connection());
   }
@@ -1104,6 +1215,7 @@ export class Player {
     this.state.current = t;
     if (t > 0 && this.appliedTrack === this.state.trackId) this.goodPos = { id: this.state.trackId, t };
     this.observe(t);
+    if (this.crate && this.appliedTrack === this.state.trackId) this.crate.tick();
     const d = el.duration;
     // Refresh/warm the next link well before the end so `ended` never has to await.
     if (Number.isFinite(d) && d > 0 && t / d >= PREFETCH_AT && this.prefetchedAt !== this.epoch) {
@@ -1256,6 +1368,7 @@ export class Player {
     const id = s.trackId;
     if (this.finished || !id) return;
     this.finished = true;
+    this.crate?.ended(id);
     const pos = el?.currentTime ?? 0;
     // Before anything changes: the listen recorder completes the track that just ended (a track change
     // between listeners would otherwise reset it and the `complete` event would be lost).
@@ -1385,7 +1498,7 @@ export class Player {
     } else if (
       (code === MEDIA_ERR_SRC_NOT_SUPPORTED || code === MEDIA_ERR_DECODE) &&
       this.state.format === "flac" &&
-      !isTapeItem(id)
+      !isNonTakeItem(id)
     ) {
       // Code 3/4 is also what browsers report for HTTP/network failures on first load, so the failed
       // probe is recorded only once the MP3 reaches loadedmetadata (see onLoadedMetadata).
@@ -1443,6 +1556,7 @@ function warm(url: string) {
 
 export const player = new Player({
   fetchLinks: async (id) => {
+    if (isMorningItem(id)) return morningLinks(id);
     if (isTapeItem(id)) return tapeMediaLinks(id);
     const r = await api.GET("/api/tracks/{id}/media", { params: { path: { id } } });
     return r.data ?? null;
@@ -1450,6 +1564,7 @@ export const player = new Player({
   device: localDevice,
   now: () => Date.now(),
   fetchMeta: async (id) => {
+    if (isMorningItem(id)) return morningMeta(id);
     if (!isTapeItem(id)) return resolveMeta(id, getTrackRef);
     const m = await tapeMeta(id);
     return m ? { title: m.title, album: m.subtitle } : null;
@@ -1459,6 +1574,7 @@ export const player = new Player({
     return id ? fetchRecordGains(id) : Promise.resolve(null);
   },
   warm,
+  submitMorning: (e) => void morningOutbox.append(e),
   notice: (message, action) => void pushToast(message, { kind: "info", ...(action ? { action, ms: 8000 } : {}) }),
   inGesture: () => typeof navigator !== "undefined" && !!(navigator as Navigator & { userActivation?: { isActive: boolean } }).userActivation?.isActive,
   local: offline.hooks,

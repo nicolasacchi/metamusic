@@ -22,6 +22,7 @@
   import InboxRow from "../lib/components/inbox/InboxRow.svelte";
   import NextActions from "../lib/components/NextActions.svelte";
   import PendingApprovals from "../lib/components/PendingApprovals.svelte";
+  import MorningCard from "../lib/components/MorningCard.svelte";
   import PlayIcon from "../lib/components/icons/PlayIcon.svelte";
   import { formatMicroUSD } from "../lib/money";
 
@@ -257,6 +258,7 @@
   <button type="button" onclick={() => void markSeen()} disabled={model.count === 0 && model.failures.length === 0} data-testid="mark-all-seen">Mark all seen</button>
 </div>
 {#if error}<p role="alert">{error}</p>{/if}
+<MorningCard />
 
 {#if toasts.length > 0}
   <div class="toasts" role="status" aria-live="polite">

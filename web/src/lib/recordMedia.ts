@@ -3,6 +3,7 @@
 import { api } from "../api/client";
 import type { components } from "../api/schema";
 import type { MediaLinks } from "./player.svelte";
+import { isMorningItem } from "./morningCrate";
 
 export type RecordView = components["schemas"]["RecordView"];
 export type Tape = components["schemas"]["Tape"];
@@ -13,6 +14,8 @@ export const TAPE_PREFIX = "tape:";
 const RECORD_HREF = /^\/records\/([A-Za-z0-9_-]{1,64})$/;
 
 export const isTapeItem = (id: string): boolean => id.startsWith(TAPE_PREFIX);
+/** A queue item that is not a take (a tape, or a side of a Morning Crate): no rating, comments, cover, peaks, take link or listen events. */
+export const isNonTakeItem = (id: string): boolean => isTapeItem(id) || isMorningItem(id);
 export const tapeItem = (tapeId: string): string => TAPE_PREFIX + tapeId;
 export const tapeIdOf = (item: string): string => (isTapeItem(item) ? item.slice(TAPE_PREFIX.length) : item);
 export const recordHref = (recordId: string): string => "/records/" + recordId;
