@@ -228,8 +228,11 @@ test("a crate is revealed by hand, its playlist exists only after, and the list 
   await expect(page.getByTestId("morning-playlist")).toBeVisible();
   expect((await getCrate(request, secondId)).revealed).toBe(true);
   await page.goto("/morning");
-  await expect(page.getByTestId("morning-row")).toHaveCount(2);
-  await expect(page.getByTestId("morning-row").first()).toHaveAttribute("data-revealed", "true");
+  // this spec's two crates are listed (other specs sharing the e2e server may add their own, so no total count)
+  const row = (id: string) => page.getByTestId("morning-row").filter({ has: page.locator(`a[href="/morning/${id}"]`) });
+  await expect(row(crateId)).toHaveCount(1);
+  await expect(row(secondId)).toHaveCount(1);
+  await expect(row(secondId)).toHaveAttribute("data-revealed", "true");
 });
 
 test("New shows the card for a crate made today, with the unrated badge", async ({ page, request }) => {
