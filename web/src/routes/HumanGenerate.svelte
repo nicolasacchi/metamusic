@@ -9,7 +9,7 @@
   import ProviderBanner from "../lib/components/ProviderBanner.svelte";
   import BulkOption from "../lib/components/BulkOption.svelte";
   import PodEstimate from "../lib/components/PodEstimate.svelte";
-  import { POD_MIN_TAKES_FLOOR, bulkFailureText, bulkOffer } from "../lib/bulkView";
+  import { POD_MIN_TAKES_FLOOR, bulkFailureText, bulkOffer, statusAskedAfter } from "../lib/bulkView";
   import { can } from "../lib/me.svelte";
   import { estimateFailureText, hasListeningCheckChoice, tierBSummary } from "../lib/estimateTierB";
   import { capsOf, engineLabel, fetchEngines, modeUnavailable, pickerChoices, type EnginesResult } from "../lib/engines";
@@ -140,9 +140,9 @@
     try {
       const r = await api.GET("/api/provider", {});
       if (r.data) status = r.data;
-      else statusAsked = false;
+      statusAsked = statusAskedAfter(r.data);
     } catch {
-      statusAsked = false; // the option stays hidden until the next try
+      statusAsked = statusAskedAfter(null); // the option stays hidden until the next try
     }
   }
   const offer = $derived(intent ? bulkOffer(status, intentTakes(intent), can("get_provider_status")) : bulkOffer(null, 0, false));

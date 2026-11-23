@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { BulkOffer } from "../bulkView";
+  import { bulkOptionLine, type BulkOffer } from "../bulkView";
 
   interface Props {
     offer: BulkOffer;
@@ -24,7 +24,7 @@
       </p>
       {#if offer.note}<p class="warn" data-testid="bulk-note">{offer.note}</p>{/if}
     {:else}
-      {#if offer.text}<p data-testid="bulk-off" data-kind={offer.kind}>{offer.text}</p>{:else}<p class="muted">A bulk pod batch is selected; its price needs the provider status.</p>{/if}
+      {#if offer.text}<p data-testid="bulk-off" data-kind={offer.kind}>{offer.text}</p>{:else if bulkOptionLine(offer, on)}<p class="muted">{bulkOptionLine(offer, on)}</p>{/if}
       {#if on}
         <p><button type="button" onclick={() => onchange(false)} data-testid="bulk-clear">Use the ordinary backend instead</button></p>
       {/if}

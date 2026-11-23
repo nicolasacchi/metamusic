@@ -6,6 +6,9 @@ import {
   POD_MIN_TAKES_FLOOR,
   bulkFailureText,
   bulkOffer,
+  bulkOptionLine,
+  shouldPollPods,
+  statusAskedAfter,
   durationText,
   isPodEstimate,
   livePods,
@@ -164,5 +167,46 @@ describe("route gating of the pod blocks", () => {
     const editor = (op: string) => op === "list_jobs" || op === "get_batch";
     expect(routeAllowed("jobs", editor)).toBe(true);
     expect(routeAllowed("batch", editor)).toBe(true);
+  });
+});
+
+describe("shouldPollPods", () => {
+  const base = { canList: true, answered: true };
+  const cases: { name: string; in: Parameters<typeof shouldPollPods>[0]; want: boolean }[] = [
+    { name: "queued/active + empty answer keeps polling (the pod row may not exist yet)", in: { ...base, batchState: "active" }, want: true },
+    { name: "awaiting_confirmation keeps polling", in: { ...base, batchState: "awaiting_confirmation" }, want: true },
+    { name: "active + pods keeps polling", in: { ...base, batchState: "active", podBackend: true }, want: true },
+    { name: "finished stops once answered", in: { ...base, batchState: "finished" }, want: false },
+    { name: "rejected stops once answered", in: { ...base, batchState: "rejected" }, want: false },
+    { name: "expired stops once answered", in: { ...base, batchState: "expired" }, want: false },
+    { name: "a terminal batch never asked is asked once", in: { canList: true, answered: false, batchState: "finished" }, want: true },
+    { name: "non-pod backend never polls", in: { ...base, batchState: "active", podBackend: false }, want: false },
+    { name: "non-pod backend never polls, even unasked", in: { canList: true, answered: false, batchState: "active", podBackend: false }, want: false },
+    { name: "a viewer who cannot list pods never asks", in: { canList: false, answered: false, batchState: "active" }, want: false },
+    { name: "no batch loaded yet: no ask", in: { ...base, batchState: undefined }, want: false },
+  ];
+  for (const c of cases) test(c.name, () => expect(shouldPollPods(c.in)).toBe(c.want));
+});
+
+describe("statusAskedAfter", () => {
+  test("a real answer stays asked; failed or empty resets so the next try asks again", () => {
+    expect(statusAskedAfter({ backends: [] })).toBe(true);
+    expect(statusAskedAfter(undefined)).toBe(false);
+    expect(statusAskedAfter(null)).toBe(false);
+  });
+});
+
+describe("bulkOptionLine", () => {
+  const hidden = bulkOffer(null, 0, false);
+  test("hidden offer with the choice on says the price needs the status, never empty text", () => {
+    expect(bulkOptionLine(hidden, true)).toContain("needs the provider status");
+  });
+  test("hidden offer with the choice off has no line", () => {
+    expect(bulkOptionLine(hidden, false)).toBe("");
+  });
+  test("an offer with text shows its own text", () => {
+    const off = bulkOffer({ backends: [] }, 30, true);
+    expect(bulkOptionLine(off, true)).toBe(off.text);
+    expect(off.text).not.toBe("");
   });
 });

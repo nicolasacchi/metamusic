@@ -8,7 +8,7 @@
   import { pollDelayMs, type Viewer } from "../lib/jobState";
   import { player } from "../lib/player.svelte";
   import PodList from "../lib/components/PodList.svelte";
-  import { podErrorCodes } from "../lib/bulkView";
+  import { podErrorCodes, shouldPollPods } from "../lib/bulkView";
   import { can } from "../lib/me.svelte";
 
   type Batch = components["schemas"]["Batch"];
@@ -26,16 +26,20 @@
   let pods = $state<Pod[]>([]);
 
   let podSeq = 0;
-  let podsChecked = false;
+  let podsAnswered = false;
+  let mounted = true;
+  $effect(() => () => {
+    mounted = false;
+  });
   async function loadPods() {
-    // An ordinary batch has no pod: after one empty answer the poll stops asking.
-    if (!can("list_pods") || (podsChecked && pods.length === 0)) return;
+    // An empty answer never stops the poll while the batch is queued or running: its pod row may not exist yet.
+    if (!mounted || !shouldPollPods({ canList: can("list_pods"), batchState: batch?.state, answered: podsAnswered })) return;
     const mine = ++podSeq;
     try {
       const r = await api.GET("/api/pods", { params: { query: { batch_id: id, state: "all", limit: 20 } } });
-      if (r.data && mine === podSeq) {
+      if (r.data && mine === podSeq && mounted) {
         pods = r.data.items;
-        podsChecked = true;
+        podsAnswered = true;
       }
     } catch {
       // the pod block is secondary: the batch stays readable

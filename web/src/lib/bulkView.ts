@@ -124,3 +124,31 @@ export function podAlerts(status: StatusLike | null): string[] {
 export function podErrorCodes(items: Pod[]): string[] {
   return [...new Set(items.flatMap((p) => (p.error_code ? [p.error_code] : [])))];
 }
+
+const BATCH_TERMINAL = new Set(["finished", "rejected", "expired"]);
+
+/**
+ * Whether the Batch page should ask list_pods now. A bulk batch is opened right after confirm, when its pod row may not exist
+ * yet, so an empty answer never stops the poll while the batch is still waiting or running. It stops at a terminal batch state
+ * (a terminal batch is still asked once if it never was, e.g. a finished batch opened later), for a backend known not to be a
+ * pod backend (`undefined` = unknown, keep asking), and for a viewer who may not list pods. `lastAnswerEmpty` is deliberately
+ * not an input: it must not latch. The page's own unmount and out-of-order guards stay in the component.
+ */
+export function shouldPollPods(o: { canList: boolean; batchState: string | undefined; podBackend?: boolean; answered: boolean }): boolean {
+  if (!o.canList || o.podBackend === false || o.batchState === undefined) return false;
+  if (BATCH_TERMINAL.has(o.batchState)) return !o.answered;
+  return true;
+}
+
+/** The provider status was really read (an answer with data); a failed or empty answer lets the next try ask again. */
+export function statusAskedAfter(answer: unknown): boolean {
+  return answer !== undefined && answer !== null;
+}
+
+const PRICE_NEEDS_STATUS = "A bulk pod batch is selected; its price needs the provider status.";
+
+/** The line under a non-ready bulk offer: the offer's own sentence, else (hidden offer, choice on) the selected note, else none. */
+export function bulkOptionLine(offer: BulkOffer, on: boolean): string {
+  if (offer.text) return offer.text;
+  return on ? PRICE_NEEDS_STATUS : "";
+}
