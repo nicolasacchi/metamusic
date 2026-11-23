@@ -796,8 +796,7 @@ deleting the file closes the backend at once. Any other variable, and an all-acc
 `RUNPOD_POD_KEY` and the six `R2_` variables (`R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_REGION`, `R2_PREFIX`) in the process environment stop startup: secrets are files, not environment.
 
 **Windows and deploys (BULK-P5).** A bulk window starts when the operator arms `runpod-pod` (the pod key file in place, a probe row `ok`) and ends
-by itself: the server disarms the backend (`changed_by system:bulk`, reason `window_ended`) `MM_POD_WINDOW_MAX` after arming and stops any live pod
-then, or disarms with `window_idle` after 30 minutes with no pod batch active or awaiting confirmation and no live pod. Pods are created only inside
+by itself: the server disarms the backend (`changed_by system:bulk`, reason `window_ended`) `MM_POD_WINDOW_MAX` after arming; at that time the loop stops any live pod (pod code `window_ended`) and disarms only once the last pod is gone, or disarms with `window_idle` after 30 minutes with no pod batch active or awaiting confirmation and no live pod. Pods are created only inside
 the window, one at a time. After the window delete the key file. `scripts/deploy-preflight.sh` refuses while `metamusic runpod status --json`
 shows `live_pods` above zero: disarm, wait until it reads 0, deploy, arm (`--force` overrides, as for live attempts).
 
@@ -843,8 +842,8 @@ Unreleased audio sits in a private third-party bucket for that time: this trade-
 
 ### A bulk window: from the pod key to the pilot
 
-A pod renders a large human-approved batch (30 to 100 takes) one take after another and removes itself. Order (the operator's checklist; the first two
-rows are done once, the rest per window):
+A pod renders a large human-approved batch (30 to 100 takes) one take after another and removes itself. Order (the operator's checklist; the account key and
+the compose environment are set up once; the key file is created and deleted per window):
 
 1. **Pod key (the operator's account).** A RunPod key restricted to pods (read and write), catalog read and billing read. Create
    `runpod-pod.env` (mode 0600, exactly `RUNPOD_POD_KEY`) in the secrets directory only for the window (see `deploy/compose.example.yml`). If RunPod cannot
@@ -860,8 +859,7 @@ rows are done once, the rest per window):
    (add `ears` only after the Ears wave passed). A new image digest closes them again and needs a new canary.
 5. **Arm for the window:** `metamusic runpod arm --backend runpod-pod --reason TEXT` (no `--endpoint-name`). It is refused (exit 3) without the key, a
    cached pod quote, an enabled gate, or a usable probe row. **A bulk window is armed explicitly by the operator, for at most 8 hours
-   (`MM_POD_WINDOW_MAX`), with a 30 minute idle shutdown**: these are the approved defaults. The server disarms by itself (`window_ended`, which also stops
-   any live pod; `window_idle`), pods are created only inside the window and only one is live at a time. `metamusic runpod status --backend runpod-pod`
+   (`MM_POD_WINDOW_MAX`), with a 30 minute idle shutdown**: these are the approved defaults. The server disarms by itself (`window_ended`, after the loop has stopped any live pod and the last one is gone; `window_idle`), pods are created only inside the window and only one is live at a time. `metamusic runpod status --backend runpod-pod`
    (read-only, local) shows the key, the probe, the safety verdict, the window and the live pods.
 6. **Self-termination canary.** `metamusic runpod canary --url URL --case pod-selfterm --max-usd N` (required). It estimates a one-take pod batch with a
    deliberately broken link that must wait for the **Owner's approval on `/human`** (the case waits up to 30 minutes, then cancels and spends nothing),
@@ -887,7 +885,7 @@ dead-man and deadline end it.
 
 **Disarming does not stop a live pod.** `metamusic runpod disarm --backend runpod-pod` only stops new pods and new hand-outs; a live pod ends by its idle
 shutdown (default 120 seconds with nothing to do), by its absolute deadline (`MM_POD_MAX_RUNTIME` from the first create), or because the window ended:
-`window_ended` stops pods (the next poll answers `stop`, the server deletes after 60 seconds if it is still there). To stop one sooner, in this order:
+at the window end the loop stops pods with code `window_ended` (the next poll answers `stop`, the server deletes after 60 seconds if it is still there). To stop one sooner, in this order:
 
 1. Cancel the batch (`cancel_batch`, on the batch page or by an agent with write scope): its takes stop, the pod is told to `stop`, nothing new is created and nothing is spent
    on a replacement.

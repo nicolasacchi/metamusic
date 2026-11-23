@@ -535,7 +535,7 @@ no R2 bucket is configured, and the capabilities `agent` and `fallback` are clos
   last resort by the operator. A name sweep every minute deletes any `mm-*` pod that has no live row and trips `pod_unknown`. Trips are M3's `actOnTrips`
   with the pod reasons `pod_overrun`, `pod_deadman`, `pod_unknown`, `pod_price`, `pod_access`, `pod_excess`, `pod_create_invalid`; a trip cancels live attempts,
   purges the queue and deletes every live `mm-*` pod. A bulk window is the time the backend is armed: the server disarms it (`changed_by system:bulk`) at
-  `MM_POD_WINDOW_MAX` after arming (reason `window_ended`, which also stops live pods) or after 30 minutes with no pod batch and no live pod
+  `MM_POD_WINDOW_MAX` after arming (the loop first stops live pods with code `window_ended` and disarms with reason `window_ended` only once the last pod is gone) or after 30 minutes with no pod batch and no live pod
   (`window_idle`). Disarming by hand does not stop a live pod.
 - **The safety gate.** Arming needs a `pod_safety_log` probe row (`metamusic runpod probe --pods`, read-only; `ok`, or `too_broad` with an audited flag). An
   ordinary pod estimate or pod creation needs the latest canary row for the configured image digest to be `verified`; the self-termination canary
