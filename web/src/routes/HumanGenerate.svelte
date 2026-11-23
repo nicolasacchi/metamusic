@@ -27,6 +27,7 @@
     validateIntent,
     withEngine,
     withPodBackend,
+    keepPodBackend,
     withSkipTierB,
     type EngineName,
     type GenerationIntent,
@@ -139,8 +140,9 @@
     try {
       const r = await api.GET("/api/provider", {});
       if (r.data) status = r.data;
+      else statusAsked = false;
     } catch {
-      // the option simply stays hidden
+      statusAsked = false; // the option stays hidden until the next try
     }
   }
   const offer = $derived(intent ? bulkOffer(status, intentTakes(intent), can("get_provider_status")) : bulkOffer(null, 0, false));
@@ -160,7 +162,9 @@
     else void run(intent);
   }
 
-  function submitted(i: GenerationIntent) {
+  function submitted(next: GenerationIntent) {
+    // "Change options" keeps the bulk pod choice while the new take count still qualifies.
+    const i = keepPodBackend(intent, next, POD_MIN_TAKES_FLOOR);
     intent = i;
     saveIntent(sessionStorage, i);
     editing = false;

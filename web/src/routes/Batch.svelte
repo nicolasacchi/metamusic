@@ -25,23 +25,30 @@
   // The pod block (m6-bulk C398.6) is the Owner's: list_pods is Owner-only, so nobody else asks.
   let pods = $state<Pod[]>([]);
 
+  let podSeq = 0;
+  let podsChecked = false;
   async function loadPods() {
-    if (!can("list_pods")) return;
+    // An ordinary batch has no pod: after one empty answer the poll stops asking.
+    if (!can("list_pods") || (podsChecked && pods.length === 0)) return;
+    const mine = ++podSeq;
     try {
       const r = await api.GET("/api/pods", { params: { query: { batch_id: id, state: "all", limit: 20 } } });
-      if (r.data) pods = r.data.items;
+      if (r.data && mine === podSeq) {
+        pods = r.data.items;
+        podsChecked = true;
+      }
     } catch {
       // the pod block is secondary: the batch stays readable
     }
   }
 
   async function load() {
-    void loadPods();
     try {
       const r = await api.GET("/api/batches/{id}", { params: { path: { id } } });
       if (r.data) {
         batch = r.data;
         error = "";
+        void loadPods();
       } else error = r.error?.message ?? "Could not load the batch";
     } catch {
       error = "Could not load the batch";

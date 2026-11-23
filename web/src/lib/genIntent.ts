@@ -253,6 +253,11 @@ export function withPodBackend(i: GenerationIntent, backend: string | null): Gen
   return backend ? { ...rest, pod_backend: backend } : rest;
 }
 
+/** After "Change options": the bulk pod choice of the old intent survives while the new take count still qualifies. */
+export function keepPodBackend(prev: GenerationIntent | null, next: GenerationIntent, minTakes: number): GenerationIntent {
+  return prev?.pod_backend && intentTakes(next) >= minTakes ? withPodBackend(next, prev.pod_backend) : next;
+}
+
 /** The take (variant) intent for the Track page menu: "New seed" asks for three seeds; edits open the form first. */
 export function variantIntent(parentTrackId: string, mode: VariantMode): GenerationIntent {
   return mode === "new_seed" ? { mode, parent_track_id: parentTrackId, n_seeds: 3 } : { mode, parent_track_id: parentTrackId };

@@ -11,7 +11,7 @@ web/src/lib/device.svelte.ts	user-switch
 web/src/lib/ratingView.ts	ratings-per-user
 web/src/lib/components/RatingPanel.svelte	ratings-per-user
 web/src/lib/shell.ts	listener-shell editor-shell
-web/src/lib/nav.ts	listener-shell editor-shell ux-shell m6n-morning bulk-pods
+web/src/lib/nav.ts	listener-shell editor-shell ux-shell m6n-morning
 web/src/lib/components/NoAccess.svelte	listener-shell editor-shell
 web/e2e/u1Api.ts	listener-shell editor-shell ratings-per-user user-switch device-pairing
 web/src/*.test.ts	-

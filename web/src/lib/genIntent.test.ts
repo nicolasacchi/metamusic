@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { INTENT_KEY, MAX_TAKES, analyzeIntent, clearIntent, engineIntent, engineSwitchable, intentTakes, intentToEstimate, loadIntent, referenceIntent, saveIntent, validateIntent, variantIntent, withPodBackend, withSkipTierB, type GenerationIntent } from "./genIntent";
+import { INTENT_KEY, MAX_TAKES, analyzeIntent, clearIntent, engineIntent, engineSwitchable, intentTakes, keepPodBackend, intentToEstimate, loadIntent, referenceIntent, saveIntent, validateIntent, variantIntent, withPodBackend, withSkipTierB, type GenerationIntent } from "./genIntent";
 
 function store() {
   const m = new Map<string, string>();
@@ -254,6 +254,13 @@ describe("bulk pod option (m6-bulk C398.6)", () => {
     expect(intentToEstimate(withPodBackend(i, null))).toEqual({ kind: "generation", body: { items: [{ mode: "from_draft", draft_ids: ["d1"] }], options: { tier_b: false } } });
     expect("pod_backend" in withPodBackend(i, null)).toBe(false);
   });
+  test("keepPodBackend carries the pod choice over only while the take count qualifies", () => {
+    const prev = withPodBackend({ mode: "new_seed", parent_track_id: "t", n_seeds: 30 }, "fake-pod");
+    expect(keepPodBackend(prev, { mode: "new_seed", parent_track_id: "t", n_seeds: 40 }, 10).pod_backend).toBe("fake-pod");
+    expect(keepPodBackend(prev, { mode: "new_seed", parent_track_id: "t", n_seeds: 3 }, 10).pod_backend).toBeUndefined();
+    expect(keepPodBackend(null, { mode: "new_seed", parent_track_id: "t", n_seeds: 40 }, 10).pod_backend).toBeUndefined();
+  });
+
   test("intentTakes counts seeds per mother and drafts", () => {
     expect(intentTakes({ mode: "new_seed", parent_track_id: "t", n_seeds: 30 })).toBe(30);
     expect(intentTakes({ mode: "from_draft", draft_ids: ["a", "b"], n_seeds: 2 })).toBe(4);

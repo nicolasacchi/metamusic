@@ -3,7 +3,7 @@
 // M6 bulk (m6-bulk C398.6) against the real server with the fake pod backend `fake-pod` (server.ts SPEC_ENV: MM_POD_BACKEND=1 over MM_BACKEND=fake).
 // Nothing is stubbed: every operation is answered by the Go handlers and counted by the served check. The e2e binary has no pod simulation behind
 // the fake pod backend (that lives in the Go rig, TestAcceptance_Bulk_*), so no pod is ever created here: this spec pins the pages and the
-// money path (estimate, refusal, confirm, cancel), and that stopping a batch starts no second pod.
+// money path (estimate, refusal, confirm, cancel).
 import { expect, test, type APIRequestContext, type Page } from "./fixtures";
 import { draftsIntent } from "./bulkApi";
 
@@ -16,8 +16,11 @@ async function generate(page: Page, request: APIRequestContext, drafts: number, 
 
 test("the Jobs page lists live pods for the Owner and the provider status carries the pods block", async ({ page, request }) => {
   const listed = page.waitForResponse((r) => new URL(r.url()).pathname === "/api/pods" && r.status() === 200);
+  const provider = page.waitForResponse((r) => new URL(r.url()).pathname === "/api/provider" && r.status() === 200);
   await page.goto("/jobs");
   await listed;
+  await provider; // pods-off depends on the status: assert its absence only after it arrived
+  await page.waitForTimeout(200);
   const section = page.getByTestId("jobs-pods");
   await expect(section).toBeVisible();
   await expect(section.getByTestId("pods-empty")).toContainText("No pod is running.");
@@ -42,7 +45,7 @@ test("ten takes on a pod are refused in words, and the ordinary estimate comes b
   await expect(page.getByTestId("estimate-error")).toHaveCount(0);
 });
 
-test("a 30-take pod batch: the estimate shows the pod and its overhead, confirm opens the batch, cancel stops it with no second pod", async ({ page, request }) => {
+test("a 30-take pod batch: the estimate shows the pod and its overhead, confirm opens the batch, cancel stops it", async ({ page, request }) => {
   await generate(page, request, 3, 10);
   await page.getByTestId("bulk-toggle").check();
   const card = page.getByTestId("estimate");
@@ -65,8 +68,5 @@ test("a 30-take pod batch: the estimate shows the pod and its overhead, confirm 
   await expect(page.getByTestId("batch-card")).toContainText("cancelled");
 
   const list = await request.get(`/api/pods?batch_id=${batchId}&state=all`);
-  expect(list.ok()).toBe(true);
-  const pods = ((await list.json()) as { items: { state: string }[] }).items;
-  expect(pods.length).toBeLessThanOrEqual(1); // stopping never recreates a pod
-  for (const p of pods) expect(["terminating", "terminated"]).toContain(p.state);
+  expect(list.ok()).toBe(true); // that stopping never recreates a pod is TestReconcilePods_CancelledBatchNeverRecreates (no pod row exists in this e2e)
 });
