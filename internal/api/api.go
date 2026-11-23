@@ -187,6 +187,9 @@ type Deps struct {
 	// the build hook in internal/app/bulk_r2.go.
 	UploadFallback UploadFallbackReader
 
+	// BULK-P6 (C398): what the pod views know beyond the database; nil when no pod backend is built. Set by the build hook in internal/app/bulk.go.
+	Pods *PodsInfo
+
 	// M6N-M1 (C369): the spending mandates; nil makes their operations answer 503 UNAVAILABLE {component: mandates}. Set by the
 	// build hook in internal/app/m6n_mandates.go.
 	Mandates *mandates.Service
@@ -310,6 +313,7 @@ func New(mux *http.ServeMux, d Deps) huma.API {
 	registerBenchM6N(a, d)
 	registerMorningM6N(a, d)
 	registerNightM6N(a, d)
+	registerBulk(a, d)
 	relaxResponseSchemas(a) // C308: the keys a role may not receive are optional in the response schemas
 	notFound(mux, "/api/")
 	notFound(mux, "/human/api/")

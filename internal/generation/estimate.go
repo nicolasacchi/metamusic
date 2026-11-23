@@ -142,12 +142,20 @@ func (s *Service) estimate(ctx context.Context, p auth.Principal, in EstimateIn,
 	if err := s.admit(ctx, s.o.Store.R, name, in.TrialID); err != nil {
 		return Estimate{}, err
 	}
-	st, be, err := s.routeGate(ctx, name, in.Backend)
+	requested, err := s.podBackendFor(name, in) // the canary option names a pod backend itself (BULK-P6)
+	if err != nil {
+		return Estimate{}, err
+	}
+	st, be, err := s.routeGate(ctx, name, requested)
 	if err != nil {
 		return Estimate{}, err
 	}
 	if !st.Enabled {
 		return Estimate{}, disabledBackendErr(name, st)
+	}
+	pod, err := s.podStart(ctx, p, in, st, be) // nil unless routed to a pod backend (C398.1)
+	if err != nil {
+		return Estimate{}, err
 	}
 	for i, it := range in.Items {
 		if err := validateItem(i, it, eng); err != nil {
@@ -158,8 +166,8 @@ func (s *Service) estimate(ctx context.Context, p auth.Principal, in EstimateIn,
 	for _, it := range in.Items {
 		total += itemTakeCount(it)
 	}
-	if total > MaxTakes {
-		return Estimate{}, tooLarge(total, 0)
+	if err := pod.takeLimit(total); err != nil { // the 50-take limit, or the pod window (C398.1)
+		return Estimate{}, err
 	}
 	plans, err := s.resolvePlans(ctx, s.o.Store.R, in.Items) // render_plan: the Desk plans; nil, and no read, for any other estimate
 	if err != nil {
@@ -190,10 +198,17 @@ func (s *Service) estimate(ctx context.Context, p auth.Principal, in EstimateIn,
 	if err := pl.expandAll(in.Items); err != nil {
 		return Estimate{}, err
 	}
-	if len(pl.takes) > MaxTakes { // a plan_seeds item counts as one take before expansion; its real jobs are counted here
-		return Estimate{}, tooLarge(len(pl.takes), 0)
+	// a plan_seeds item counts as one take before expansion; its real jobs are counted here, against the batch's backend limit
+	// (takeLimit: 50 for every backend but a pod, the pod window for a pod batch; a nil pod estimate is the 50-take limit)
+	if err := pod.takeLimit(len(pl.takes)); err != nil {
+		return Estimate{}, err
 	}
 	pl.markV2Canary()
+	if pod != nil {
+		if err := pod.plan(pl.takes); err != nil { // generate takes only; their needs gain agent (A2)
+			return Estimate{}, err
+		}
+	}
 	ears, err := s.resolveEars(ctx, pl, st, in.TierB) // the listening check: spec, needs and budget of the takes that have one (C339.3)
 	if err != nil {
 		return Estimate{}, err
@@ -204,9 +219,12 @@ func (s *Service) estimate(ctx context.Context, p auth.Principal, in EstimateIn,
 	var qp spend.QuoteParams
 	var pq provider.Quote
 	var takes []spend.TakeIn
-	if pl.ace {
+	switch {
+	case pod != nil:
+		qp, pq, takes, err = s.podQuoteInputs(ctx, pl, st, pod, ears)
+	case pl.ace:
 		qp, pq, takes, err = s.quoteACE(ctx, pl, st, be)
-	} else {
+	default:
 		qp, pq, err = s.quoteInputs(ctx, s.o.Store.R, st)
 		takes = make([]spend.TakeIn, len(pl.takes))
 		for i, t := range pl.takes {
@@ -219,7 +237,15 @@ func (s *Service) estimate(ctx context.Context, p auth.Principal, in EstimateIn,
 	if err := pl.analyzeFits(qp); err != nil {
 		return Estimate{}, err
 	}
-	bq := spend.QuoteTakes(qp, takes)
+	var bq spend.BatchQuote
+	if pod != nil {
+		bq, err = pod.price(qp, pq, takes) // QuotePod: boot, idle window and the per-pod overhead (C393.1)
+		if err != nil {
+			return Estimate{}, err
+		}
+	} else {
+		bq = spend.QuoteTakes(qp, takes)
+	}
 	for i, t := range pl.takes {
 		c := bq.Takes[i]
 		t.ExpectedS, t.TimeoutS = c.ExpectedS, c.TimeoutS
@@ -255,6 +281,7 @@ func (s *Service) estimate(ctx context.Context, p auth.Principal, in EstimateIn,
 	if cover != nil && cover.Covered {
 		need = mandateNeed(in.MandateID)
 	}
+	need = pod.approval(need) // a pod canary always waits for the Owner (C398.1)
 
 	var token string
 	if !preview {
@@ -268,7 +295,7 @@ func (s *Service) estimate(ctx context.Context, p auth.Principal, in EstimateIn,
 		ETAS: bq.ETAS, PricePerHour: qp.PricePPH, GPUPools: append([]string{}, pq.Pools...),
 		RequiresApproval: need.Needed, ApprovalReasons: need.Reasons, Budget: fit, BatchCap: caps.BatchMicro, Provider: st,
 		Month: pot(caps.MonthlyMicro, u.MonthSettled+u.Outstanding), Day: pot(daily, u.PrincipalDaySettled+u.PrincipalOutstanding),
-		Mandate: cover,
+		Mandate: cover, Pod: pod.block(),
 	}
 	if !pq.ObservedAt.IsZero() && pq.Backend != provider.BackendFake {
 		t := pq.ObservedAt
@@ -296,7 +323,7 @@ func (s *Service) estimate(ctx context.Context, p auth.Principal, in EstimateIn,
 	if preview {
 		return est, nil
 	}
-	if err := s.storeEstimate(ctx, p, est, pl.takes, qp, pq, bq, in.MandateID); err != nil {
+	if err := s.storeEstimate(ctx, p, est, pl.takes, qp, pq, bq, in.MandateID, pod.docOrNil()); err != nil {
 		return Estimate{}, err
 	}
 	return est, nil
@@ -322,7 +349,7 @@ func budgetFit(u spend.Usage, c spend.Caps, daily, ceiling, reserve money.MicroU
 	return f
 }
 
-func (s *Service) storeEstimate(ctx context.Context, p auth.Principal, est Estimate, takes []*planTake, qp spend.QuoteParams, pq provider.Quote, bq spend.BatchQuote, mandateID string) error {
+func (s *Service) storeEstimate(ctx context.Context, p auth.Principal, est Estimate, takes []*planTake, qp spend.QuoteParams, pq provider.Quote, bq spend.BatchQuote, mandateID string, pod *podDoc) error {
 	items, err := json.Marshal(takes)
 	if err != nil {
 		return err
@@ -339,7 +366,7 @@ func (s *Service) storeEstimate(ctx context.Context, p auth.Principal, est Estim
 	}
 	qd := quoteDoc{PricePPH: int64(qp.PricePPH), ListPricePPH: int64(pq.ListPricePPH), MarginPPM: s.o.PriceMarginPPM, RTFMilli: qp.RTFMilli,
 		ColdStartS: qp.ColdStartS, IdleS: qp.IdleS, WorkersMax: qp.WorkersMax, MaxRuntimeS: qp.MaxRuntimeS, KillSlackS: qp.KillSlackS,
-		AttemptOverheadS: bq.AttemptOverheadS, ETAS: bq.ETAS, GPUPools: append([]string{}, pq.Pools...), PriceObservedAt: observed}
+		AttemptOverheadS: bq.AttemptOverheadS, ETAS: bq.ETAS, GPUPools: append([]string{}, pq.Pools...), PriceObservedAt: observed, Pod: pod}
 	qj, _ := json.Marshal(qd)
 	reasons, _ := json.Marshal(est.ApprovalReasons)
 	need := 0

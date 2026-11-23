@@ -251,6 +251,14 @@ type Estimate struct {
 	ApprovalReasons       []string          `json:"approval_reasons" nullable:"false" doc:"human_api_path, takes_over_limit or cost_over_limit"`
 	Budget                EstimateBudget    `json:"budget"`
 	Provider              ProviderBrief     `json:"provider"`
+	// Pod is the pod block of an estimate routed to the pod backend (BULK-P6); absent from every other estimate.
+	Pod *EstimatePod `json:"pod,omitempty"`
+}
+
+// EstimatePod is the pod terms of an estimate: the boot allowance and the absolute batch deadline, both in seconds from the first create.
+type EstimatePod struct {
+	BootS     int `json:"boot_s"`
+	DeadlineS int `json:"deadline_s"`
 }
 
 // ---- approvals, batches, jobs ----

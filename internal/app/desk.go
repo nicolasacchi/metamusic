@@ -8,13 +8,19 @@ import (
 
 	"github.com/nicolasacchi/metamusic/internal/desk"
 	"github.com/nicolasacchi/metamusic/internal/generation"
+	"github.com/nicolasacchi/metamusic/internal/jobs"
 	"github.com/nicolasacchi/metamusic/internal/lineage"
+	"github.com/nicolasacchi/metamusic/internal/provider/fake"
 	"github.com/nicolasacchi/metamusic/internal/redact"
 )
 
 // The M5b Composer's Desk wires itself here (G1 C328: tracks add internal/app/<track>.go and never edit Build): the store and
 // service behind the plan operations, and the startup sweep of what a crash left under plans/.
-func init() { RegisterBuildHook(wireDesk) }
+func init() {
+	RegisterBuildHook(wireDesk)
+	// The simulated worker's plan kind (C361.5): the fake backend then reports the plan capability and answers plan jobs.
+	fake.RegisterSimKind(fake.SimKindPlan, fake.PlanHook)
+}
 
 func wireDesk(env *BuildEnv) error {
 	if env.Store == nil || env.Data == nil {
@@ -40,6 +46,10 @@ func wireDesk(env *BuildEnv) error {
 		env.late.plans.target = svc // render_plan estimates read plans through this seam (C360.4)
 	}
 	env.AddResolver(svc) // audition MP3s, by their own hash (C358.4)
+	// A finished plan job becomes Desk plans, never a track, a recipe or a mutation (C361.4).
+	if err := env.AddKindIngester(jobs.KindPlan, svc); err != nil {
+		return err
+	}
 	return nil
 }
 

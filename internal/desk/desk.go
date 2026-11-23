@@ -1,7 +1,7 @@
 // Package desk is the Composer's Desk store and service (M5b C357, C358): immutable candidate scores (plans) from a take, from
-// an edit of another plan and (a later lane) from a plan job, one verdict per rater, and the files that belong to a plan. A plan
+// an edit of another plan and from a plan job, one verdict per rater, and the files that belong to a plan. A plan
 // is never a Take and never enters the library views. The package reads the library tables and writes only the desk_* tables and
-// the plans/ tree of the data directory. It never imports api, generation, jobs, library or songpr (C350.2); it uses the transform service for auditions (C358) and nothing imports it back.
+// the plans/ tree of the data directory. It never imports api, library or songpr (C350.2); it imports generation only for the PlanRow seam and jobs only for the plan job's KindIngester types (ingest_plan.go, C361.4), and nothing under jobs or generation imports it back. It uses the transform service for auditions (C358) and nothing imports it back.
 package desk
 
 import (
@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 	"uuid"
 
@@ -54,7 +55,13 @@ type Options struct {
 }
 
 // Service is the Desk.
-type Service struct{ o Options }
+type Service struct {
+	o Options
+	// placed holds, per plan job, the plan directories its last ingest attempt created: a rolled-back attempt leaves them behind,
+	// and the next attempt of the same job (or the startup sweep) removes them (ingest_plan.go).
+	mu     sync.Mutex
+	placed map[string][]string
+}
 
 // New builds the service.
 func New(o Options) *Service {
@@ -67,7 +74,7 @@ func New(o Options) *Service {
 	if o.Log == nil {
 		o.Log = slog.Default()
 	}
-	return &Service{o: o}
+	return &Service{o: o, placed: map[string][]string{}}
 }
 
 func (s *Service) now() string { return store.FormatTime(s.o.Now()) }
