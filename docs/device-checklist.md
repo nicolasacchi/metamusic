@@ -113,6 +113,20 @@ Checks CI cannot emulate. Copy this file per release, fill in the header and tic
 - [ ] DC-E2-4 the engine picker and the estimate card on a phone: choosing ACE-Step, the task class, the range and the reference window are readable and operable one-handed; "not yet verified" capabilities are shown as disabled with their reason
 - [ ] DC-E2-5 a repaint A/B with its parent at the repaint range plays in sync on iOS and Android (as DC-M2b-1)
 
+## M6N
+
+Crate, night and halt checks on the operator's phones and earbuds (iPhone and Android). The first night is run attended during the day
+(runbook, "The first night is run attended"); these checks need one real Morning Crate and a live mandate.
+
+- [ ] DC-M6N-1 lock screen on a crate side: the title reads "Take k of N" (no take name), the artist "Morning crate", the album "Side A", and the artwork is the app icon until the reveal; record iPhone and Android
+- [ ] DC-M6N-2 earbud gestures: which gesture fires `previoustrack` (marker) and which `nexttrack` (skip); two presses of `previoustrack` within 3 s make one strong marker; if a pair of earbuds sends the wrong key, record whether the `next_marks` preset fixes it
+- [ ] DC-M6N-3 blind stars: rate every chapter on the crate page; the crate reveals by itself when the last non-anchor chapter has stars, the titles appear, and the stars you gave are the ratings on those takes
+- [ ] DC-M6N-4 offline in flight mode: make the newest crate offline on Wi-Fi, switch to flight mode, relaunch from the home screen, and every side plays with seeking
+- [ ] DC-M6N-5 side B starts by itself when side A ends, with the screen locked and on cellular, without a tap
+- [ ] DC-M6N-6 from the phone (a paired device, no step-up): halt the night shift and revoke the mandate; both take effect at once (the page shows halted and revoked; the preview says it would skip)
+- [ ] DC-M6N-7 the reveal playlist "Morning crate YYYY-MM-DD" shows in your Subsonic client and in the car after the reveal, and not before; its takes play
+- [ ] DC-M6N-8 the New page shows the "Morning crate" card with the badge of unrated chapters at 07:00 and after a restart of the app; tapping it opens the crate at 360 px with no sideways scrolling and targets of at least 44 px
+
 ## Voice recorder (iOS)
 
 - [ ] DC-VOICE-1 iOS: the recorder works in Safari and in the installed PWA (MP4 container, `mp4a`), the first-use permission prompt appears once, the recording survives a short lock-screen interruption or reports it, and Save works on cellular

@@ -41,6 +41,7 @@ import (
 	"github.com/nicolasacchi/metamusic/internal/mcpgen"
 	"github.com/nicolasacchi/metamusic/internal/media/clip/cliptest"
 	mediaserve "github.com/nicolasacchi/metamusic/internal/media/serve"
+	"github.com/nicolasacchi/metamusic/internal/morning"
 	"github.com/nicolasacchi/metamusic/internal/objstore/objstoretest"
 	"github.com/nicolasacchi/metamusic/internal/oidc/oidctest"
 	"github.com/nicolasacchi/metamusic/internal/provenance"
@@ -91,6 +92,9 @@ type Options struct {
 	// app its HTTP client, so the upload fallback is built exactly as production builds it. Rig.ObjStore is the bucket. Capability
 	// `fallback` is still closed until the test opens it (Rig.OpenCaps).
 	ObjStore bool
+	// MorningBuilder replaces the Morning Crate's side builder (M6N-X1: morningtest.Fake, so a crate builds without a media tool run);
+	// nil => the production builder.
+	MorningBuilder morning.SideBuilder
 
 	// M4a (C117.1). M4a adds the M4a rows of librarytest.FixtureM4a (an offline set of two tracks, a connector grant, a
 	// Subsonic client, a bookmark and a play queue); it requires Fixture, M2c and M3 like M3 does. OIDC starts an
@@ -447,13 +451,14 @@ func New(tb testing.TB, o Options) *Rig {
 	}
 	ao := app.Options{
 		Now: clock.Now, NewID: idSequence(o.IDSeed), Limits: limits, Version: "v-test", Commit: "abc123",
-		Probe:    &mediaserve.Object{RelPath: "derived/probe/probe-v1.flac", ContentType: "audio/flac", ETag: strings.Repeat("ab", 32)},
-		SlotCoin: o.M2b.SlotCoin,
-		Rand:     o.Rand,
-		M3:       app.M3Options{Clock: clock, Ingest: o.Ingest, Fake: o.Fake},
-		L3:       app.L3Options{RealFeatures: o.RealFeatures},
-		T1:       o.T1,
-		Hooks:    o.AppHooks,
+		Probe:          &mediaserve.Object{RelPath: "derived/probe/probe-v1.flac", ContentType: "audio/flac", ETag: strings.Repeat("ab", 32)},
+		SlotCoin:       o.M2b.SlotCoin,
+		Rand:           o.Rand,
+		M3:             app.M3Options{Clock: clock, Ingest: o.Ingest, Fake: o.Fake},
+		L3:             app.L3Options{RealFeatures: o.RealFeatures},
+		T1:             o.T1,
+		Hooks:          o.AppHooks,
+		MorningBuilder: o.MorningBuilder,
 		// M4a: no real waiting after a failed Subsonic authentication; the OIDC verifier uses a plain client (loopback).
 		M4a: app.M4aOptions{SubsonicSleep: func(ctx context.Context, _ time.Duration) error { return ctx.Err() }},
 	}
