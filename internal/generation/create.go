@@ -203,6 +203,7 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, in CreateIn, enc
 		// reason that a mandate must not waive has to be carved out here. A mandate batch is always an api batch.
 		need, via = mandateNeed(est.MandateID), spend.ViaAPI
 	}
+	need = storedPodNeed(est.Quote, need) // a pod canary always waits for the Owner, never covered by a mandate (C398.1)
 	if err = s.insertBatch(ctx, tx, p, in, est, batchID, via, need, now); err != nil {
 		return Created{}, err
 	}

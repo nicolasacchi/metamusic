@@ -134,6 +134,9 @@ func estimateFrom(e generation.Estimate) Estimate {
 			BatchCapMicroUSD: valPtr(int64(e.BatchCap)), BatchCapUSD: valPtr(usd(e.BatchCap))},
 		Provider: providerBrief(e.Provider),
 	}
+	if e.Pod != nil {
+		out.Pod = &EstimatePod{BootS: e.Pod.BootS, DeadlineS: e.Pod.DeadlineS}
+	}
 	for _, it := range e.Items {
 		ei := EstimateItem{Index: it.Index, Mode: it.Mode, Takes: []TakePlan{}}
 		for _, t := range it.Takes {
@@ -280,7 +283,7 @@ func registerGenerationM3(a huma.API, d Deps) {
 			for i, it := range in.Body.Items {
 				items[i] = itemIn(it)
 			}
-			e, err := d.Generation.Estimate(ctx, p, generation.EstimateIn{Engine: strOrEmpty(in.Body.Engine), Items: items, Via: estimateVia(p), Backend: opts.Backend, TrialID: opts.TrialID, TierB: opts.TierB})
+			e, err := d.Generation.Estimate(ctx, p, generation.EstimateIn{Engine: strOrEmpty(in.Body.Engine), Items: items, Via: estimateVia(p), Backend: opts.Backend, TrialID: opts.TrialID, TierB: opts.TierB, PodCanary: opts.PodCanary})
 			if err != nil {
 				return nil, genErr(err)
 			}

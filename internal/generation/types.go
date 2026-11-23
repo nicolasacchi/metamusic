@@ -109,4 +109,6 @@ type quoteDoc struct {
 	ETAS             int      `json:"eta_s"`
 	GPUPools         []string `json:"gpu_pools"`
 	PriceObservedAt  *string  `json:"price_observed_at"`
+	// Pod is the frozen pod terms of a pod batch (BULK-P6, C398.1); absent for every other estimate.
+	Pod *podDoc `json:"pod,omitempty"`
 }
