@@ -75,3 +75,7 @@ internal/nightshift     90
 # M5b Ears (EARS-X1): unit coverage measured on main 2026-11-23 (go test, no -short): internal/ears/tierb 96.7. internal/diction
 # measured 88.7, below the plan's 90, so it has no row (the plan records it; internal/... 85 applies).
 internal/ears/tierb     90
+# M6N-X1 (C389.4): unit coverage measured 2026-11-23 (go test, no -short): internal/criticbench 96.1, so the plan's floor of 95 is added.
+# internal/mandates measured 92.9 (plan 95) and internal/morning 87.3 (plan 90): both are below the plan's floor, so neither has a row
+# (internal/... applies); the plan's revision log records the shortfall and the lanes that own the packages raise them.
+internal/criticbench    95
