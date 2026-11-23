@@ -81,6 +81,12 @@
   import Patch from "./routes/Patch.svelte";
   import Callbacks from "./routes/Callbacks.svelte";
   import Receipts from "./routes/Receipts.svelte";
+  import Mandates from "./routes/Mandates.svelte";
+  import Mandate from "./routes/Mandate.svelte";
+  import HumanMandateNew from "./routes/HumanMandateNew.svelte";
+  import NightShift from "./routes/NightShift.svelte";
+  import HumanNightShift from "./routes/HumanNightShift.svelte";
+  import Critics from "./routes/Critics.svelte";
   import Offline from "./routes/Offline.svelte";
   import New from "./routes/New.svelte";
   import Queue from "./routes/Queue.svelte";
@@ -328,6 +334,22 @@
       {/key}
     {:else if $router.route?.name === "settings-curation"}
       <SettingsCuration />
+    {:else if $router.route?.name === "mandates"}
+      <Mandates />
+    {:else if $router.route?.name === "mandate"}
+      {#key $router.params.id}
+        <Mandate id={$router.params.id ?? ""} />
+      {/key}
+    {:else if $router.route?.name === "human-mandate-new"}
+      <SecureGate><HumanMandateNew navigate={router.navigate} /></SecureGate>
+    {:else if $router.route?.name === "night-shift"}
+      <NightShift />
+    {:else if $router.route?.name === "human-night-shift"}
+      <SecureGate><HumanNightShift /></SecureGate>
+    {:else if $router.route?.name === "critics"}
+      {#key $router.query.critic ?? ""}
+        <Critics critic={$router.query.critic ?? ""} />
+      {/key}
     {:else if $router.route?.name === "human-curation"}
       <SecureGate><HumanCuration /></SecureGate>
     {:else if $router.route?.name === "human-record-publish"}
