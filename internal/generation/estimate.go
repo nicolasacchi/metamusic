@@ -198,8 +198,10 @@ func (s *Service) estimate(ctx context.Context, p auth.Principal, in EstimateIn,
 	if err := pl.expandAll(in.Items); err != nil {
 		return Estimate{}, err
 	}
-	if len(pl.takes) > MaxTakes { // a plan_seeds item counts as one take before expansion; its real jobs are counted here
-		return Estimate{}, tooLarge(len(pl.takes), 0)
+	// a plan_seeds item counts as one take before expansion; its real jobs are counted here, against the batch's backend limit
+	// (takeLimit: 50 for every backend but a pod, the pod window for a pod batch; a nil pod estimate is the 50-take limit)
+	if err := pod.takeLimit(len(pl.takes)); err != nil {
+		return Estimate{}, err
 	}
 	pl.markV2Canary()
 	if pod != nil {
