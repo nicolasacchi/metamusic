@@ -3,6 +3,7 @@ package app_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -34,21 +35,19 @@ func TestBuildEnv_KindIngesterRegistration(t *testing.T) {
 		hook func(*app.BuildEnv) error
 		want string // "" = Build succeeds
 	}{
-		// analyze belongs to the Ears track (internal/app/ears.go registers it in every Build); plan is the Desk's, still free
-		{"plan", func(e *app.BuildEnv) error {
+		// analyze belongs to the Ears track and plan to the Desk track (internal/app/ears.go and desk.go register them in every Build)
+		{"take hooks", func(e *app.BuildEnv) error {
 			e.AddTakeHook(nopTake{})
 			e.AddTakeHook(nil)
-			return e.AddKindIngester(jobs.KindPlan, nopKind{})
+			return nil
 		}, ""},
+		{"plan is registered by the Desk track", func(e *app.BuildEnv) error { return e.AddKindIngester(jobs.KindPlan, nopKind{}) }, "already has an ingester"},
 		{"analyze is registered by the Ears track", func(e *app.BuildEnv) error { return e.AddKindIngester(jobs.KindAnalyze, nopKind{}) }, "already has an ingester"},
 		{"generate is not registrable", func(e *app.BuildEnv) error { return e.AddKindIngester(jobs.KindGenerate, nopKind{}) }, "no ingester can be registered"},
 		{"unknown kind", func(e *app.BuildEnv) error { return e.AddKindIngester("render", nopKind{}) }, "no ingester can be registered"},
 		{"nil ingester", func(e *app.BuildEnv) error { return e.AddKindIngester(jobs.KindPlan, nil) }, "nil ingester"},
 		{"duplicate", func(e *app.BuildEnv) error {
-			if err := e.AddKindIngester(jobs.KindPlan, nopKind{}); err != nil {
-				return err
-			}
-			return e.AddKindIngester(jobs.KindPlan, nopKind{})
+			return errors.Join(e.AddKindIngester(jobs.KindAnalyze, nopKind{}), e.AddKindIngester(jobs.KindPlan, nopKind{}))
 		}, "already has an ingester"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
