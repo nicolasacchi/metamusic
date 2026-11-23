@@ -43,11 +43,13 @@ const runpodUsage = `usage: metamusic runpod <command>
   arm [--engine E] --endpoint-name N --reason TEXT [--after-restore]   (N is mm-yue2 or mm-acestep, typed)
   disarm [--engine E] --reason TEXT
   reset-trip [--engine E] --reason TEXT
-` + contractUsage + `  canary --url URL [--max-usd 0.50] [--case main|cot-full|terminate|timeout|kill-switch|v2-wire|fallback|tier-b|analyze]
+` + contractUsage + `  canary --url URL [--max-usd 0.50] [--case main|cot-full|terminate|timeout|kill-switch|v2-wire|fallback|tier-b|analyze|plan|plan-render]
          [--verify-billing BATCH] [--keep] [--start-timeout 12m] [--kill-switch-confirm]
                                               scripted agent over REST with MM_TOKEN (read + write + generate)
   canary --case tier-b|analyze --dry-run      prints the Ears cases' worst case and spends nothing; analyze takes [--source-track ID]
                                               (else it renders one main take first); both spend real money and need written approval
+  canary --case plan|plan-render --dry-run    prints the Desk cases' worst case and spends nothing; plan needs capabilities plan,v2 open;
+                                              plan-render takes [--plan-id ID] (else the plan of the newest kept cot-full canary take)
   canary --engine acestep15 --max-usd N --case t2m|t2m-long|reference|repaint|terminate|timeout|kill-switch|init-fail|first-pull
                                               (E2a) or extend|complete|extract|base-long|lrc|cover (E2b); --max-usd is required
          [--source-track ID] [--pools P[,P]] [--max-s 480|600] [--init-fail-confirm] [--measured-out FILE]
@@ -1080,7 +1082,7 @@ func cmdRunPodCanary(ctx context.Context, args []string, getenv func(string) str
 	fs := newFlags("runpod canary", s)
 	urlFlag := fs.String("url", "", "the server's base `URL`")
 	maxUSD := fs.String("max-usd", "0.50", "refuse when the estimate's ceiling exceeds this many dollars (required for --engine acestep15)")
-	cs := fs.String("case", "", "yue2: main|cot-full|terminate|timeout|kill-switch|v2-wire|fallback|tier-b|analyze (default main); acestep15: see the usage")
+	cs := fs.String("case", "", "yue2: main|cot-full|terminate|timeout|kill-switch|v2-wire|fallback|tier-b|analyze|plan|plan-render (default main); acestep15: see the usage")
 	verify := fs.String("verify-billing", "", "after MM_BILLING_LAG: check the billing of batch `BATCH`")
 	keep := fs.Bool("keep", false, "keep the canary takes (default: discard them)")
 	killConfirm := fs.Bool("kill-switch-confirm", false, "kill-switch case: an operator will run `provision --deactivate` while the job is generating")
@@ -1091,6 +1093,7 @@ func cmdRunPodCanary(ctx context.Context, args []string, getenv func(string) str
 	dry := fs.Bool("dry-run", false, "acestep15: print the worst case and spend nothing")
 	partFlag := fs.String("part", "", "acestep15 --dry-run: a (E2a) or b (E2b); default both")
 	source := fs.String("source-track", "", "acestep15: a kept 30 s track the edit cases use instead of rendering their own source; yue2 analyze: the take to analyze")
+	planID := fs.String("plan-id", "", "yue2 plan-render: the Desk plan to render (default: the plan of the newest kept cot-full canary take)")
 	poolsFlag := fs.String("pools", "", "acestep15: the configured GPU pools (default MM_ACESTEP_POOLS)")
 	maxS := fs.Int("max-s", 480, "acestep15 t2m-long and base-long: the candidate maximum in seconds (480; 600 only on a 32/48 GB pool being verified)")
 	initConfirm := fs.Bool("init-fail-confirm", false, "init-fail case: the endpoint was provisioned with `provision --engine acestep15 --init-fail`")
@@ -1111,21 +1114,33 @@ func cmdRunPodCanary(ctx context.Context, args []string, getenv func(string) str
 	}
 	given := map[string]bool{}
 	fs.Visit(func(f *flag.Flag) { given[f.Name] = true })
+	if g.isACE() && given["plan-id"] {
+		return usage("--plan-id belongs to --case plan-render, which is a yue2 case")
+	}
 	if g.isACE() {
 		return cmdCanaryACEStep(ctx, getenv, s, aceCanaryFlags{url: *urlFlag, maxUSD: *maxUSD, maxUSDGiven: given["max-usd"], cs: *cs, verify: *verify,
 			keep: *keep, killConfirm: *killConfirm, startTimeout: *startTimeout, all: *all, dry: *dry, part: *partFlag, source: *source,
 			pools: *poolsFlag, maxS: *maxS, initConfirm: *initConfirm, measuredOut: *measuredOut, price: *priceFlag}, usage)
 	}
 	earsCase := *cs == string(runpod.CaseTierB) || *cs == string(runpod.CaseAnalyze)
+	deskCase := *cs == string(runpod.CasePlan) || *cs == string(runpod.CasePlanRender)
+	if given["plan-id"] && *cs != string(runpod.CasePlanRender) {
+		return usage("--plan-id belongs to --case plan-render")
+	}
 	for _, f := range []string{"all", "dry-run", "part", "source-track", "pools", "max-s", "init-fail-confirm", "measured-out", "price-usd-hour"} {
 		// M5b Ears (C341.1): the two Ears cases take --dry-run, and analyze takes --source-track
-		if given[f] && !(earsCase && f == "dry-run") && !(*cs == string(runpod.CaseAnalyze) && f == "source-track") {
+		if given[f] && !((earsCase || deskCase) && f == "dry-run") && !(*cs == string(runpod.CaseAnalyze) && f == "source-track") {
 			return usage("--" + f + " is an acestep15 flag")
 		}
 	}
 	if *dry && earsCase {
 		p := runpod.EarsBudgetParams{}
 		fmt.Fprint(s.out, runpod.FormatEarsWorstCase(p, runpod.EarsWorstCase(p)))
+		return nil
+	}
+	if *dry && deskCase {
+		p := runpod.DeskBudgetParams{}
+		fmt.Fprint(s.out, runpod.FormatDeskWorstCase(p, runpod.DeskWorstCase(p)))
 		return nil
 	}
 	if *cs == "" {
@@ -1146,7 +1161,7 @@ func cmdRunPodCanary(ctx context.Context, args []string, getenv func(string) str
 		return usage("--start-timeout must be a positive duration")
 	}
 	o := runpod.CanaryOptions{BaseURL: *urlFlag, Token: token, MaxUSD: limit, Keep: *keep, Log: s.err, StartTimeout: *startTimeout,
-		KillSwitchConfirm: *killConfirm, SourceTrack: *source}
+		KillSwitchConfirm: *killConfirm, SourceTrack: *source, PlanID: *planID}
 	var rep *runpod.CanaryReport
 	if *verify != "" {
 		rep, err = runpod.VerifyBilling(ctx, o, *verify)

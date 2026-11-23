@@ -52,7 +52,7 @@ const (
 )
 
 // CanaryCases lists them in documentation order.
-var CanaryCases = []CanaryCase{CaseMain, CaseCotFull, CaseTerminate, CaseTimeout, CaseKillSwitch, CaseV2Wire, CaseFallback, CaseTierB, CaseAnalyze}
+var CanaryCases = []CanaryCase{CaseMain, CaseCotFull, CaseTerminate, CaseTimeout, CaseKillSwitch, CaseV2Wire, CaseFallback, CaseTierB, CaseAnalyze, CasePlan, CasePlanRender}
 
 // ParseCanaryCase validates a --case value.
 func ParseCanaryCase(s string) (CanaryCase, error) {
@@ -78,7 +78,7 @@ func canaryCaseList() string {
 
 // canaryBars is the length of each case's score: YuE2 has no duration control, so the explicit ABC score
 // bounds the render (two seconds per bar at the fixed tempo).
-var canaryBars = map[CanaryCase]int{CaseMain: 8, CaseCotFull: 8, CaseTerminate: 32, CaseTimeout: 64, CaseKillSwitch: 64, CaseV2Wire: 8, CaseFallback: 8, CaseTierB: 8, CaseAnalyze: 8}
+var canaryBars = map[CanaryCase]int{CaseMain: 8, CaseCotFull: 8, CaseTerminate: 32, CaseTimeout: 64, CaseKillSwitch: 64, CaseV2Wire: 8, CaseFallback: 8, CaseTierB: 8, CaseAnalyze: 8, CasePlan: 8, CasePlanRender: 8}
 
 // CanarySpec is one case's synthetic take.
 type CanarySpec struct {
@@ -131,6 +131,9 @@ func NewCanarySpec(c CanaryCase, day time.Time, n int) (CanarySpec, error) {
 	}
 	if isEarsCase(c) {
 		return newEarsSpec(c, day, n, bars)
+	}
+	if isDeskCase(c) {
+		return newDeskSpec(c, day, n, bars)
 	}
 	cot := "melody"
 	if c == CaseCotFull {
@@ -207,6 +210,9 @@ type CanaryOptions struct {
 	MaxS int
 	// InitFailConfirm: the operator has provisioned the endpoint with `provision --engine acestep15 --init-fail`.
 	InitFailConfirm bool
+
+	// PlanID is the Desk plan the plan-render case renders (DESK-C1); empty makes the plan of the newest kept cot-full canary take.
+	PlanID string
 
 	// Fallback is the host-side half of the fallback case (canary_bulk.go); nil refuses that case before any spend.
 	Fallback FallbackHooks
@@ -651,6 +657,11 @@ func (c *canary) run(ctx context.Context, spec CanarySpec) (*CanaryReport, error
 		if c.ceilSum > c.o.MaxUSD {
 			return c.finish("refused", ExitRefused, "the stages' estimate ceilings so far (%s) exceed --max-usd %s", c.ceilSum.USD(), c.o.MaxUSD.USD()), nil
 		}
+	}
+	if est.RequiresHumanApproval {
+		// a render_plan batch from an agent always awaits the Owner (desk_render) unless a mandate covers it: refuse before a batch
+		// and its reservation exist
+		return c.finish("refused", ExitRefused, "the estimate requires human approval (a Desk render awaits the Owner unless a covering mandate exists); no batch was created and nothing was spent"), nil
 	}
 	var batch cBatch
 	err = c.do(ctx, http.MethodPost, "/api/generations", map[string]string{"Idempotency-Key": idempotencyKey(spec.RequestID, est.ConfirmationToken)},
