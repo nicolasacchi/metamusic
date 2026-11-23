@@ -72,6 +72,8 @@ type Service struct {
 	earsQ earsSeams // set by UseEars (seams_ears.go, UseEarsQuote); the zero value plans no listening check
 	// mandates is set by UseMandates (seams_m6n.go); nil refuses an EstimateIn that names a mandate
 	mandates MandateCover
+	// pods is set by UsePods (seams_bulk.go); nil refuses a pod estimate
+	pods *PodConfig
 }
 
 // New builds the service.
@@ -136,6 +138,9 @@ type EstimateIn struct {
 	// MandateID (M6N C368, Go-only: the REST and MCP estimate input has no such field) quotes the estimate under a spending mandate
 	// that stands in for the per-batch approval. Strict: a plan the mandate does not cover is 409 MANDATE_UNAVAILABLE and no row is written.
 	MandateID string
+	// PodCanary is options.pod_canary (BULK-P6, C399.2): "self_terminate" makes the estimate the one-take self-termination canary of the
+	// pod backend, which always waits for the Owner's approval. "" for every other estimate.
+	PodCanary string
 }
 
 // Warning is one estimate warning for a take.
@@ -208,6 +213,8 @@ type Estimate struct {
 	Provider         provider.State
 	// Mandate is set by Preview when EstimateIn.MandateID is (Go-only); Estimate sets it only for a covered plan.
 	Mandate *MandateCoverage
+	// Pod is the pod block of a pod estimate (boot allowance and absolute batch deadline); nil for every other estimate.
+	Pod *PodBlock
 }
 
 // CreateIn is a create request (C72.4). VariantTrackID is set by create_variant.

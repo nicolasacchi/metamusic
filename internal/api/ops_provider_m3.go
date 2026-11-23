@@ -154,6 +154,7 @@ func registerProviderM3(a huma.API, d Deps) {
 			}
 			body := providerStatusAll(p, all.Default, all)
 			body.UploadFallback = d.uploadFallbackStatus(ctx)
+			d.addPodBlocks(ctx, &body)
 			return &providerStatusOut{Body: body}, nil
 		})
 
@@ -182,6 +183,7 @@ func registerProviderM3(a huma.API, d Deps) {
 			// the answer's top level is the backend that changed (the default one when none is named)
 			body := providerStatusAll(p, s, all)
 			body.UploadFallback = d.uploadFallbackStatus(ctx)
+			d.addPodBlocks(ctx, &body)
 			return &providerStatusOut{Body: body}, nil
 		})
 }

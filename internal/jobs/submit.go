@@ -281,7 +281,7 @@ func (r *Runner) claimTx(ctx context.Context, tx *sql.Tx, backend string) (*clai
 	if g.idleS > b.IdleS {
 		r.warnIdleDrift(b, g.idleS)
 	}
-	overhead := money.ForSeconds(int64(r.o.ColdStartS+idle), price)
+	overhead := attemptOverhead(backend, r.o.ColdStartS, idle, price)
 	ce, err := r.reserve(ctx, tx, f, &j, b, &attemptID, "attempt_overhead", overhead)
 	if err != nil {
 		return nil, err
@@ -821,4 +821,13 @@ func decodeQuote(raw, at string) (provider.Quote, error) {
 	}
 	qt.ObservedAt = t
 	return qt, nil
+}
+
+// attemptOverhead is the per-attempt cold start plus idle reserve. A pod batch carries its boot and idle in the quote's own pod overhead
+// (C398.1), so a pod attempt reserves nothing extra: the frozen idle_s of 1 only satisfies the schema CHECK.
+func attemptOverhead(backend string, coldStartS, idleS int, price money.MicroUSD) money.MicroUSD {
+	if provider.IsPodBackend(backend) {
+		return 0
+	}
+	return money.ForSeconds(int64(coldStartS+idleS), price)
 }
