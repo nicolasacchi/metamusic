@@ -5912,7 +5912,7 @@ export interface components {
              * @description How the take list is built; see the modes table
              * @enum {string}
              */
-            mode: "new_seed" | "same_seed_edit" | "lyric_edit" | "style_edit" | "from_draft" | "compose_new" | "from_template" | "song_pr" | "port" | "extend" | "repaint" | "reference" | "complete" | "stems" | "cover" | "render_plan" | "analyze";
+            mode: "new_seed" | "same_seed_edit" | "lyric_edit" | "style_edit" | "from_draft" | "compose_new" | "from_template" | "song_pr" | "port" | "extend" | "repaint" | "reference" | "complete" | "stems" | "cover" | "render_plan" | "plan_seeds" | "analyze";
             /**
              * Format: int64
              * @description Seeds per base recipe (default 1)

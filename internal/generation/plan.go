@@ -44,6 +44,8 @@ func itemTakeCount(it Item) int {
 		if it.Desk != nil {
 			return per * len(it.Desk.PlanIDs) // per seed, per plan (C360.1)
 		}
+	case lineage.ModePlanSeeds:
+		return 1 // the jobs of an item depend on the engine's length (C360.5); the estimate re-checks MaxTakes against the real jobs after expansion
 	case lineage.ModeAnalyze:
 		return len(it.TrackIDs) // one job per track (C340.3)
 	case lineage.ModeStems:
@@ -75,6 +77,9 @@ func validateItem(i int, it Item, eng engine.Engine) error {
 	}
 	if it.Mode == lineage.ModeAnalyze {
 		return validateAnalyzeItem(i, it)
+	}
+	if it.Mode == lineage.ModePlanSeeds {
+		return validatePlanSeedsItem(i, it, eng)
 	}
 	if len(it.TrackIDs) > 0 {
 		return invalidItem(i, "track_ids", "not_allowed_for_"+it.Mode)
@@ -371,6 +376,8 @@ type planner struct {
 	analyze map[int]int // analyze takes (expand_ears.go): take index -> expected Tier B seconds
 
 	plans map[string]PlanRow // render_plan: the Desk plans of the items (resolvePlans)
+
+	planJobs map[int]int // plan_seeds jobs (expand_desk.go): take index -> seeds of the job
 }
 
 type lintFailure struct {
@@ -518,6 +525,8 @@ func (p *planner) expandAll(items []Item) error {
 			err = p.expandAnalyze(i, it)
 		case lineage.ModeRenderPlan:
 			err = p.expandRenderPlan(i, it)
+		case lineage.ModePlanSeeds:
+			err = p.expandPlanSeeds(i, it)
 		case lineage.ModeComposeNew:
 			err = p.expandCompose(i, it)
 		case lineage.ModeFromTemplate:
