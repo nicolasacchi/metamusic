@@ -4,6 +4,7 @@
   // costs; opening one shows its notation and the bar editor.
   import { untrack } from "svelte";
   import { api as defaultApi } from "../api/client";
+  import PlanSeedsForm from "../lib/components/PlanSeedsForm.svelte";
   import { checkAbc, listPlans, type DeskFailure, type PlanSummary } from "../lib/deskApi";
   import { deskPlanHref, filtersFromQuery, filtersToQuery, groupByBase, noFilters, planFacts, planLabel, reportLines, verdictText, type DeskFilters } from "../lib/deskView";
 
@@ -13,8 +14,18 @@
     client?: typeof defaultApi;
     /** Pre-loaded first page (unit tests). */
     initial?: PlanSummary[];
+    /** Client-router navigation (the plan_seeds form hands off to /human/generate). */
+    navigate?: (to: string) => void;
   }
-  let { query = {}, client = defaultApi, initial }: Props = $props();
+  let { query = {}, client = defaultApi, initial, navigate }: Props = $props();
+  function go(to: string) {
+    if (navigate) navigate(to);
+    else {
+      history.pushState(null, "", to);
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    }
+  }
+  let seedsBase = $state("");
 
   // svelte-ignore state_referenced_locally
   let filters = $state<DeskFilters>(query ? filtersFromQuery(query) : { ...noFilters });
@@ -30,6 +41,7 @@
   // svelte-ignore state_referenced_locally
   let skipFirst = initial !== undefined;
   const groups = $derived(groupByBase(items));
+  const bases = $derived(groups.filter((g) => g.trackId !== null).map((g) => ({ id: g.trackId as string, title: g.title })));
 
   async function load(more = false) {
     const mine = ++seq;
@@ -101,6 +113,8 @@
   {/if}
 </section>
 
+<PlanSeedsForm {bases} base={seedsBase} {go} {client} />
+
 <details class="card check" data-testid="desk-check">
   <summary>Check a score</summary>
   <label>Score (ABC notation)
@@ -126,6 +140,9 @@
     {#each groups as g (g.key)}
       <section class="card group" data-testid="desk-group">
         <h2>{#if g.trackId}<a href="/tracks/{g.trackId}">{g.title}</a>{:else}{g.title}{/if}</h2>
+        {#if g.trackId}
+          <button type="button" class="more-seeds" onclick={() => { seedsBase = g.trackId ?? ""; document.querySelector("[data-testid=plan-seeds]")?.scrollIntoView({ block: "nearest" }); }} data-testid="desk-plan-more">Plan more scores for this take</button>
+        {/if}
         <ul>
           {#each g.plans as p (p.id)}
             <li data-testid="desk-plan" data-id={p.id}>

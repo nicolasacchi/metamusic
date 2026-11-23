@@ -10,6 +10,7 @@
   import PodList from "../lib/components/PodList.svelte";
   import { podErrorCodes, shouldPollPods } from "../lib/bulkView";
   import { can } from "../lib/me.svelte";
+  import { planJobLabel, planJobsHref } from "../lib/deskRender";
 
   type Batch = components["schemas"]["Batch"];
   type Pod = components["schemas"]["PodSummary"];
@@ -115,6 +116,12 @@
   <BatchCard {batch} {viewer} {busy} onterminate={terminateBatch} />
   {#if batch.rationale}<p>Rationale: {batch.rationale}</p>{/if}
   {#if batch.approval.reasons.length > 0}<p class="muted">Approval notes: {batch.approval.reasons.join("; ")}</p>{/if}
+  {@const planJobs = (batch.jobs ?? []).filter((j) => j.kind === "plan" && j.state === "completed")}
+  {#each planJobs as j, i (j.id)}
+    {#if can("list_plans")}
+      <p data-testid="batch-plans"><a class="btn" href={planJobsHref(j.id)} data-testid="batch-plans-link">Open the plans from {planJobLabel(i, planJobs.length)} in the Desk</a></p>
+    {/if}
+  {/each}
   {#if pods.length > 0}
     <section data-testid="batch-pods" aria-label="Pod">
       <h2>Pod</h2>

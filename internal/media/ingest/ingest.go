@@ -55,6 +55,11 @@ func toolErr(err error, invalidOnExit bool, detail string) *Error {
 		}
 		return &Error{Code: code, Detail: detail + ": " + te.Error(), Err: err}
 	}
+	// Not a tool exit: the analyzer's own verdict (probe pending, output limit, unparseable output). These messages are static
+	// strings of internal/analysis, internal/analysis/ffmpeg and mediatool and name no path or argv, so they are safe to surface.
+	if msg := err.Error(); strings.HasPrefix(msg, "ffmpeg: ") || strings.HasPrefix(msg, "analysis: ") || strings.HasPrefix(msg, "mediatool: ") {
+		return &Error{Code: CodeToolFailed, Detail: detail + ": " + msg, Err: err}
+	}
 	return &Error{Code: CodeToolFailed, Detail: detail, Err: err}
 }
 

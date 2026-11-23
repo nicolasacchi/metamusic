@@ -106,7 +106,7 @@
   <button type="button" onclick={() => void loadCaps()}>Try again</button>
 {:else if !avail.available}
   <p class="muted" role="status" data-testid="score-unavailable">{avail.reason}</p>
-  <p class="muted"><a href="/transforms">Back to transforms</a></p>
+  <p class="muted back"><a href="/transforms">Back to transforms</a></p>
 {:else}
   <section class="card" data-testid="score-form">
     <div class="seg" role="group" aria-label="Source of the score">
@@ -185,10 +185,15 @@
       <p class="err" role="alert" data-testid="score-refused">{refusalLine}</p>
     {/if}
   </div>
-  <p class="muted"><a href="/transforms">All transforms</a></p>
+  <p class="muted back"><a href="/transforms">All transforms</a></p>
 {/if}
 
 <style>
+  .back a {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--hit);
+  }
   .intro,
   .err {
     overflow-wrap: anywhere;

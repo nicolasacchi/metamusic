@@ -6,6 +6,7 @@ import { join, resolve } from "node:path";
 import { EDGE_SECRET, HEADERS } from "./env";
 import { missingOperations, uiOperations } from "./coverage";
 import { serverEnv, startServer, stopServer, freePort } from "./server";
+import { configureTestSoundfont } from "./soundfont";
 
 /**
  * The agent of the approval spec (C86.5): a read+write+generate PAT made through the human create_token op, and a
@@ -54,6 +55,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   writeFileSync(join(secretsDir, "edge_secret"), EDGE_SECRET + "\n", { mode: 0o600 });
   // Canary for the leak scanner (C39): its value must never appear in any response body or header.
   writeFileSync(join(secretsDir, "ntfy_token"), `canary-${randomBytes(16).toString("hex")}\n`, { mode: 0o600 });
+  configureTestSoundfont(root);
   process.env.MM_E2E_BIN_RESOLVED = bin;
   process.env.MM_E2E_TEMPLATE = template;
   process.env.MM_E2E_RUN_DIR = runDir;
