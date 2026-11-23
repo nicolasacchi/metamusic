@@ -87,6 +87,8 @@
   import NightShift from "./routes/NightShift.svelte";
   import HumanNightShift from "./routes/HumanNightShift.svelte";
   import Critics from "./routes/Critics.svelte";
+  import MorningCrates from "./routes/MorningCrates.svelte";
+  import MorningCrate from "./routes/MorningCrate.svelte";
   import Offline from "./routes/Offline.svelte";
   import New from "./routes/New.svelte";
   import Queue from "./routes/Queue.svelte";
@@ -346,6 +348,12 @@
       <NightShift />
     {:else if $router.route?.name === "human-night-shift"}
       <SecureGate><HumanNightShift /></SecureGate>
+    {:else if $router.route?.name === "morning"}
+      <MorningCrates />
+    {:else if $router.route?.name === "morning-crate"}
+      {#key $router.params.id}
+        <MorningCrate id={$router.params.id ?? ""} navigate={router.navigate} />
+      {/key}
     {:else if $router.route?.name === "critics"}
       {#key $router.query.critic ?? ""}
         <Critics critic={$router.query.critic ?? ""} />

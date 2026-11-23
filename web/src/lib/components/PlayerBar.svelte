@@ -7,7 +7,7 @@
   import { api } from "../../api/client";
   import type { Player } from "../player.svelte";
   import { fmt } from "../time";
-  import { isTapeItem } from "../recordMedia";
+  import { isNonTakeItem } from "../recordMedia";
   import { judge } from "../judge.svelte";
   import { sheet } from "../nowPlaying.svelte";
   import QueueIcon from "./icons/QueueIcon.svelte";
@@ -25,7 +25,7 @@
   let commenting = $state(false);
   const trackId = $derived(player.state.trackId);
   /** A `tape:<id>` current item is not a take: no rating, comments, cover fetch, peaks or take link. */
-  const tape = $derived(isTapeItem(trackId));
+  const tape = $derived(isNonTakeItem(trackId));
   const restoredLabel = $derived(
     `Resume ${player.title}${player.state.restored !== null && player.state.restored >= 1 ? ` at ${fmt(player.state.restored)}` : ""}`,
   );
@@ -58,7 +58,7 @@
   $effect(() => {
     const id = player.state.trackId;
     if (!id || id === peaksFor) return;
-    if (isTapeItem(id)) {
+    if (isNonTakeItem(id)) {
       peaks = null;
       return;
     }

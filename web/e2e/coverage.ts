@@ -9,15 +9,6 @@ type Doc = { paths: Record<string, Record<string, { operationId?: string; "x-mm"
  * entry is only ever added for a page that is still to come.
  */
 export const PENDING_UI: ReadonlySet<string> = new Set<string>([
-  // M6N-W2 (lane loop-web-b) adds the /morning and /morning/:id pages: the player's crate mode, blind rating, the reveal and the settings
-  // (m6-night C384, spec m6n-morning.spec.ts); it removes these seven.
-  "get_morning_crate_settings",
-  "update_morning_crate_settings",
-  "list_morning_crates",
-  "get_morning_crate",
-  "build_morning_crate",
-  "submit_morning_crate_events",
-  "reveal_morning_crate",
   // BULK-W1 (lane bulk-web) adds the Batch pod block and the Jobs live pods (m6-bulk C398.6, spec bulk-pods.spec.ts, // ops: ..., list_pods); it removes this one.
   "list_pods",
 ]);

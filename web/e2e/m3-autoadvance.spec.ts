@@ -45,7 +45,7 @@ function watchKinds(page: Page) {
     page.evaluate(
       () =>
         new Promise<{ id: string; kind: string; track_id?: string; to_ms?: number; from_ms?: number }[]>((resolve) => {
-          const open = indexedDB.open("mm-outbox", 1);
+          const open = indexedDB.open("mm-outbox");
           open.onerror = () => resolve([]);
           open.onsuccess = () => {
             const db = open.result;

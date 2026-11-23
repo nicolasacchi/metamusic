@@ -5,7 +5,7 @@
   import { tick } from "svelte";
   import { api } from "../../api/client";
   import { fmt } from "../time";
-  import { isTapeItem } from "../recordMedia";
+  import { isNonTakeItem } from "../recordMedia";
   import { judge } from "../judge.svelte";
   import { player } from "../player.svelte";
   import { dragCloses, sheet } from "../nowPlaying.svelte";
@@ -26,7 +26,7 @@
   const s = $derived(player.state);
   const trackId = $derived(s.trackId);
   /** A `tape:<id>` current item is not a take: no rating, comments, cover fetch, peaks or take link. */
-  const tape = $derived(isTapeItem(trackId));
+  const tape = $derived(isNonTakeItem(trackId));
   const j = $derived(trackId && !tape ? judge.get(trackId) : undefined);
   const phone = $derived(viewport.phone);
   let root = $state<HTMLElement>();
@@ -62,7 +62,7 @@
   $effect(() => {
     const id = trackId;
     if (!sheet.open || !id || id === peaksFor) return;
-    if (isTapeItem(id)) {
+    if (isNonTakeItem(id)) {
       peaks = null;
       return;
     }

@@ -61,6 +61,42 @@ function setup(opts: { duration?: number; currentTime?: number } = {}) {
   return { player, ms, el, handlers, sets, positions, calls, doc, win, cleanup, tick: (n: number) => (t += n) };
 }
 
+describe("mediaSession in crate mode (C384.2)", () => {
+  test("previoustrack and nexttrack are the headset grammar; the lock screen says Morning crate with the app icon", () => {
+    const { player, ms, el, handlers, calls, win } = setup();
+    const presses: string[] = [];
+    const p = player as typeof player & { crate?: unknown; artist?: string };
+    p.crate = { press: (a: string) => void presses.push(a) };
+    p.artist = "Morning crate";
+    player.title = "Take 2 of 12";
+    player.album = "Side A";
+    (handlers.get("previoustrack") as () => void)();
+    (handlers.get("nexttrack") as () => void)();
+    expect(presses).toEqual(["previoustrack", "nexttrack"]);
+    expect(calls).toEqual([]); // transport prev/next were not used
+    el.dispatchEvent(new Event("mm:meta"));
+    const m = (ms.metadata as { init: { title: string; artist: string; album: string; artwork: unknown[] } }).init;
+    expect(m).toMatchObject({ title: "Take 2 of 12", artist: "Morning crate", album: "Side A" });
+    expect(m.artwork).toEqual(artworkList(null));
+    expect(handlers.get("seekforward")).toBeNull();
+    expect(handlers.get("seekbackward")).toBeNull();
+    // re-registered after the usual lock-screen churn
+    handlers.clear();
+    el.dispatchEvent(new Event("playing"));
+    expect(handlers.has("nexttrack")).toBe(true);
+    handlers.clear();
+    win.dispatchEvent(new Event("pageshow"));
+    expect(handlers.has("previoustrack")).toBe(true);
+  });
+
+  test("outside crate mode the same actions are plain transport", () => {
+    const { handlers, calls } = setup();
+    (handlers.get("previoustrack") as () => void)();
+    (handlers.get("nexttrack") as () => void)();
+    expect(calls).toEqual(["prev", "next"]);
+  });
+});
+
 describe("mediaSession", () => {
   test("a masked (blind) player puts no title, album or artwork into the metadata", async () => {
     const { player, ms, el } = setup();

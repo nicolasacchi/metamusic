@@ -3,6 +3,7 @@
 import { createOfflineManager, isNetworkError, realDeps, type Format, type OfflineDeps, type LocalItem, type LocalSource, type OfflineManager, type OfflineSet, type Status, type SyncSummary } from "../api/offline";
 import { detectOfflineAvailable } from "../api/swRegister";
 import { can } from "./me.svelte";
+import { offlineSides, parseMorningItem, type MorningCrate } from "./morningCrate";
 
 export type { LocalItem, LocalSource, Status, SyncSummary };
 
@@ -29,6 +30,9 @@ export class OfflineStore {
   quota = $state<{ quota: number; usage: number } | null>(null);
   persisted = $state<boolean | null>(null);
   syncing = $state(false);
+  /** Sides of the Morning Crate on this device (by side index) and the download progress of the running one. */
+  morningSides = $state<number[]>([]);
+  morningProgress = $state<Record<number, Progress>>({});
   lastSummary = $state<SyncSummary | null>(null);
   error = $state("");
 
@@ -144,10 +148,37 @@ export class OfflineStore {
     }
   }
 
+  /** Which sides of this crate are complete on the device (the page's "Offline" state). */
+  async refreshMorning(crateId: string): Promise<void> {
+    if (!this.available) return;
+    try {
+      this.morningSides = await this.m().morningSides(crateId);
+    } catch {
+      this.morningSides = [];
+    }
+  }
+
+  /** "Make offline": every side of this crate; the previous crate's sides go once they are all in. Throws OfflineError. */
+  async downloadMorning(view: MorningCrate, signal?: AbortSignal): Promise<void> {
+    if (!this.available) return;
+    const sides = offlineSides(view, Date.now());
+    if (sides.length === 0) return;
+    this.morningProgress = {};
+    try {
+      await this.m().downloadMorning(view.id, sides, (side, done, total) => (this.morningProgress = { ...this.morningProgress, [side]: { done, total } }), signal);
+    } finally {
+      this.morningProgress = {};
+      await this.refreshMorning(view.id);
+      await this.refresh();
+    }
+  }
+
   /** A complete local file for the track, or null (also null once the player marked it suspect). */
   async localSource(trackId: string): Promise<(LocalSource & { title?: string }) | null> {
     if (!this.available || this.suspect.has(trackId)) return null;
     try {
+      const mi = parseMorningItem(trackId);
+      if (mi) return await this.m().morningSource(mi.crate, mi.side);
       return await this.m().localSource(trackId);
     } catch {
       return null;

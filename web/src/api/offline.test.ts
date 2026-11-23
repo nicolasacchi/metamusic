@@ -390,3 +390,70 @@ describe("evict and list", () => {
     expect(await r.deps.store.listFiles()).toHaveLength(0);
   });
 });
+
+describe("morning crate sides (C384.5)", () => {
+  async function side(r: Rig, n: number, seed: number) {
+    const data = body(n, seed);
+    const s = await sha(data);
+    r.fake.files.set(`/media/${s}.flac`, data);
+    return { url: `/media/${s}.flac?exp=1`, sha256: s, bytes: n, data };
+  }
+  const file = (f: Awaited<ReturnType<typeof side>>, n: number, label: string) => ({ side: n, label, url: f.url, sha256: f.sha256, bytes: f.bytes, duration_s: 1200 });
+
+  test("trackless files write no tracks row, and carry only neutral names", async () => {
+    const r = await rig();
+    const m = createOfflineManager(r.deps);
+    const a = await side(r, 3000, 50);
+    await m.downloadMorning("c1", [file(a, 0, "Side A")]);
+    expect(await r.deps.store.listTracks()).toEqual([]);
+    const f = await r.deps.store.meta(a.sha256, "flac");
+    expect(f?.complete).toBe(true);
+    expect(f).toMatchObject({ track_id: "", title: "Morning crate", album: "Side A", morning: { id: "c1", side: 0 } });
+    expect(await m.list()).toEqual([]); // not a track in the offline list
+  });
+
+  test("morning files survive sync", async () => {
+    const r = await rig();
+    const m = createOfflineManager(r.deps);
+    const a = await side(r, 3000, 51);
+    await m.downloadMorning("c1", [file(a, 0, "Side A")]);
+    const s = await m.sync();
+    expect(s.evicted).toEqual([]);
+    expect(await m.morningSource("c1", 0)).toEqual({ src: `/media/${a.sha256}.flac`, contentType: "audio/flac", format: "flac", coverSrc: null });
+  });
+
+  test("a newer crate evicts the previous crate's sides, but only once all its own sides are in", async () => {
+    const r = await rig();
+    const m = createOfflineManager(r.deps);
+    const a = await side(r, 3000, 52);
+    const b = await side(r, 4000, 53);
+    const c = await side(r, 5000, 54);
+    await m.downloadMorning("old", [file(a, 0, "Side A")]);
+    r.fake.fail.set(c.url.split("?")[0]!, []);
+    // a failing newer download keeps the old crate
+    r.fake.files.delete(`/media/${c.sha256}.flac`);
+    await expect(m.downloadMorning("new", [file(b, 0, "Side A"), file(c, 1, "Side B")])).rejects.toBeInstanceOf(OfflineError);
+    expect(await m.morningSides("old")).toEqual([0]);
+    r.fake.files.set(`/media/${c.sha256}.flac`, c.data);
+    await m.downloadMorning("new", [file(b, 0, "Side A"), file(c, 1, "Side B")]);
+    expect(await m.morningSides("new")).toEqual([0, 1]);
+    expect(await m.morningSource("old", 0)).toBeNull();
+    expect(await r.deps.store.meta(a.sha256, "flac")).toBeNull();
+    expect(await r.deps.store.getChunk(a.sha256, "flac", 0)).toBeNull();
+  });
+
+  test("downloading again is a no-op and a track download never touches a morning file", async () => {
+    const r = await rig();
+    const m = createOfflineManager(r.deps);
+    const a = await side(r, 3000, 55);
+    await m.downloadMorning("c1", [file(a, 0, "Side A")]);
+    const n = r.fake.calls.length;
+    await m.downloadMorning("c1", [file(a, 0, "Side A")]);
+    expect(r.fake.calls.length).toBe(n);
+    await m.downloadById("t2", { title: "Song t2", album: "Album t2", duration_s: 12 });
+    await m.evict("t2");
+    expect(await m.morningSource("c1", 0)).not.toBeNull();
+    expect(await m.evictMorningExcept(null)).toEqual(["c1"]);
+    expect(await m.morningSource("c1", 0)).toBeNull();
+  });
+});
