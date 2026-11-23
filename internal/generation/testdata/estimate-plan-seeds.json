@@ -1,0 +1,38 @@
+{
+  "Jobs": [
+    {
+      "Kind": "plan",
+      "Operator": "plan_seeds",
+      "Title": "Luna Park · plans ×4",
+      "Parent": "01900000-0000-7000-8000-000000000101",
+      "RequestID": "fx-luna",
+      "Needs": [
+        "plan",
+        "v2"
+      ],
+      "Spec": {
+        "plan": {
+          "seconds_per_seed": 7,
+          "seeds": [
+            102,
+            103,
+            104,
+            105
+          ]
+        }
+      },
+      "Seed": 101,
+      "ExpectedAudioS": 30,
+      "ExpectedS": 47,
+      "TimeoutS": 140,
+      "ExpectedMicro": 9009,
+      "MaxMicro": 68043,
+      "Reuse": "01900000-0000-7000-8000-000000000201"
+    }
+  ],
+  "Expected": 47343,
+  "Max": 68043,
+  "Ceiling": 136086,
+  "Count": 1,
+  "RequiresApproval": false
+}

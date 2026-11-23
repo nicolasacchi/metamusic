@@ -172,7 +172,7 @@ func (s *Service) recheckPatches(ctx context.Context, tx lineage.Querier, p auth
 				return err
 			}
 		}
-		if t.ParentTrackID != nil && t.Kind != jobspec.KindAnalyze { // an analyze adds no sibling to a root's backlog
+		if t.ParentTrackID != nil && t.Kind != jobspec.KindAnalyze && t.Kind != jobspec.KindPlan { // an analyze or plan job adds no sibling to a root's backlog
 			parents = append(parents, *t.ParentTrackID)
 		}
 	}
