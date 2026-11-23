@@ -97,12 +97,11 @@ def _code(e: BaseException) -> str:
         return e.code
     if isinstance(e, InterruptedError):
         return "DEADLINE"
-    if isinstance(e, ValueError):
-        return "BAD_INPUT"
     return "PLAN_FAILED"
 
 
-def build_bundle(plan: Any, request: Mapping[str, Any], seed: int, seconds: float, version: str, scratch: Path) -> bytes:
+def build_bundle(plan: Any, request: Mapping[str, Any], seed: int, seconds: float, version: str, scratch: Path,
+                 cot: str | None = None) -> bytes:
     """The tar bytes for one planned seed. Raises SeedError (NO_SCORE, SCORE_TOO_LARGE) for a plan that cannot ship."""
     abc = getattr(plan, "abc", None)
     if not isinstance(abc, str) or not abc.strip():
@@ -111,12 +110,16 @@ def build_bundle(plan: Any, request: Mapping[str, Any], seed: int, seconds: floa
     if len(score) > SCORE_MAX or b"\x00" in score:
         raise SeedError("SCORE_TOO_LARGE", "the plan's score is over its size limit")
     ids = getattr(plan, "abc_ids", None)
-    doc = {"seed": seed, "cot": request.get("cot"), "truncated": bool(getattr(plan, "truncated", False)),
+    cot = cot or request.get("cot")
+    if cot not in ("full", "melody"):  # the ingester accepts only these two
+        raise SeedError("BAD_INPUT", "the plan request has no usable cot")
+    doc = {"seed": seed, "cot": cot, "truncated": bool(getattr(plan, "truncated", False)),
            "abc_tokens": len(ids) if isinstance(ids, list) else None, "seconds": round(max(seconds, 0.0), 3), "yue2": version}
     plan_json = json.dumps(doc, sort_keys=True).encode()
     members: list[tuple[str, bytes]] = [("score.abc", score), ("plan.json", plan_json)]
 
     saved = scratch / "saved"
+    saved.mkdir(parents=True, exist_ok=True)
     plan.save(saved)  # yue2's own file set; only the token arrays are taken from it
     budget = TAR_MAX - _TAR_HEADROOM - len(score) - len(plan_json) - 4 * KIB  # 4 KiB: the manifest
     for name in OPTIONAL:
@@ -164,12 +167,15 @@ def _one(ctx: stages.StageContext, plan_fn: Callable[..., Any], i: int, seed: in
     t0 = ctx.clock()
     scratch = Path(tempfile.mkdtemp(prefix="plan-", dir=ctx.tmp))
     try:
-        kwargs = dict(ctx.adapter.validate(request))
+        try:
+            kwargs = dict(ctx.adapter.validate(request))
+        except ValueError as e:  # only a rejected request is the caller's fault; a ValueError from yue2 itself is not
+            raise SeedError("BAD_INPUT", str(e)) from e
         kwargs.pop("semantic_sampling", None)  # a plan has no semantic phase; YuE2Pipeline.plan would pass it into SongRequest
         plan = plan_fn(cancelled=ctx.cancelled, **kwargs)
         if ctx.cancelled() and getattr(plan, "truncated", False):
             return stages.PlanOutcome(i, seed, "error", "DEADLINE")  # cut short by the deadline (or a closed attempt)
-        data = build_bundle(plan, request, seed, ctx.clock() - t0, version, scratch)
+        data = build_bundle(plan, request, seed, ctx.clock() - t0, version, scratch, cot=kwargs.get("cot"))
         (ctx.tmp / plan_name(i)).write_bytes(data)
         return stages.PlanOutcome(i, seed, "ok", truncated={"abc": bool(plan.truncated), "semantic": False})
     except Exception as e:  # noqa: BLE001 - a seed's fault is that seed's error, never the job's

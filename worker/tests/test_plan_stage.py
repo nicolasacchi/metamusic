@@ -16,6 +16,7 @@ import pytest
 
 from mmworker import caps, stages
 from mmworker.contract import parse_job
+from mmworker.errors import WorkerError
 from mmworker.engines import yue2 as yue2_engine
 from mmworker.stages import plan as plan_stage
 
@@ -162,7 +163,7 @@ def test_plan_stage_one_failed_seed_keeps_the_others(sink: Sink) -> None:
 
     out = run2(sink, plan_raw(sink.base), fake(on_plan=sometimes))
     OUT2.validate(out)
-    assert [(p["status"], p.get("code")) for p in out["plans"]] == [("error", "BAD_INPUT"), ("ok", None)]
+    assert [(p["status"], p.get("code")) for p in out["plans"]] == [("error", "PLAN_FAILED"), ("ok", None)]
     assert [r.path.lstrip("/") for r in sink.puts()] == ["plan-01.tar", "mm-result.json"]
 
 
@@ -203,7 +204,7 @@ def test_plan_bundle_drops_oversize_optionals(tmp_path: Path) -> None:
 
         def save(self, directory: Path) -> None:
             d = Path(directory)
-            d.mkdir(parents=True)
+            d.mkdir(parents=True, exist_ok=True)
             (d / "abc_tokens.npy").write_bytes(b"\x93NUMPY" + bytes(2 << 20))  # over 1 MiB: left out
             (d / "prefix.npy").write_bytes(b"")  # empty: left out
     data = plan_stage.build_bundle(Big(), {"cot": "melody"}, 1, 0.5, "v", tmp_path)
@@ -217,7 +218,7 @@ def test_plan_bundle_stays_under_the_tar_limit(tmp_path: Path) -> None:
 
         def save(self, directory: Path) -> None:
             d = Path(directory)
-            d.mkdir(parents=True)
+            d.mkdir(parents=True, exist_ok=True)
             for n in ("abc_tokens.npy", "prefix.npy"):
                 (d / n).write_bytes(b"\x93NUMPY" + bytes((1 << 20) - 6))  # exactly 1 MiB each
 
@@ -306,3 +307,61 @@ def test_a_render_is_unchanged_by_the_plan_methods(sink: Sink) -> None:
     out = run2(sink, raw2(sink.base), pipe)
     OUT2.validate(out)
     assert not pipe.plan_calls and len(pipe.calls) == 1
+
+
+def test_handler_a_deadline_mid_plan_keeps_the_finished_seeds(sink: Sink) -> None:
+    clock = Clock()
+    n = {"i": 0}
+
+    def on_plan(_kw: dict[str, Any], cancelled: Callable[[], bool]) -> None:
+        n["i"] += 1
+        if n["i"] == 2:  # seed 1 runs past the generation deadline (t0 + 226) but not the upload deadline (t0 + 286)
+            clock.advance(240)
+            assert cancelled()
+            raise InterruptedError("cancelled")
+
+    out = run2(sink, plan_raw(sink.base, seeds=(1, 2, 3)), fake(on_plan=on_plan), clock=clock)
+    OUT2.validate(out)
+    assert [(p["status"], p.get("code")) for p in out["plans"]] == [("ok", None), ("error", "DEADLINE"), ("error", "DEADLINE")]
+    assert [r.path.lstrip("/") for r in sink.puts()] == ["plan-00.tar", "mm-result.json"]
+
+
+def test_handler_a_deadline_with_no_finished_seed_is_deadline(sink: Sink) -> None:
+    clock = Clock()
+
+    def on_plan(_kw: dict[str, Any], cancelled: Callable[[], bool]) -> None:
+        clock.advance(240)
+        raise InterruptedError("cancelled")
+
+    assert err(run2(sink, plan_raw(sink.base, seeds=(1, 2)), fake(on_plan=on_plan), clock=clock)) == "DEADLINE"
+
+
+def test_plan_without_cot_is_bad_input(tmp_path: Path) -> None:
+    take = parse_job(plan_raw("http://127.0.0.1:1", seeds=(1,)))
+    take.request.pop("cot", None)
+    ctx = stages.StageContext(take, tmp_path, {}, {}, Watch(None, Clock()), Clock(), float("inf"),
+                              yue2_engine.Adapter(fake()), None, None)
+    out = plan_stage.run(ctx)
+    assert [(o.status, o.code) for o in out] == [("error", "BAD_INPUT")]
+
+
+def test_plan_internal_value_error_is_plan_failed(tmp_path: Path) -> None:
+    out = plan_stage.run(stage_ctx(tmp_path, fake(plan_error=ValueError("inside yue2")), Clock(), Watch(None, Clock()), seeds=(1,)))
+    assert [(o.status, o.code) for o in out] == [("error", "PLAN_FAILED")]
+
+
+def test_adapter_plan_without_a_pipeline_plan_is_pipeline_error() -> None:
+    class Old:
+        def __call__(self, **_kw: Any) -> None: ...
+
+    with pytest.raises(WorkerError) as e:
+        yue2_engine.Adapter(Old()).plan(cancelled=lambda: False)  # type: ignore[arg-type]
+    assert e.value.code == "PIPELINE_ERROR"
+
+
+def test_plan_request_rejected_by_the_adapter_is_bad_input(tmp_path: Path) -> None:
+    take = parse_job(plan_raw("http://127.0.0.1:1", seeds=(1,)))
+    take.request.pop("style", None)  # the fake's request_kwargs raises ValueError for a missing key
+    ctx = stages.StageContext(take, tmp_path, {}, {}, Watch(None, Clock()), Clock(), float("inf"),
+                              yue2_engine.Adapter(fake()), None, None)
+    assert [(o.status, o.code) for o in plan_stage.run(ctx)] == [("error", "BAD_INPUT")]

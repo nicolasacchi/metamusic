@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from .. import env as envmod
-from ..errors import InitError
+from ..errors import InitError, WorkerError
 from ..pipeline import Pipeline, Plan, Result, resolve_3b, resolve_vae
 
 if TYPE_CHECKING:
@@ -39,6 +39,8 @@ class Adapter:
 
     def plan(self, *, cancelled: Callable[[], bool], **kwargs: Any) -> Plan:
         """The planning phase alone (DESK-P1)."""
+        if not hasattr(self._pipe, "plan"):
+            raise WorkerError("PIPELINE_ERROR", "the installed yue2 has no planning phase")
         return self._pipe.plan(cancelled=cancelled, **kwargs)
 
     def env_fingerprint(self, environ: Mapping[str, str]) -> dict[str, object]:
