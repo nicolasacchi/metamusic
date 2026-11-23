@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { isTapeItem } from "../recordMedia";
+  import { isNonTakeItem } from "../recordMedia";
   import { covers } from "../cover";
 
   interface Props {
@@ -33,7 +33,7 @@
     const id = trackId;
     src = null;
     failed = false;
-    if (!seen || isTapeItem(id)) return;
+    if (!seen || isNonTakeItem(id)) return;
     void covers.get(id).then((c) => {
       if (id === trackId) src = c?.url512 ?? null;
     });

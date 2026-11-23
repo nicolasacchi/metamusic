@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { components } from "./schema";
-import { createOutbox, memoryStore, type PostResult } from "./outbox";
+import { createApi } from "./client";
+import { createOutbox, memoryStore, morningBatches, morningBeaconUrl, onBeforeHide, onMorningResult, postMorning, startOutbox, type MorningOutEvent, type PostResult } from "./outbox";
 
 type Ev = components["schemas"]["ListenEventIn"];
 
@@ -188,5 +189,216 @@ describe("outbox", () => {
   test("ids and session ids produced by newEvent are uuidv7", async () => {
     const { newEventId } = await import("./outbox");
     expect(newEventId()).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  });
+});
+
+describe("morning channel (C384.4)", () => {
+  const mev = (crate: string, over: Partial<MorningOutEvent> = {}): MorningOutEvent => {
+    n++;
+    return { crate_id: crate, id: `0190000${String(n).padStart(5, "0")}-0000-7000-8000-000000000001`, side: 0, chapter: 1, kind: "skip", side_ms: 5000, client_at: "2026-11-23T08:00:00Z", ...over };
+  };
+
+  function rig(post: (e: MorningOutEvent[]) => Promise<PostResult>) {
+    const beacons: { url: string; json: string }[] = [];
+    const box = createOutbox<MorningOutEvent>({
+      store: memoryStore<MorningOutEvent>(),
+      post,
+      flushAt: 1,
+      batches: morningBatches,
+      body: (b) => JSON.stringify({ events: b.map(({ crate_id: _c, ...e }) => (void _c, e)) }),
+      beacon: (json, b) => (beacons.push({ url: morningBeaconUrl(b[0]!.crate_id), json }), true),
+      keepalive: () => {},
+      now: () => 1_000_000,
+    });
+    return { box, beacons };
+  }
+
+  test("batches never mix crates and stay under 100", () => {
+    const evs = [mev("a"), mev("b"), mev("a"), ...Array.from({ length: 101 }, () => mev("c"))];
+    const b = morningBatches(evs);
+    expect(b.map((x) => [x[0]!.crate_id, x.length])).toEqual([["a", 2], ["b", 1], ["c", 100], ["c", 1]]);
+  });
+
+  test("an event is sent as soon as it is queued, and once it settles it is never sent again", async () => {
+    const sent: MorningOutEvent[][] = [];
+    const { box } = rig(async (e) => (sent.push(e), { kind: "ok" }));
+    const e = mev("a");
+    await box.append(e);
+    await box.idle();
+    expect(sent).toEqual([[e]]);
+    expect(await box.pending()).toBe(0);
+    await box.flush();
+    expect(sent).toHaveLength(1);
+  });
+
+  test("a failed send keeps the SAME event id for the retry (the server counts a replay as a duplicate)", async () => {
+    const seen: string[] = [];
+    let fail = true;
+    const { box } = rig(async (e) => {
+      seen.push(...e.map((x) => x.id));
+      return fail ? { kind: "retry" } : { kind: "ok" };
+    });
+    await box.append(mev("a"));
+    await box.idle();
+    fail = false;
+    await box.flush();
+    expect(seen).toHaveLength(2);
+    expect(seen[0]).toBe(seen[1]!);
+    expect(await box.pending()).toBe(0);
+  });
+
+  test("hiding the page beacons each crate to its own URL without the crate id in the body, once", async () => {
+    const { box, beacons } = rig(async () => ({ kind: "retry" }));
+    await box.append(mev("a"));
+    await box.append(mev("b"));
+    await box.onHide();
+    await box.onHide();
+    expect(beacons.map((b) => b.url)).toEqual(["/api/morning-crates/a/events?mm_client=spa", "/api/morning-crates/b/events?mm_client=spa"]);
+    expect(beacons[0]!.json).not.toContain("crate_id");
+    expect(JSON.parse(beacons[0]!.json).events).toHaveLength(1);
+  });
+
+  test("the listen channel is unaffected by a morning box (separate stores)", async () => {
+    const { box } = rig(async () => ({ kind: "retry" }));
+    const l = setup();
+    await box.append(mev("a"));
+    expect(await l.box.pending()).toBe(0);
+    expect(await box.pending()).toBe(1);
+  });
+});
+
+describe("postMorning", () => {
+  const api = (status: number, body: unknown) =>
+    createApi({ baseUrl: "http://x.test", fetch: async () => new Response(JSON.stringify(body), { status, headers: { "Content-Type": status < 300 ? "application/json" : "application/problem+json" } }) });
+  const e: MorningOutEvent = { crate_id: "a", id: "i1", side: 0, chapter: 1, kind: "rate", side_ms: 0, client_at: "2026-11-23T08:00:00Z", stars: 4 };
+
+  test("accepted: ok, listeners hear revealed, the body carries no crate id", async () => {
+    let body = "";
+    const client = createApi({
+      baseUrl: "http://x.test",
+      fetch: async (r) => {
+        body = await r.text();
+        return new Response(JSON.stringify({ accepted: 1, duplicates: 0, rejected: [], revealed: true }), { status: 200, headers: { "Content-Type": "application/json" } });
+      },
+    });
+    const heard: unknown[] = [];
+    const off = onMorningResult((r) => heard.push(r));
+    expect(await postMorning([e], client)).toEqual({ kind: "ok" });
+    off();
+    expect(heard).toEqual([{ crate_id: "a", revealed: true }]);
+    expect(JSON.parse(body)).toEqual({ events: [{ id: "i1", side: 0, chapter: 1, kind: "rate", side_ms: 0, client_at: "2026-11-23T08:00:00Z", stars: 4 }] });
+  });
+
+  test("never-acceptable answers drop, server trouble retries", async () => {
+    for (const s of [400, 404, 409, 413, 422]) expect(await postMorning([e], api(s, { code: "X", message: "m" }))).toEqual({ kind: "drop" });
+    for (const c of ["HUMAN_ONLY", "FORBIDDEN_ROLE"]) expect(await postMorning([e], api(403, { code: c, message: "m" }))).toEqual({ kind: "drop" });
+    // an edge or session 403 is transient: the blind ratings stay queued
+    expect(await postMorning([e], api(403, { code: "FORBIDDEN", message: "m" }))).toEqual({ kind: "retry" });
+    expect(await postMorning([e], createApi({ baseUrl: "http://x.test", fetch: async () => new Response("denied", { status: 403 }) }))).toEqual({ kind: "retry" });
+    for (const s of [500, 502, 503]) expect(await postMorning([e], api(s, { code: "X", message: "m" }))).toEqual({ kind: "retry" });
+  });
+
+  test("one rejected event does not discard the valid ones of its batch", async () => {
+    const seen: string[][] = [];
+    const client = createApi({
+      baseUrl: "http://x.test",
+      fetch: async (r) => {
+        const ids = ((await r.json()) as { events: { id: string }[] }).events.map((x) => x.id);
+        seen.push(ids);
+        if (ids.includes("bad")) return new Response(JSON.stringify({ code: "VALIDATION", message: "m" }), { status: 422, headers: { "Content-Type": "application/problem+json" } });
+        return new Response(JSON.stringify({ accepted: 1, duplicates: 0, rejected: [], revealed: false }), { status: 200, headers: { "Content-Type": "application/json" } });
+      },
+    });
+    const r = await postMorning([{ ...e, id: "g1" }, { ...e, id: "bad" }, { ...e, id: "g2" }], client);
+    expect(r).toEqual({ kind: "drop" });
+    expect(seen).toEqual([["g1", "bad", "g2"], ["g1"], ["bad"], ["g2"]]);
+  });
+
+  test("429 is a rate answer with Retry-After", async () => {
+    const client = createApi({ baseUrl: "http://x.test", fetch: async () => new Response("{}", { status: 429, headers: { "Retry-After": "7" } }) });
+    expect(await postMorning([e], client)).toEqual({ kind: "rate", retryAfterS: 7 });
+  });
+
+  test("a network failure retries", async () => {
+    const client = createApi({ baseUrl: "http://x.test", fetch: async () => Promise.reject(new TypeError("offline")), session: { retryDelay: async () => {}, networkFailure: async () => {}, ok() {}, confirmed() {} } as never });
+    expect(await postMorning([e], client)).toEqual({ kind: "retry" });
+  });
+
+  test("one crate that must retry keeps the whole batch (replays are duplicates)", async () => {
+    let call = 0;
+    const client = createApi({
+      baseUrl: "http://x.test",
+      fetch: async () => (++call === 1 ? new Response(JSON.stringify({ accepted: 1, duplicates: 0, rejected: [], revealed: false }), { status: 200, headers: { "Content-Type": "application/json" } }) : new Response("{}", { status: 503 })),
+    });
+    expect(await postMorning([e, { ...e, crate_id: "b", id: "i2" }], client)).toEqual({ kind: "retry" });
+  });
+});
+
+describe("onBeforeHide (hide hooks run before the beacon)", () => {
+  type G = { window?: unknown; document?: unknown };
+  const g = globalThis as unknown as G;
+  const saved = { window: g.window, document: g.document };
+  function env() {
+    const win = new EventTarget();
+    const doc = Object.assign(new EventTarget(), { visibilityState: "visible" });
+    g.window = win;
+    g.document = doc;
+    const order: string[] = [];
+    const box = { flush: async () => {}, onHide: async () => void order.push("beacon") } as unknown as Parameters<typeof startOutbox>[0];
+    const stop = startOutbox(box, []);
+    return { win, doc, order, stop };
+  }
+  const restore = () => {
+    g.window = saved.window;
+    g.document = saved.document;
+  };
+
+  test("pagehide and visibilitychange hidden run the hook before the beacon", () => {
+    const { win, doc, order, stop } = env();
+    const off = onBeforeHide(() => void order.push("hook"));
+    try {
+      win.dispatchEvent(new Event("pagehide"));
+      expect(order).toEqual(["hook", "beacon"]);
+      order.length = 0;
+      doc.visibilityState = "visible";
+      doc.dispatchEvent(new Event("visibilitychange"));
+      expect(order).toEqual([]);
+      doc.visibilityState = "hidden";
+      doc.dispatchEvent(new Event("visibilitychange"));
+      expect(order).toEqual(["hook", "beacon"]);
+    } finally {
+      off();
+      stop();
+      restore();
+    }
+  });
+
+  test("a throwing hook does not stop the other hooks or the beacon", () => {
+    const { win, order, stop } = env();
+    const off1 = onBeforeHide(() => {
+      throw new Error("boom");
+    });
+    const off2 = onBeforeHide(() => void order.push("second"));
+    try {
+      win.dispatchEvent(new Event("pagehide"));
+      expect(order).toEqual(["second", "beacon"]);
+    } finally {
+      off1();
+      off2();
+      stop();
+      restore();
+    }
+  });
+
+  test("an unregistered hook no longer runs", () => {
+    const { win, order, stop } = env();
+    onBeforeHide(() => void order.push("hook"))();
+    try {
+      win.dispatchEvent(new Event("pagehide"));
+      expect(order).toEqual(["beacon"]);
+    } finally {
+      stop();
+      restore();
+    }
   });
 });

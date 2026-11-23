@@ -12,15 +12,6 @@ export const PENDING_UI: ReadonlySet<string> = new Set<string>([
   // DESK-W2 (lane desk-web) adds the audition player and the Audition button on /desk/plans/:id (m5b-desk C363); it removes these two.
   "create_plan_audition",
   "get_plan_audition",
-  // M6N-W2 (lane loop-web-b) adds the /morning and /morning/:id pages: the player's crate mode, blind rating, the reveal and the settings
-  // (m6-night C384, spec m6n-morning.spec.ts); it removes these seven.
-  "get_morning_crate_settings",
-  "update_morning_crate_settings",
-  "list_morning_crates",
-  "get_morning_crate",
-  "build_morning_crate",
-  "submit_morning_crate_events",
-  "reveal_morning_crate",
   // BULK-W1 (lane bulk-web) adds the Batch pod block and the Jobs live pods (m6-bulk C398.6, spec bulk-pods.spec.ts, // ops: ..., list_pods); it removes this one.
   "list_pods",
 ]);
